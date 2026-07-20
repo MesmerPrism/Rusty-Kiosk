@@ -19,6 +19,7 @@ local.properties
 # Private device evidence
 artifacts/
 local-artifacts/
+tools/rusty-kiosk-native-panel-preview-android/**/src/test/snapshots/
 captures/
 screenshots/
 logs/

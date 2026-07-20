@@ -1,0 +1,58 @@
+{
+  "schema": "rusty.kiosk.panel_contract.v1",
+  "surface": {
+    "width_m": 1.55,
+    "height_m": 1.05,
+    "dp_per_meter": 700,
+    "width_dp": 1085,
+    "height_dp": 735,
+    "layout_dpi": 288,
+    "native_raster_width_px": 1953,
+    "native_raster_height_px": 1323
+  },
+  "authority": {
+    "browser": "interactive non-authoritative projection with synthetic catalogue data",
+    "native": "production Jetpack Compose panel rendered by Android Layoutlib through Paparazzi",
+    "quest": "final Spatial compositor, apparent-size, pointer, keyboard, and placement acceptance"
+  },
+  "layout": {
+    "outer_padding_dp": 20,
+    "section_gap_dp": 12,
+    "content_gap_dp": 16,
+    "app_list_weight": 0.46,
+    "app_details_weight": 0.54,
+    "corner_radius_dp": 8,
+    "palette": {
+      "background": "#191919",
+      "surface": "#242424",
+      "surface_variant": "#30302e",
+      "primary": "#e28b45",
+      "secondary": "#b9b3a8",
+      "text": "#f2efe9",
+      "muted": "#c9c4ba",
+      "divider": "#4a4945",
+      "selected": "#34302a",
+      "installed": "#a9d6a5",
+      "missing": "#ffb4a8"
+    }
+  },
+  "control_ids": [
+    "rusty-kiosk-panel",
+    "rusty-kiosk-search",
+    "rusty-kiosk-tag-filters",
+    "rusty-kiosk-app-list",
+    "rusty-kiosk-app-details",
+    "rusty-kiosk-normal-launch",
+    "rusty-kiosk-kiosk-launch",
+    "rusty-kiosk-accessibility-settings"
+  ],
+  "preview": {
+    "synthetic_only": true,
+    "scenarios": [
+      "catalog-ready",
+      "tag-filter-missing",
+      "guard-setup"
+    ],
+    "native_manifest": "artifacts/rusty-kiosk-native-panel-preview/manifest.json"
+  }
+}

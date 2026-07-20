@@ -23,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -49,83 +51,93 @@ internal fun RustyKioskPanel(
   onKioskLaunch: () -> Unit,
   onOpenAccessibilitySettings: () -> Unit,
 ) {
-  Column(
-    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(20.dp),
-    verticalArrangement = Arrangement.spacedBy(12.dp),
+  Surface(
+    modifier =
+      Modifier.fillMaxSize().testTag(RustyKioskPanelControls.ROOT),
+    color = MaterialTheme.colorScheme.background,
+    contentColor = MaterialTheme.colorScheme.onBackground,
   ) {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically,
+    Column(
+      modifier = Modifier.fillMaxSize().padding(20.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-      Column {
-        Text("Rusty Kiosk", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(
-          state.statusLine,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Column {
+          Text("Rusty Kiosk", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+          Text(
+            state.statusLine,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+          )
+        }
+        OutlinedButton(onClick = onRefresh, shape = RoundedCornerShape(8.dp)) {
+          Text("Reload")
+        }
       }
-      OutlinedButton(onClick = onRefresh, shape = RoundedCornerShape(8.dp)) {
-        Text("Reload")
-      }
-    }
 
-    OutlinedTextField(
-      value = state.searchQuery,
-      onValueChange = onSearchChanged,
-      label = { Text("Search apps, packages, or tags") },
-      singleLine = true,
-      modifier = Modifier.fillMaxWidth(),
-      shape = RoundedCornerShape(8.dp),
-    )
-
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-      item {
-        TagFilterButton(
-          label = "All apps",
-          selected = state.selectedTag == null,
-          onClick = { onTagSelected(null) },
-        )
-      }
-      items(state.tags, key = { it }) { tag ->
-        TagFilterButton(
-          label = tag,
-          selected = state.selectedTag == tag,
-          onClick = { onTagSelected(tag) },
-        )
-      }
-    }
-
-    Row(
-      modifier = Modifier.fillMaxWidth().weight(1.0f),
-      horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-      AppList(
-        entries = state.visibleEntries,
-        selectedKey = state.selectedKey,
-        onSelected = onAppSelected,
-        modifier = Modifier.weight(0.46f),
+      OutlinedTextField(
+        value = state.searchQuery,
+        onValueChange = onSearchChanged,
+        label = { Text("Search apps, packages, or tags") },
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth().testTag(RustyKioskPanelControls.SEARCH),
+        shape = RoundedCornerShape(8.dp),
       )
-      AppDetails(
-        entry = state.selectedEntry,
-        guardEnabled = state.guardEnabled,
-        onAddTag = onAddTag,
-        onRemoveTag = onRemoveTag,
-        onNormalLaunch = onNormalLaunch,
-        onKioskLaunch = onKioskLaunch,
-        onOpenAccessibilitySettings = onOpenAccessibilitySettings,
-        modifier = Modifier.weight(0.54f),
+
+      LazyRow(
+        modifier = Modifier.testTag(RustyKioskPanelControls.TAG_FILTERS),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        item {
+          TagFilterButton(
+            label = "All apps",
+            selected = state.selectedTag == null,
+            onClick = { onTagSelected(null) },
+          )
+        }
+        items(state.tags, key = { it }) { tag ->
+          TagFilterButton(
+            label = tag,
+            selected = state.selectedTag == tag,
+            onClick = { onTagSelected(tag) },
+          )
+        }
+      }
+
+      Row(
+        modifier = Modifier.fillMaxWidth().weight(1.0f),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+      ) {
+        AppList(
+          entries = state.visibleEntries,
+          selectedKey = state.selectedKey,
+          onSelected = onAppSelected,
+          modifier = Modifier.weight(0.46f),
+        )
+        AppDetails(
+          entry = state.selectedEntry,
+          guardEnabled = state.guardEnabled,
+          onAddTag = onAddTag,
+          onRemoveTag = onRemoveTag,
+          onNormalLaunch = onNormalLaunch,
+          onKioskLaunch = onKioskLaunch,
+          onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+          modifier = Modifier.weight(0.54f),
+        )
+      }
+
+      Text(
+        state.tagFilePath,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
       )
     }
-
-    Text(
-      state.tagFilePath,
-      style = MaterialTheme.typography.bodySmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant,
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-    )
   }
 }
 
@@ -145,7 +157,9 @@ private fun AppList(
   onSelected: (String) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Column(modifier = modifier.fillMaxHeight()) {
+  Column(
+    modifier = modifier.fillMaxHeight().testTag(RustyKioskPanelControls.APP_LIST)
+  ) {
     Text("Apps (${entries.size})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(6.dp))
     if (entries.isEmpty()) {
@@ -223,7 +237,11 @@ private fun AppDetails(
 ) {
   var tagInput by remember(entry?.key) { mutableStateOf("") }
   Column(
-    modifier = modifier.fillMaxHeight().border(1.dp, Divider, RoundedCornerShape(8.dp)).padding(14.dp),
+    modifier =
+      modifier.fillMaxHeight()
+        .testTag(RustyKioskPanelControls.APP_DETAILS)
+        .border(1.dp, Divider, RoundedCornerShape(8.dp))
+        .padding(14.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     if (entry == null) {
@@ -283,7 +301,8 @@ private fun AppDetails(
     Button(
       onClick = onNormalLaunch,
       enabled = entry.launchable,
-      modifier = Modifier.fillMaxWidth(),
+      modifier =
+        Modifier.fillMaxWidth().testTag(RustyKioskPanelControls.NORMAL_LAUNCH),
       colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
       shape = RoundedCornerShape(8.dp),
     ) {
@@ -292,7 +311,8 @@ private fun AppDetails(
     Button(
       onClick = onKioskLaunch,
       enabled = entry.launchable && guardEnabled,
-      modifier = Modifier.fillMaxWidth(),
+      modifier =
+        Modifier.fillMaxWidth().testTag(RustyKioskPanelControls.KIOSK_LAUNCH),
       shape = RoundedCornerShape(8.dp),
     ) {
       Text("Kiosk launch")
@@ -312,7 +332,9 @@ private fun AppDetails(
       )
       OutlinedButton(
         onClick = onOpenAccessibilitySettings,
-        modifier = Modifier.fillMaxWidth(),
+        modifier =
+          Modifier.fillMaxWidth()
+            .testTag(RustyKioskPanelControls.ACCESSIBILITY_SETTINGS),
         shape = RoundedCornerShape(8.dp),
       ) {
         Text("Open Accessibility settings")

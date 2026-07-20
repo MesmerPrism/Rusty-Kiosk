@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rusty Kiosk panel preview</title>
+    <link rel="stylesheet" href="./styles.css?v=panel-preview-v1" />
+  </head>
+  <body>
+    <header id="authoring-toolbar" aria-label="Preview controls">
+      <div class="toolbar-title">
+        <strong>Rusty Kiosk panel</strong>
+        <span>1085 × 735 dp · interactive browser + native Android authority</span>
+      </div>
+      <label>Scenario <select id="preview-scenario"></select></label>
+      <label>View
+        <select id="preview-renderer">
+          <option value="browser">Browser projection</option>
+          <option value="native">Native Android · authoritative</option>
+          <option value="compare">50% comparison overlay</option>
+        </select>
+      </label>
+      <label class="toolbar-check"><input id="preview-guard" type="checkbox" /> Guard enabled</label>
+      <button id="export-state" type="button">Export state</button>
+      <button id="import-state" type="button">Import state</button>
+      <input id="import-state-file" type="file" accept="application/json" hidden />
+      <a id="capture-link" href="?capture=1">Capture mode</a>
+      <span id="native-preview-status" aria-live="polite"></span>
+    </header>
+
+    <main id="preview-viewport">
+      <div id="preview-frame">
+        <div id="preview-scale-shell">
+          <section id="rusty-kiosk-panel" aria-label="Rusty Kiosk launcher panel">
+            <header id="panel-header"></header>
+            <label id="search-shell" for="rusty-kiosk-search">
+              <span>Search apps, packages, or tags</span>
+              <input id="rusty-kiosk-search" type="search" autocomplete="off" />
+            </label>
+            <nav id="rusty-kiosk-tag-filters" aria-label="Tag filters"></nav>
+            <div id="panel-content">
+              <section id="rusty-kiosk-app-list" aria-label="App list"></section>
+              <section id="rusty-kiosk-app-details" aria-label="Selected app"></section>
+            </div>
+            <footer id="panel-footer"></footer>
+          </section>
+          <section id="native-panel-layer" hidden aria-label="Native Android panel render">
+            <img id="native-panel-image" alt="" />
+            <p id="native-panel-message"></p>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script type="module" src="./panel-preview.mjs?v=panel-preview-v1"></script>
+  </body>
+</html>

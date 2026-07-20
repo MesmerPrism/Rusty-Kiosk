@@ -7,7 +7,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1
 ```
 
 The gate checks public-boundary terms, manifest privacy constraints, Kotlin
-unit tests, Android lint, and a debug APK assembly.
+unit tests, browser/native panel contracts, Android lint, and a debug APK
+assembly.
 
 Unit tests cover:
 
@@ -23,6 +24,18 @@ Unit tests cover:
 The static guard checks additionally require Rusty Kiosk to disarm itself when
 its own package becomes foreground and prohibit Accessibility UI-tree access,
 global actions, gestures, and Android HOME-role declarations.
+
+The standard host gate runs the interactive browser model and verifies that
+the production Compose panel, shared geometry/control contract, browser
+projection, and source-bound native host remain synchronized. Run the deeper
+native visual gate separately when panel visuals change:
+
+```powershell
+pwsh -NoProfile -File .\tools\Test-RustyKioskPanelPreview.ps1 -RenderNative
+```
+
+That produces ignored source-bound images; it does not replace the headset
+gate below.
 
 ## Headset gate
 

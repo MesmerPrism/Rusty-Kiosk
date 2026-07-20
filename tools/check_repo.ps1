@@ -77,6 +77,11 @@ foreach ($file in $publicFiles) {
 
 Push-Location $repoRoot
 try {
+  & pwsh -NoProfile -ExecutionPolicy Bypass `
+    -File .\tools\Test-RustyKioskPanelPreview.ps1
+  if ($LASTEXITCODE -ne 0) {
+    throw "Panel preview contract gate failed with exit code $LASTEXITCODE."
+  }
   & .\gradlew.bat testDebugUnitTest lintDebug
   if ($LASTEXITCODE -ne 0) {
     throw "Gradle unit/lint gate failed with exit code $LASTEXITCODE."

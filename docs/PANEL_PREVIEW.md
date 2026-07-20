@@ -1,0 +1,124 @@
+# Panel preview workflow
+
+## Purpose
+
+Rusty Kiosk has two complementary desktop views of its one Spatial SDK panel:
+
+- **Browser projection** is interactive and optimized for rapid layout,
+  catalogue-state, tag, and onboarding-flow iteration.
+- **Native Android** compiles and renders the production Jetpack Compose panel
+  with Android Layoutlib through Paparazzi. It is the desktop visual authority.
+
+The Quest APK remains the final authority for compositor filtering, apparent
+angular size, controller/hand-pointer behavior, keyboard behavior, and scene
+placement. Neither desktop route is packaged as a WebView or controls a real
+headset.
+
+## Shared dimensions
+
+The production panel is 1.55 × 1.05 m at 700 dp per meter, giving a logical
+surface of 1085 × 735 dp. Meta Spatial SDK documents 288 dpi as the default
+dp-layout density, so the native preview renders 1953 × 1323 pixels. The
+browser uses one CSS pixel per Android dp and scales the complete canvas only
+to fit the desktop viewport.
+
+The checked contract is
+`references/rusty-kiosk-panel-contract.v1.json`. Accepted geometry, palette,
+control tags, scenarios, and renderer roles must change together across the
+production Compose source, browser projection, native renderer, and tests.
+
+Meta’s current panel-resolution guide explains both the
+`DpPerMeterDisplayOptions` calculation and matching Compose previews:
+https://developers.meta.com/horizon/documentation/spatial-sdk/spatial-sdk-2dpanel-resolution/
+
+## Interactive browser projection
+
+Start the local server from the repository root:
+
+```powershell
+pwsh -NoProfile -File .\tools\Start-RustyKioskPanelBrowserPreview.ps1
+```
+
+Open:
+
+```text
+http://127.0.0.1:8767/tools/rusty-kiosk-panel-browser-preview/
+```
+
+The projection supports:
+
+- app search by label, package, and tag;
+- tag filters and tag add/remove interactions;
+- launchable, installed-without-front-door, and not-installed states;
+- guard-enabled and guard-setup states;
+- normal/kiosk launch simulations;
+- deterministic JSON state export/import;
+- native Android and 50% comparison views after native generation.
+
+Selecting the 50% comparison view resets the browser projection to the selected
+canonical scenario. If you interact with the projection afterward, its status
+states that the browser and native states have diverged; select the comparison
+view again to realign them.
+
+All app/package records are synthetic. Import accepts only the bounded preview
+schema and never reads the headset catalogue or production tag file.
+
+Useful clean visual routes include:
+
+```text
+?scenario=catalog-ready&view=browser&capture=1
+?scenario=tag-filter-missing&view=browser&capture=1
+?scenario=guard-setup&view=browser&capture=1
+```
+
+These routes are suitable for iterating onboarding compositions. Generated
+screenshots remain ignored and should be reviewed before any deliberate
+publication.
+
+## Native Android rendering
+
+Generate all authoritative desktop-native scenarios:
+
+```powershell
+pwsh -NoProfile -File .\tools\Export-RustyKioskNativePanelPreview.ps1
+```
+
+The isolated host points its Android source set directly at these production
+files:
+
+- `CatalogModels.kt`
+- `RustyKioskPanel.kt`
+- `RustyKioskPanelContract.kt`
+- `RustyKioskTheme.kt`
+
+Paparazzi supports direct Compose snapshots without an emulator. The exporter
+records `catalog-ready`, `tag-filter-missing`, and `guard-setup`, verifies each
+1953 × 1323 raster, and writes a manifest containing the source commit, dirty
+state, individual source hashes, and image hashes. Paparazzi documentation:
+https://cashapp.github.io/paparazzi/
+
+Outputs live under:
+
+```text
+artifacts/rusty-kiosk-native-panel-preview/
+```
+
+They are ignored by Git. Refresh the browser projection and use its **View**
+selector to inspect the native image or compare it against HTML.
+
+## Validation
+
+Fast contract and interaction checks:
+
+```powershell
+pwsh -NoProfile -File .\tools\Test-RustyKioskPanelPreview.ps1
+```
+
+Include native rendering:
+
+```powershell
+pwsh -NoProfile -File .\tools\Test-RustyKioskPanelPreview.ps1 -RenderNative
+```
+
+A successful desktop render does not prove live Spatial input or placement.
+Use the attended headset checklist in `docs/VALIDATION.md` for those claims.

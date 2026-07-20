@@ -26,6 +26,23 @@ required during use.
 | Target runtime behavior | launched application |
 | Meta Home and system UI | Horizon OS |
 
+## Panel preview authority
+
+The production panel geometry and stable control identities are shared through
+`RustyKioskPanelGeometry` / `RustyKioskPanelControls` and mirrored in
+`references/rusty-kiosk-panel-contract.v1.json`.
+
+| Surface | Role |
+| --- | --- |
+| Browser projection | Fast interactive design with synthetic catalogue data |
+| Native Android preview | Production Compose rendering through Layoutlib/Paparazzi |
+| Quest APK | Spatial compositor, apparent size, input, keyboard, and placement authority |
+
+The browser owns no package discovery, tag file, guard state, or launch
+authority and is never packaged into the APK. The native preview imports the
+production Compose/model source directly instead of maintaining a second
+native facsimile.
+
 ## Escape sequence
 
 ```text

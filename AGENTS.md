@@ -4,8 +4,8 @@ Rusty Kiosk is a public Meta Spatial SDK example. Keep it portable, small, and
 free of private-project identities, assets, study flows, device serials, logs,
 screenshots, signing material, or generated APKs.
 
-Read `README.md`, `docs/ARCHITECTURE.md`, `docs/TAG_FILE.md`, and
-`docs/VALIDATION.md` before changing behavior.
+Read `README.md`, `docs/ARCHITECTURE.md`, `docs/TAG_FILE.md`,
+`docs/PANEL_PREVIEW.md`, and `docs/VALIDATION.md` before changing behavior.
 
 ## Product invariants
 
@@ -22,6 +22,13 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/TAG_FILE.md`, and
   hidden Accessibility activation.
 - A name-only tag-file entry that does not match an installed launchable app
   remains visible and is labeled not installed.
+- The browser preview is synthetic interactive design tooling, never a runtime
+  WebView or installed-app authority.
+- The native desktop preview compiles the production Compose panel and is the
+  desktop visual authority. Quest remains authoritative for spatial placement,
+  compositor output, apparent size, pointer input, and keyboard behavior.
+- Keep panel geometry, stable control tags, browser projection, native fixtures,
+  and `references/rusty-kiosk-panel-contract.v1.json` synchronized.
 
 Use `$meta-quest-workflow` before any headset, ADB, APK install/launch, logcat,
 screenshot, or physical-button validation. Keep raw device evidence private.

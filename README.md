@@ -47,6 +47,39 @@ Requirements:
 The debug APK is generated under `app/build/outputs/apk/debug/` and remains
 ignored by Git.
 
+## Panel design and onboarding visuals
+
+Rusty Kiosk includes the same three-tier panel workflow used for precise
+Spatial SDK iteration:
+
+1. an interactive browser projection for fast design work;
+2. a native Android render compiled from the production Compose panel for
+   typography, clipping, and alignment checks;
+3. the Quest APK as final authority for compositor output, apparent size,
+   pointer input, keyboard behavior, and spatial placement.
+
+Start the synthetic browser designer:
+
+```powershell
+pwsh -NoProfile -File .\tools\Start-RustyKioskPanelBrowserPreview.ps1
+```
+
+Then open
+`http://127.0.0.1:8767/tools/rusty-kiosk-panel-browser-preview/`. It supports
+search, tag filters, tag editing, installed and missing-app states, guard setup,
+launch simulations, deterministic state import/export, and clean capture URLs
+for onboarding visuals.
+
+Generate native renders from the real `RustyKioskPanel` source:
+
+```powershell
+pwsh -NoProfile -File .\tools\Export-RustyKioskNativePanelPreview.ps1
+```
+
+Refresh the browser designer and choose **Native Android** or the aligned
+comparison view. Generated PNGs and their source-binding manifest stay under
+ignored `artifacts/` paths. See [Panel preview workflow](docs/PANEL_PREVIEW.md).
+
 ## Enable the optional watchdog
 
 Horizon OS may not expose the normal Accessibility settings page. For an

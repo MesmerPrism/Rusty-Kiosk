@@ -10,12 +10,9 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.view.accessibility.AccessibilityManager
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import com.meta.spatial.compose.ComposeFeature
 import com.meta.spatial.compose.ComposeViewPanelRegistration
@@ -117,7 +114,9 @@ class RustyKioskActivity : AppSystemActivity() {
             Quaternion(0.0f, 0.0f, 1.0f, 0.0f),
           )
         ),
-        PanelDimensions(Vector2(PANEL_WIDTH_METERS, PANEL_HEIGHT_METERS)),
+        PanelDimensions(
+          Vector2(RustyKioskPanelGeometry.WIDTH_METERS, RustyKioskPanelGeometry.HEIGHT_METERS)
+        ),
         Scale(Vector3(1.0f, 1.0f, 1.0f)),
         Visible(true),
       )
@@ -134,7 +133,7 @@ class RustyKioskActivity : AppSystemActivity() {
             setWillNotDraw(false)
             setLayerType(View.LAYER_TYPE_HARDWARE, null)
             setContent {
-              MaterialTheme(colorScheme = kioskColorScheme()) {
+              RustyKioskTheme {
                 RustyKioskPanel(
                   state = state,
                   onSearchChanged = { query -> state = state.copy(searchQuery = query) },
@@ -153,9 +152,14 @@ class RustyKioskActivity : AppSystemActivity() {
         },
         settingsCreator = {
           UIPanelSettings(
-            shape = QuadShapeOptions(width = PANEL_WIDTH_METERS, height = PANEL_HEIGHT_METERS),
+            shape =
+              QuadShapeOptions(
+                width = RustyKioskPanelGeometry.WIDTH_METERS,
+                height = RustyKioskPanelGeometry.HEIGHT_METERS,
+              ),
             style = PanelStyleOptions(themeResourceId = R.style.PanelAppThemeOpaque),
-            display = DpPerMeterDisplayOptions(dpPerMeter = PANEL_DP_PER_METER),
+            display =
+              DpPerMeterDisplayOptions(dpPerMeter = RustyKioskPanelGeometry.DP_PER_METER),
             rendering = UIPanelRenderOptions(PanelRenderMode.Layer()),
           )
         },
@@ -261,28 +265,10 @@ class RustyKioskActivity : AppSystemActivity() {
       .addCategory(Intent.CATEGORY_LAUNCHER)
 
   private companion object {
-    const val PANEL_WIDTH_METERS = 1.55f
-    const val PANEL_HEIGHT_METERS = 1.05f
     const val PANEL_CENTER_Y_METERS = 1.32f
     const val PANEL_Z_METERS = 0.50f
     const val VIEW_ORIGIN_Z_METERS = 2.0f
-    const val PANEL_DP_PER_METER = 700.0f
     const val PANEL_LAYER_Z_INDEX = 99
     const val RETURN_RESTART_DELAY_MS = 500L
   }
 }
-
-private fun kioskColorScheme() =
-  darkColorScheme(
-    background = Color(0xFF191919),
-    surface = Color(0xFF242424),
-    surfaceVariant = Color(0xFF30302E),
-    primary = Color(0xFFE28B45),
-    onPrimary = Color(0xFF211307),
-    secondary = Color(0xFFB9B3A8),
-    onSecondary = Color(0xFF1D1B18),
-    onBackground = Color(0xFFF2EFE9),
-    onSurface = Color(0xFFF2EFE9),
-    onSurfaceVariant = Color(0xFFC9C4BA),
-    error = Color(0xFFFFB4A8),
-  )
