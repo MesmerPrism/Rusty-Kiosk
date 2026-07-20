@@ -1,0 +1,37 @@
+# Build and IDE output
+.gradle/
+.idea/
+build/
+**/build/
+local.properties
+*.iml
+
+# Android artifacts and signing material
+*.apk
+*.aab
+*.ap_
+*.idsig
+*.keystore
+*.jks
+*.pem
+*.p12
+
+# Private device evidence
+artifacts/
+local-artifacts/
+captures/
+screenshots/
+logs/
+*.log
+*.hprof
+
+# Machine-local configuration
+.env
+.env.*
+*.local.json
+local/
+
+# OS/editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store

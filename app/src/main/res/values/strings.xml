@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rusty Kiosk</string>
+    <string name="accessibility_service_label">Rusty Kiosk foreground guard</string>
+    <string name="accessibility_service_description">Observes top-level app and window changes while a user-selected soft-kiosk launch is active. It does not read UI content.</string>
+</resources>
