@@ -1,8 +1,10 @@
 # Transparent user controls
 
-Rusty Kiosk presents setup-helper readiness, Wi-Fi ADB, Accessibility, and Meta
-Home as separate capabilities. Each setting has an effective-state readback,
-requires an explicit action before it changes, and has a visible off route.
+Rusty Kiosk presents passthrough appearance, setup-helper readiness, Wi-Fi ADB,
+Accessibility, the direct PC link, local APK installation, and Meta Home as
+separate capabilities.
+Each setting has an effective-state readback, requires an explicit action before
+it changes, and has a visible off route.
 
 ## Components
 
@@ -14,6 +16,8 @@ requires an explicit action before it changes, and has a visible off route.
   session. It then accepts only the signature-protected fixed-operation enum.
 - No terminal application, loopback ADB client, generic command service, or raw
   shell exists in the product workflow.
+- The main APK's optional network listener accepts only the documented direct
+  protocol. It is off by default and does not broaden the setup helper.
 
 ## New-headset setup
 
@@ -33,7 +37,13 @@ requires an explicit action before it changes, and has a visible off route.
 5. Press **Request Wi-Fi ADB** only if wireless debugging is wanted. Horizon may
    show a protected Meta prompt; the wearer must approve or decline it.
 6. Press **Enable Accessibility** only if soft-kiosk launch is wanted.
-7. Optionally choose **Ask after every restart**. This preference is off by
+7. Press **Enable direct link** only if the local Windows operator is wanted.
+   Enter the displayed address and pairing code on the PC. Wi-Fi ADB is not
+   required for this connection.
+8. If direct APK installation is wanted, press **Allow local APK installs** and
+   respond to Android's visible per-app setting. Android still asks the wearer
+   to confirm or cancel each install session.
+9. Optionally choose **Ask after every restart**. This preference is off by
    default and can be reversed at any time.
 
 Provisioning launches the main app but enables neither Wi-Fi ADB nor
@@ -44,6 +54,10 @@ Horizon still decides whether and how to present approval.
 
 ## Status model
 
+- **Passthrough Natural / Contour LUT / Unavailable** combines Spatial SDK
+  effective-state readback with the retained LUT application state. Natural is
+  the persisted default. Contour LUT uses color bands to emphasize contours;
+  it is not neighborhood edge detection.
 - **Setup Not installed / Needs USB-C setup / Ready** is based on package,
   same-signer permission, and helper grant checks.
 - **Wireless Debugging On / Off** is read from Android's effective global
@@ -52,6 +66,10 @@ Horizon still decides whether and how to present approval.
   preference; it does not claim that Meta approved the transport.
 - **Accessibility Enabled / Disabled** is effective `AccessibilityManager`
   readback for Rusty Kiosk's exact service.
+- **Direct link Off / Starting / Ready / Error** combines the wearer's persisted
+  opt-in with the local listener's effective state and address.
+- **Local APK installer needs permission / wearer allowed** is Android
+  `canRequestPackageInstalls()` readback, not an install-success claim.
 - **Meta Home Available** reflects the normal Home path and explicit exit.
 
 ## Fixed interface
@@ -74,6 +92,11 @@ component while preserving all other enabled services.
 - Press **Disable Wi-Fi ADB**. This does not change Accessibility.
 - Press **Stop asking after restart** before disabling Wi-Fi ADB if both should
   stay off after the next boot.
+- Press **Disable direct link** to stop PC access without changing ADB,
+  Accessibility, or launches. Rotate the pairing code to invalidate a saved PC
+  credential; rotation also disables the link until re-enabled.
+- Revoke Rusty Kiosk's per-app installer permission in Android settings to stop
+  future local install sessions.
 - Uninstall the setup helper to remove the in-headset settings route. Browsing,
   tagging, normal launch, and an already running main app remain ordinary app
   behavior.
@@ -84,8 +107,11 @@ component while preserving all other enabled services.
 
 ## Security and privacy
 
-- No network listener, ADB key, pairing code, endpoint, token, shell output, or
-  list of other enabled Accessibility services is stored by Rusty Kiosk.
+- Rusty Kiosk stores only its generated pairing code, direct-link opt-in,
+  bounded replay IDs, app-owned staging files, and install receipts. It stores
+  no ADB key, shell output, or list of other enabled Accessibility services.
+- Direct v1 authenticates and integrity-checks requests and responses but does
+  not encrypt HTTP bodies. Use a trusted local network or private hotspot.
 - `WRITE_SECURE_SETTINGS` is broad Android authority even though this helper
   exposes only fixed operations. Install only trusted, reproducibly built APKs
   and keep both packages under the same signing identity.

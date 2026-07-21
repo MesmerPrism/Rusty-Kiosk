@@ -73,6 +73,8 @@ internal fun RustyKioskPanel(
   onDisableWifiAdb: () -> Unit,
   onEnableAccessibility: () -> Unit,
   onDisableAccessibility: () -> Unit,
+  onUseNaturalPassthrough: () -> Unit,
+  onUseContourPassthrough: () -> Unit,
   onExitToMetaHome: () -> Unit,
 ) {
   Surface(
@@ -120,6 +122,8 @@ internal fun RustyKioskPanel(
           onDisableWifiAdb = onDisableWifiAdb,
           onEnableAccessibility = onEnableAccessibility,
           onDisableAccessibility = onDisableAccessibility,
+          onUseNaturalPassthrough = onUseNaturalPassthrough,
+          onUseContourPassthrough = onUseContourPassthrough,
           onExitToMetaHome = onExitToMetaHome,
           modifier = Modifier.fillMaxWidth().weight(1.0f),
         )
@@ -557,9 +561,13 @@ private fun UserControlStatusBar(
     verticalAlignment = Alignment.CenterVertically,
   ) {
     StatusBadge("Setup", controls.setupStatusLabel, controls.setupHelperReady)
+    StatusBadge(
+      "Passthrough",
+      controls.passthroughStatusLabel,
+      controls.systemPassthroughEnabled && controls.passthroughLutApplied,
+    )
     StatusBadge("Wi-Fi ADB", controls.wifiStatusLabel, controls.wirelessDebuggingEnabled)
     StatusBadge("Accessibility", controls.accessibilityStatusLabel, controls.accessibilityEnabled)
-    StatusBadge("Meta Home", "Available", true)
     Spacer(Modifier.weight(1.0f))
     OutlinedButton(
       onClick = if (controlsOpen) onCloseUserControls else onOpenUserControls,
@@ -599,6 +607,8 @@ private fun UserControlCenter(
   onDisableWifiAdb: () -> Unit,
   onEnableAccessibility: () -> Unit,
   onDisableAccessibility: () -> Unit,
+  onUseNaturalPassthrough: () -> Unit,
+  onUseContourPassthrough: () -> Unit,
   onExitToMetaHome: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -612,6 +622,51 @@ private fun UserControlCenter(
       style = MaterialTheme.typography.bodySmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    Column(
+      modifier =
+        Modifier.fillMaxWidth()
+          .testTag(RustyKioskPanelControls.PASSTHROUGH_CONTROLS)
+          .border(1.dp, Divider, RoundedCornerShape(8.dp))
+          .padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+      Text(
+        "Passthrough appearance",
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+      )
+      ControlFact("System passthrough", controls.passthroughStatusLabel)
+      Text(
+        "Natural is the default. Contour LUT uses hard color bands to reveal contours; it is not camera edge detection.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        OutlinedButton(
+          onClick = onUseNaturalPassthrough,
+          enabled =
+            controls.passthroughStyle != KioskPassthroughStyle.NATURAL ||
+              !controls.systemPassthroughEnabled || !controls.passthroughLutApplied,
+          modifier = Modifier.weight(1.0f),
+          shape = RoundedCornerShape(8.dp),
+        ) {
+          Text("Natural")
+        }
+        OutlinedButton(
+          onClick = onUseContourPassthrough,
+          enabled =
+            controls.passthroughStyle != KioskPassthroughStyle.CONTOUR_LUT ||
+              !controls.systemPassthroughEnabled || !controls.passthroughLutApplied,
+          modifier = Modifier.weight(1.0f),
+          shape = RoundedCornerShape(8.dp),
+        ) {
+          Text("Contour LUT")
+        }
+      }
+    }
     Row(
       modifier = Modifier.fillMaxWidth().weight(1.0f),
       horizontalArrangement = Arrangement.spacedBy(14.dp),

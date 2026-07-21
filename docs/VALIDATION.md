@@ -27,6 +27,7 @@ Unit tests cover:
 - fixed setup-helper result parsing and fail-closed request matching;
 - exact-component Accessibility enable/disable list construction;
 - preservation of other enabled Accessibility services;
+- natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
 
 The static guard checks additionally require Rusty Kiosk to disarm itself when
@@ -70,7 +71,9 @@ pwsh -NoProfile -File .\tools\Test-RustyKioskPanelPreview.ps1 -RenderNative
 That produces ignored source-bound images; it does not replace the headset
 gate below.
 
-The gate also requires both Quest keyboard capabilities in the main manifest:
+The gate also requires the Meta passthrough capability and both Quest keyboard
+capabilities in the main manifest:
+`com.oculus.feature.PASSTHROUGH`,
 `com.oculus.feature.VIRTUAL_KEYBOARD` and
 `oculus.software.overlay_keyboard`.
 
@@ -80,37 +83,42 @@ Device validation is intentionally separate from source validation. Use an
 explicit Quest serial and the public Meta Quest workflow. A complete attended
 run should prove:
 
-1. the app opens one panel over passthrough with no room or skybox;
-2. at least one sideloaded and one Meta-distributed launchable app are listed;
-3. an externally edited tag file reloads without restarting the app;
-4. a name-only missing entry appears and is labeled not installed;
-5. normal launch leaves the watchdog disarmed;
-6. kiosk launch restores the target after Home #1 and Home #2;
-7. Home #3 within five seconds returns to a fresh Rusty Kiosk panel;
-8. one Home press from Rusty Kiosk reaches Meta Home;
-9. no Rusty Kiosk or target-package fatal occurs in the bounded log window.
-10. both native Android text fields open the Meta keyboard on a normal
+1. the app opens one panel over natural passthrough with no room or skybox;
+2. **User controls** reports `Natural`, switching to **Contour LUT** visibly
+   applies hard color bands, and switching back restores natural color;
+3. at least one sideloaded and one Meta-distributed launchable app are listed;
+4. an externally edited tag file reloads without restarting the app;
+5. a name-only missing entry appears and is labeled not installed;
+6. normal launch leaves the watchdog disarmed;
+7. kiosk launch restores the target after Home #1 and Home #2;
+8. Home #3 within five seconds returns to a fresh Rusty Kiosk panel;
+9. one Home press from Rusty Kiosk reaches Meta Home;
+10. no Rusty Kiosk or target-package fatal occurs in the bounded log window.
+11. both native Android text fields open the Meta keyboard on a normal
     wearer click and accept text;
-11. the status strip distinguishes setup-helper readiness, Wi-Fi ADB,
-    Accessibility, and Meta Home;
-12. the setup helper is unavailable before installation, reports **Needs USB-C
+12. the status strip distinguishes passthrough, Accessibility, and the direct link;
+13. the setup helper is unavailable before installation, reports **Needs USB-C
     setup** before its grant, and reports **Ready** only after serial-scoped
     provisioning;
-13. Accessibility can be enabled and disabled through the fixed helper while
+14. Accessibility can be enabled and disabled through the fixed helper while
     every other enabled Accessibility service is preserved;
-14. disabling Wi-Fi ADB leaves Accessibility unchanged;
-15. the restart request is off by default, can be enabled and disabled, and
+15. disabling Wi-Fi ADB leaves Accessibility unchanged;
+16. the restart request is off by default, can be enabled and disabled, and
     causes a new request only when enabled;
-16. after restart or a later manual request, Meta approval remains visible and
+17. after restart or a later manual request, Meta approval remains visible and
     attended; the panel reports only effective setting state;
-17. **Exit to Meta Home** disarms pending guard state and opens Meta Home.
+18. **Exit to Meta Home** disarms pending guard state and opens Meta Home.
 
 Run app actions through `tools/Invoke-RustyKioskCli.ps1`; display-coordinate
 touch injection is not accepted. `focus-search` and `focus-tag-editor` must
 route to the production native fields and produce an app marker showing the
-explicit IME request was issued without logging text. A normal wearer click is
-still required for Horizon to grant the Spatial display its served-view input
-connection and visually show the keyboard.
+explicit IME request was issued without logging text. The marker must show the
+same nonzero `fieldDisplayId` and `imeContextDisplayId`, an attached field, and
+a present window token. The source gate also requires the activity's
+`FLAG_ALT_FOCUSABLE_IM` keyboard-compositor compatibility flag. A normal wearer
+click is still required for Horizon to
+grant the Spatial display its served-view input connection and visually show
+the keyboard.
 System Home transitions may use an explicit Android HOME activity launch for
 CLI coverage, but that remains system-action evidence rather than physical
 Meta-button or Touch-controller parity. The CLI may trigger every fixed app

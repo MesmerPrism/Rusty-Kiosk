@@ -25,6 +25,8 @@ param(
     'disable-wifi-adb',
     'enable-accessibility',
     'disable-accessibility',
+    'passthrough-natural',
+    'passthrough-contour',
     'exit-meta-home'
   )]
   [string]$Command,

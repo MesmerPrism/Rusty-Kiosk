@@ -3,10 +3,12 @@ package io.github.mesmerprism.rustykiosk
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
@@ -34,11 +36,19 @@ class RustyKioskActivity : AppSystemActivity() {
   private val setupHelperClient by lazy(LazyThreadSafetyMode.NONE) { SetupHelperControlClient(this) }
   private val setupResultStore by lazy(LazyThreadSafetyMode.NONE) { SetupHelperResultStore(this) }
   private val cliStore by lazy(LazyThreadSafetyMode.NONE) { RustyKioskCliStore(this) }
+  private val passthroughSettings by lazy(LazyThreadSafetyMode.NONE) {
+    KioskPassthroughSettings(this)
+  }
+  private val operatorBridgeSettings by lazy(LazyThreadSafetyMode.NONE) {
+    OperatorBridgeSettings(this)
+  }
   private val guardLaunchHandoffLease by lazy(LazyThreadSafetyMode.NONE) {
     GuardLaunchHandoffLease(this)
   }
   private val mainHandler = Handler(Looper.getMainLooper())
   private var panelEntity: Entity? = null
+  private var passthroughController: RustyKioskPassthroughController? = null
+  private var passthroughState = KioskPassthroughState()
   private val kioskPanelDelegate = lazy(LazyThreadSafetyMode.NONE) { createKioskPanel() }
   private val kioskPanel: RustyKioskNativePanel
     get() = kioskPanelDelegate.value
@@ -64,6 +74,11 @@ class RustyKioskActivity : AppSystemActivity() {
     pendingCliRequestId =
       launchIntent.getStringExtra(RustyKioskCliProtocol.EXTRA_PENDING_REQUEST_ID)
     super.onCreate(savedInstanceState)
+    // Meta's VR keyboard can have an active served EditText and report mInputShown=true while its
+    // compositor surface remains hidden. This activity-window flag is Meta's Spatial SDK
+    // compatibility route for keeping the system IME surface visible above the immersive scene.
+    window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+    operatorBridgeSettings.ensureStartedIfEnabled()
     runCatching { systemManager.unregisterSystem<LocomotionSystem>() }
     guardLaunchHandoffLease.clear()
     launchController.disarm(
@@ -98,6 +113,9 @@ class RustyKioskActivity : AppSystemActivity() {
 
   override fun onResume() {
     super.onResume()
+    passthroughController?.let {
+      applyPassthroughStyle(passthroughSettings.load(), "activity-resumed", persist = false)
+    }
     guardLaunchHandoffLease.clear()
     launchController.disarm("rusty-kiosk-resumed")
     refreshCatalogue("activity-resumed")
@@ -112,6 +130,8 @@ class RustyKioskActivity : AppSystemActivity() {
   override fun onDestroy() {
     tagStore.stopWatching()
     mainHandler.removeCallbacksAndMessages(null)
+    passthroughController?.stop("activity-destroyed")
+    passthroughController = null
     if (kioskPanelDelegate.isInitialized()) kioskPanel.release()
     super.onDestroy()
   }
@@ -120,7 +140,11 @@ class RustyKioskActivity : AppSystemActivity() {
     super.onSceneReady()
     scene.setReferenceSpace(ReferenceSpace.LOCAL_FLOOR)
     scene.setViewOrigin(0.0f, 0.0f, VIEW_ORIGIN_Z_METERS, 180.0f)
-    scene.enablePassthrough(true)
+    passthroughController =
+      RustyKioskPassthroughController(scene) { marker ->
+        android.util.Log.i(PASSTHROUGH_LOG_TAG, marker)
+      }
+    applyPassthroughStyle(passthroughSettings.load(), "scene-ready", persist = false)
     panelEntity =
       Entity.createPanelEntity(
         R.id.kiosk_panel,
@@ -160,6 +184,15 @@ class RustyKioskActivity : AppSystemActivity() {
       onDisableWifiAdb = { dispatchSetupHelper(SetupHelperOperation.DISABLE_WIFI_ADB) },
       onEnableAccessibility = { dispatchSetupHelper(SetupHelperOperation.ENABLE_ACCESSIBILITY) },
       onDisableAccessibility = ::disableAccessibility,
+      onUseNaturalPassthrough = {
+        applyPassthroughStyle(KioskPassthroughStyle.NATURAL, "panel-natural")
+      },
+      onUseContourPassthrough = {
+        applyPassthroughStyle(KioskPassthroughStyle.CONTOUR_LUT, "panel-contour")
+      },
+      onToggleOperatorBridge = ::toggleOperatorBridge,
+      onRotateOperatorBridgeCode = ::rotateOperatorBridgeCode,
+      onRequestInstallerPermission = ::requestInstallerPermission,
       onExitToMetaHome = ::exitToMetaHome,
     ).also { it.update(state) }
 
@@ -326,6 +359,10 @@ class RustyKioskActivity : AppSystemActivity() {
         if (!isGuardEnabled()) cliOutcome(true, true, "Accessibility is already disabled.")
         else requestSetupOperationFromCli(request, SetupHelperOperation.DISABLE_ACCESSIBILITY)
       }
+      RustyKioskCliCommand.PASSTHROUGH_NATURAL ->
+        setPassthroughFromCli(KioskPassthroughStyle.NATURAL, "cli-natural")
+      RustyKioskCliCommand.PASSTHROUGH_CONTOUR ->
+        setPassthroughFromCli(KioskPassthroughStyle.CONTOUR_LUT, "cli-contour")
       RustyKioskCliCommand.EXIT_META_HOME -> {
         exitToMetaHome()
         cliOutcome(true, false, "Meta Home exit requested.")
@@ -468,25 +505,121 @@ class RustyKioskActivity : AppSystemActivity() {
       }
   }
 
+  private fun toggleOperatorBridge() {
+    val enable = !operatorBridgeSettings.snapshot().enabled
+    operatorBridgeSettings.setEnabled(enable)
+    refreshUserControls(
+      if (enable) {
+        "Starting the authenticated local operator link. It exposes only fixed Rusty Kiosk operations."
+      } else {
+        "Local operator access disabled. ADB recovery tools are unchanged."
+      }
+    )
+    mainHandler.postDelayed(
+      { refreshUserControls(if (enable) "Local operator link status refreshed." else null) },
+      OPERATOR_BRIDGE_SETTLE_MS,
+    )
+  }
+
+  private fun rotateOperatorBridgeCode() {
+    operatorBridgeSettings.rotatePairingCode()
+    refreshUserControls(
+      "Pairing code rotated and the direct link was disabled. Update the PC, then enable it again."
+    )
+  }
+
+  private fun requestInstallerPermission() {
+    runCatching {
+        startActivity(
+          Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:$packageName"),
+          )
+        )
+      }
+      .onSuccess {
+        refreshUserControls("Use Meta's visible setting to allow or deny local APK installation.")
+      }
+      .onFailure { throwable ->
+        refreshUserControls(
+          "The headset did not expose the per-app installer setting: ${throwable.message ?: throwable.javaClass.simpleName}"
+        )
+      }
+  }
+
+  private fun setPassthroughFromCli(
+    style: KioskPassthroughStyle,
+    source: String,
+  ): RustyKioskCliOutcome {
+    val updated = applyPassthroughStyle(style, source)
+    return cliOutcome(
+      accepted = updated.lutApplied,
+      completed = true,
+      message = updated.message,
+    )
+  }
+
+  private fun applyPassthroughStyle(
+    style: KioskPassthroughStyle,
+    source: String,
+    persist: Boolean = true,
+  ): KioskPassthroughState {
+    if (persist) passthroughSettings.save(style)
+    val controller = passthroughController
+    passthroughState =
+      if (controller == null) {
+        KioskPassthroughState(
+          style = style,
+          message = "The Spatial SDK scene is still starting; ${style.label} passthrough is queued.",
+        )
+      } else {
+        controller.apply(style, source)
+      }
+    refreshUserControls(passthroughState.message)
+    if (controller != null) {
+      mainHandler.postDelayed(
+        {
+          if (passthroughController === controller) {
+            passthroughState = controller.snapshot("$source-readback", emitMarker = true)
+            refreshUserControls()
+          }
+        },
+        PASSTHROUGH_READBACK_SETTLE_MS,
+      )
+    }
+    return passthroughState
+  }
+
   private fun readUserControls(messageOverride: String? = null): UserControlState {
     val installed = setupHelperClient.isInstalled()
     val ready =
       installed && setupHelperClient.hasControlPermission() &&
         setupHelperClient.hasWriteSecureSettings()
     val stored = setupResultStore.snapshot()
+    val bridge = operatorBridgeSettings.snapshot()
     return UserControlState(
+      passthroughStyle = passthroughState.style,
+      systemPassthroughEnabled = passthroughState.systemPassthroughEnabled,
+      passthroughLutApplied = passthroughState.lutApplied,
+      passthroughMessage = passthroughState.message,
       setupHelperInstalled = installed,
       setupHelperReady = ready,
       requestWifiAfterBoot = stored.requestAfterBoot,
       wirelessDebuggingEnabled =
         Settings.Global.getInt(contentResolver, WIFI_ADB_SETTING, 0) == 1,
       accessibilityEnabled = isGuardEnabled(),
+      operatorBridgeEnabled = bridge.enabled,
+      operatorBridgeRunning = bridge.running,
+      operatorBridgeEndpoint = bridge.endpoint,
+      operatorBridgePairingCode = bridge.pairingCode,
+      installerAllowed = bridge.installerAllowed,
+      operatorBridgeError = bridge.lastError,
       operationInProgress = stored.pendingOperation?.wireName,
       message =
         messageOverride
           ?: stored.message
           ?: if (installed) {
-            "Wi-Fi ADB and Accessibility are separate, reversible opt-ins."
+            "Wi-Fi ADB, Accessibility, direct PC access, and local installs are separate opt-ins."
           } else {
             "Install both Rusty Kiosk APKs and provision the setup helper once over USB-C."
           },
@@ -537,8 +670,11 @@ class RustyKioskActivity : AppSystemActivity() {
     const val VIEW_ORIGIN_Z_METERS = 2.0f
     const val RETURN_RESTART_DELAY_MS = 500L
     const val ACCESSIBILITY_DISABLE_SETTLE_MS = 800L
+    const val OPERATOR_BRIDGE_SETTLE_MS = 700L
     const val CONTROL_READBACK_SETTLE_MS = 600L
+    const val PASSTHROUGH_READBACK_SETTLE_MS = 750L
     const val CLI_FOREGROUND_SETTLE_MS = 800L
     const val WIFI_ADB_SETTING = "adb_wifi_enabled"
+    const val PASSTHROUGH_LOG_TAG = "RustyKioskPassthrough"
   }
 }

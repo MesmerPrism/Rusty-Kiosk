@@ -22,7 +22,8 @@ Its optional Accessibility service is a foreground watchdog:
 ## What the first example includes
 
 - one Spatial SDK native Android panel;
-- system passthrough with no room model or skybox;
+- Spatial SDK-owned system passthrough with no room model or skybox, natural
+  color by default, and an optional contour-revealing color LUT;
 - launchable-app discovery for ordinary Android, 2D, Leanback, and Quest VR
   front doors;
 - installed-app search by label, package, or tag;
@@ -32,12 +33,16 @@ Its optional Accessibility service is a foreground watchdog:
 - unresolved name-only entries shown as **Not installed**;
 - normal and soft-kiosk launch actions;
 - package/window-only Accessibility monitoring with UI retrieval disabled;
-- an always-visible status strip for Wi-Fi ADB, Accessibility, and Meta Home;
+- an always-visible status strip for passthrough, the direct link, and
+  Accessibility;
 - an explicit, reversible user-control center backed by a dedicated fixed-operation setup helper;
 - native Android text inputs using an explicit Quest keyboard path;
 - a typed, ADB-shell-protected debug CLI for stable wearer-equivalent testing.
 - a release-safe, `DUMP`-protected typed host adapter for optional desktop
   management through Meta Quest File Manager.
+- an explicitly wearer-enabled local PC link for the same typed commands, tag
+  file, bounded app-owned staging, and Android-confirmed APK sessions without
+  routine ADB.
 
 ## Build
 
@@ -123,10 +128,11 @@ ignored `artifacts/` paths. See [Panel preview workflow](docs/PANEL_PREVIEW.md).
 
 ## Dedicated no-terminal setup
 
-Wi-Fi ADB and Accessibility are independent opt-ins. Rusty Kiosk does not
-enable either automatically. The main APK never holds `WRITE_SECURE_SETTINGS`,
-and neither APK contains a shell, terminal UI, network listener, or generic
-command surface.
+Wi-Fi ADB, Accessibility, the direct PC link, and local APK installation are
+independent opt-ins. Rusty Kiosk does not enable any of them automatically.
+The main APK never holds `WRITE_SECURE_SETTINGS`, and neither APK contains a
+shell, terminal UI, raw command surface, or arbitrary intent/path bridge. The
+setup helper remains network-free.
 
 For a new headset, enable developer USB debugging outside Rusty Kiosk, connect
 USB-C, then install and provision both APKs in one serial-scoped step:
@@ -147,6 +153,8 @@ Open **User controls** in the panel to:
 - request Wi-Fi ADB and respond to Meta's visible system prompt;
 - opt in or out of requesting Wi-Fi ADB again after restart;
 - enable or disable only Rusty Kiosk's Accessibility service;
+- enable or disable the authenticated direct PC link and rotate its pairing code;
+- open Android's visible per-app permission for local APK installation;
 - disable Wi-Fi ADB again;
 - exit directly to Meta Home.
 
@@ -157,6 +165,27 @@ still owns the approval UI; the app and CLI cannot approve it.
 
 See [Transparent user controls](docs/USER_CONTROL.md) for setup, status,
 reboot recovery, privacy, and complete revocation instructions.
+
+## Direct PC link without ADB
+
+After the one-time installation/provisioning step, routine Kiosk commands,
+tags, bounded file staging, and wearer-confirmed APK installation can use the
+local direct link instead of USB or Wi-Fi ADB. Enable it in **User controls**,
+then enter the displayed `http://` address and pairing code in Meta Quest File
+Manager. The pairing code is generated on-headset and can be rotated locally.
+
+Meta Quest File Manager uses its PC ADB installer as the default APK route once
+that PC is authorized. It supports unattended and batch installation without an
+in-headset decision for every package. The direct local installer is an
+attended fallback: allowing Rusty Kiosk as an install source is a one-time
+grant, but Android can still request one confirmation for each app installation
+session. A base APK and its splits are combined into one session.
+
+The direct protocol accepts only fixed endpoints. Requests expire, replay IDs
+are retained, request bodies are SHA-256 checked, and requests and responses
+are HMAC-SHA-256 signed. It is authenticated and integrity-protected, but the
+current HTTP transport is not encrypted; use a trusted local network or the
+PC's private hotspot. See [Direct operator link](docs/DIRECT_OPERATOR.md).
 
 ## Tag file
 
@@ -188,6 +217,11 @@ See [Tag file](docs/TAG_FILE.md) for the schema and matching rules.
   the opt-in restart request.
 - Some installed packages do not expose a public launchable activity and
   therefore cannot appear as launch targets.
+- Local PackageInstaller sessions cannot silently approve themselves. Android
+  and Horizon own the per-app installer permission and the install/cancel UI.
+- Direct file operations are intentionally confined to Rusty Kiosk's app-owned
+  staging area. General shell-visible filesystem browsing remains an optional
+  ADB function in Meta Quest File Manager.
 
 ## License
 

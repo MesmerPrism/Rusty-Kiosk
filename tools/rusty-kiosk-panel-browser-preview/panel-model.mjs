@@ -54,6 +54,10 @@ export function scenarioState(name = "catalog-ready") {
     guardEnabled: true,
     userControlsOpen: false,
     userControls: {
+      passthroughStyle: "natural",
+      systemPassthroughEnabled: true,
+      passthroughLutApplied: true,
+      passthroughMessage: "System passthrough is active with the Natural style.",
       setupHelperInstalled: true,
       setupHelperReady: true,
       requestWifiAfterBoot: true,
@@ -154,6 +158,13 @@ export function importPreviewState(value) {
     userControlsOpen: Boolean(value.userControlsOpen),
     userControls: {
       ...base.userControls,
+      passthroughStyle:
+        value.userControls?.passthroughStyle === "contour-lut" ? "contour-lut" : "natural",
+      systemPassthroughEnabled: Boolean(value.userControls?.systemPassthroughEnabled),
+      passthroughLutApplied: Boolean(value.userControls?.passthroughLutApplied),
+      passthroughMessage: String(
+        value.userControls?.passthroughMessage ?? base.userControls.passthroughMessage,
+      ).slice(0, 240),
       setupHelperInstalled: Boolean(value.userControls?.setupHelperInstalled),
       setupHelperReady: Boolean(value.userControls?.setupHelperReady),
       requestWifiAfterBoot: Boolean(value.userControls?.requestWifiAfterBoot),

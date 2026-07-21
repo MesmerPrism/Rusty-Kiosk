@@ -48,7 +48,7 @@ if ($contract.preview.synthetic_only -ne $true) {
 if (
   $contract.text_input.backend -ne 'android-edit-text-layoutxml-panel' -or
   $contract.text_input.panel_registration -ne 'native-layout-xml' -or
-  $contract.text_input.keyboard_request -ne 'explicit-on-focus-and-click' -or
+  $contract.text_input.keyboard_request -ne 'explicit-on-focus-and-click-display-scoped' -or
   $contract.text_input.content_logged -ne $false
 ) {
   throw 'Quest text-input authority changed.'
@@ -110,6 +110,7 @@ foreach ($controlToken in @(
   'RustyKioskPanelControls.USER_CONTROL_STATUS',
   'RustyKioskPanelControls.USER_CONTROLS_OPEN',
   'RustyKioskPanelControls.USER_CONTROLS',
+  'RustyKioskPanelControls.PASSTHROUGH_CONTROLS',
   'RustyKioskPanelControls.WIFI_ADB_CONTROLS',
   'RustyKioskPanelControls.ACCESSIBILITY_TOGGLE',
   'RustyKioskPanelControls.META_HOME_EXIT'
@@ -124,12 +125,21 @@ foreach ($inputToken in @(
   'showSoftInputOnFocus = true',
   'setOnFocusChangeListener',
   'setOnClickListener',
-  '.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)',
+  'field.context.createDisplayContext(fieldDisplay)',
+  'getSystemService(InputMethodManager::class.java)',
+  'inputMethodManager.restartInput(field)',
+  'inputMethodManager.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)',
+  'fieldDisplayId=',
+  'imeContextDisplayId=',
+  'MAX_KEYBOARD_REQUEST_ATTEMPTS = 2',
   'textLogged=false'
 )) {
   if (-not $productionPanel.Contains($inputToken)) {
     throw "Production native Quest IME path is missing: $inputToken"
   }
+}
+if (-not $activity.Contains('window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)')) {
+  throw 'Spatial activity is missing Meta keyboard compositor compatibility flag.'
 }
 if (-not $productionPanel.Contains('input = PanelInputOptions()')) {
   throw 'Spatial panel is missing explicit input configuration.'

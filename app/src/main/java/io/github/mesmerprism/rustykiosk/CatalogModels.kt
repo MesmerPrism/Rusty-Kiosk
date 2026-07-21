@@ -2,6 +2,26 @@ package io.github.mesmerprism.rustykiosk
 
 import java.util.Locale
 
+internal enum class KioskPassthroughStyle(
+  val wireName: String,
+  val label: String,
+) {
+  NATURAL("natural", "Natural"),
+  CONTOUR_LUT("contour-lut", "Contour LUT");
+
+  companion object {
+    fun parse(value: String?): KioskPassthroughStyle =
+      entries.firstOrNull { it.wireName == value } ?: NATURAL
+  }
+}
+
+internal data class KioskPassthroughState(
+  val style: KioskPassthroughStyle = KioskPassthroughStyle.NATURAL,
+  val systemPassthroughEnabled: Boolean = false,
+  val lutApplied: Boolean = false,
+  val message: String = "Starting system passthrough…",
+)
+
 internal data class LaunchTarget(
   val packageName: String,
   val activityName: String,
@@ -77,15 +97,33 @@ internal data class KioskUiState(
 }
 
 internal data class UserControlState(
+  val passthroughStyle: KioskPassthroughStyle = KioskPassthroughStyle.NATURAL,
+  val systemPassthroughEnabled: Boolean = false,
+  val passthroughLutApplied: Boolean = false,
+  val passthroughMessage: String = "Starting system passthrough…",
   val setupHelperInstalled: Boolean = false,
   val setupHelperReady: Boolean = false,
   val requestWifiAfterBoot: Boolean = false,
   val wirelessDebuggingEnabled: Boolean = false,
   val accessibilityEnabled: Boolean = false,
+  val operatorBridgeEnabled: Boolean = false,
+  val operatorBridgeRunning: Boolean = false,
+  val operatorBridgeEndpoint: String? = null,
+  val operatorBridgePairingCode: String = "",
+  val installerAllowed: Boolean = false,
+  val operatorBridgeError: String? = null,
   val operationInProgress: String? = null,
   val message: String =
-    "Both Wi-Fi ADB and Accessibility are optional. Nothing is enabled automatically.",
+    "Wi-Fi ADB, Accessibility, the direct link, and local installs are separate opt-ins.",
 ) {
+  val passthroughStatusLabel: String
+    get() =
+      if (systemPassthroughEnabled && passthroughLutApplied) {
+        passthroughStyle.label
+      } else {
+        "Unavailable"
+      }
+
   val setupStatusLabel: String
     get() =
       when {
@@ -105,6 +143,15 @@ internal data class UserControlState(
 
   val accessibilityStatusLabel: String
     get() = if (accessibilityEnabled) "Enabled" else "Disabled"
+
+  val operatorBridgeStatusLabel: String
+    get() =
+      when {
+        !operatorBridgeEnabled -> "Off"
+        operatorBridgeRunning -> "Ready"
+        operatorBridgeError != null -> "Error"
+        else -> "Starting"
+      }
 }
 
 internal object CatalogFilter {

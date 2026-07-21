@@ -22,6 +22,7 @@ internal object RustyKioskPanelControls {
   const val USER_CONTROL_STATUS = "rusty-kiosk-user-control-status"
   const val USER_CONTROLS_OPEN = "rusty-kiosk-user-controls-open"
   const val USER_CONTROLS = "rusty-kiosk-user-controls"
+  const val PASSTHROUGH_CONTROLS = "rusty-kiosk-passthrough-controls"
   const val WIFI_ADB_CONTROLS = "rusty-kiosk-wifi-adb-controls"
   const val ACCESSIBILITY_TOGGLE = "rusty-kiosk-accessibility-toggle"
   const val META_HOME_EXIT = "rusty-kiosk-meta-home-exit"

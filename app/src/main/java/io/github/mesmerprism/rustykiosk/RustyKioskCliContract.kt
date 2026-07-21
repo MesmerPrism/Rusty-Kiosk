@@ -28,6 +28,8 @@ internal enum class RustyKioskCliCommand(val wireName: String, val valueRule: Cl
   DISABLE_WIFI_ADB("disable-wifi-adb", CliValueRule.NONE),
   ENABLE_ACCESSIBILITY("enable-accessibility", CliValueRule.NONE),
   DISABLE_ACCESSIBILITY("disable-accessibility", CliValueRule.NONE),
+  PASSTHROUGH_NATURAL("passthrough-natural", CliValueRule.NONE),
+  PASSTHROUGH_CONTOUR("passthrough-contour", CliValueRule.NONE),
   EXIT_META_HOME("exit-meta-home", CliValueRule.NONE),
 }
 
@@ -172,6 +174,13 @@ internal class RustyKioskCliStore(context: Context) {
             .put("setup_helper_ready", controls.setupHelperReady)
             .put("request_wifi_adb_after_boot", controls.requestWifiAfterBoot)
             .put("accessibility_enabled", controls.accessibilityEnabled)
+            .put("passthrough_style", controls.passthroughStyle.wireName)
+            .put("system_passthrough_enabled", controls.systemPassthroughEnabled)
+            .put("passthrough_lut_applied", controls.passthroughLutApplied)
+            .put("operator_bridge_enabled", controls.operatorBridgeEnabled)
+            .put("operator_bridge_running", controls.operatorBridgeRunning)
+            .put("operator_bridge_endpoint", controls.operatorBridgeEndpoint ?: JSONObject.NULL)
+            .put("installer_allowed", controls.installerAllowed)
             .put("guard_armed", guardArmed)
             .put("operation_in_progress", controls.operationInProgress ?: JSONObject.NULL)
         )

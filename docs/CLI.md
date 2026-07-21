@@ -27,6 +27,11 @@ display-coordinate touch injection in automated acceptance runs.
   survive ADB's remote-shell transport without becoming shell syntax.
 - Release builds contain no CLI activity.
 
+These statements describe the debug ADB adapter. Rusty Kiosk 0.6.0 also has a
+separate wearer-enabled release direct link; it is documented in
+[`DIRECT_OPERATOR.md`](DIRECT_OPERATOR.md) and uses the same typed queue rather
+than the debug activity.
+
 ## Release host operator
 
 Release builds expose host schema `rusty.kiosk.host_operator.v2` through a
@@ -45,6 +50,12 @@ keeps visible action execution in the same Activity handlers as the panel and
 avoids granting the provider hidden foreground or business-logic authority.
 The public Meta Quest File Manager implements this contract for its optional
 Rusty Kiosk tab.
+
+Meta Quest File Manager also implements `rusty.kiosk.direct_operator.v1` for
+post-bootstrap operation without ADB. Its `kiosk-direct` CLI family covers
+status, typed commands, tag import/export, app-owned staging, and attended APK
+install receipts. This is a separate authenticated network transport, not an
+expansion of the `DUMP` provider.
 
 The CLI never accepts a shell command, executable path, Android component,
 intent action, package to launch, device path, Accessibility gesture, or
@@ -94,6 +105,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | `request-wifi-adb` / `disable-wifi-adb` | none | Use the corresponding visible fixed-operation control |
 | `enable-wifi-adb-after-boot` / `disable-wifi-adb-after-boot` | none | Turn the visible restart-request preference on or off |
 | `enable-accessibility` / `disable-accessibility` | none | Use the same explicit control handlers |
+| `passthrough-natural` / `passthrough-contour` | none | Select the same persisted passthrough appearance control |
 | `exit-meta-home` | none | Disarm and use the visible Meta Home exit action |
 
 Fixed helper commands write their result only after the helper answers and the
@@ -101,6 +113,11 @@ main app performs effective-state readback. A Wi-Fi ADB request can complete as
 an app operation while Meta's protected approval remains pending; call `status`
 after the wearer responds and require `wifi_adb_enabled` to match the expected
 state.
+
+Passthrough commands return the same state receipt as the panel. Acceptance
+requires `system_passthrough_enabled=true`; `passthrough_style` reports
+`natural` or `contour-lut`, and `passthrough_lut_applied` confirms that the
+retained 16³ LUT reached the Spatial SDK scene.
 
 For the system-owned Home transition used by soft-guard testing, use the
 separate typed wrapper:
@@ -134,9 +151,12 @@ The CLI proves the application's action routing and state projection. It does
 not emulate a Touch controller, approve Android or Meta protected prompts, or
 replace a physical Meta-button witness. The focus commands route to the native
 text fields and issue the same bounded IME request as their click handlers.
-Horizon grants the Spatial display its served-view input connection only after
-a real pointer activation, so a wearer click remains the keyboard gate. The CLI
-does not counterfeit that trusted event with touch injection.
+The request is resolved through the field's attached virtual-display context,
+and its privacy-safe marker reports matching field/IME display IDs, attachment,
+window-token presence, attempt, and acceptance state. Horizon grants the Spatial
+display its served-view input connection only after a real pointer activation,
+so a wearer click remains the keyboard gate. The CLI does not counterfeit that
+trusted event with touch injection.
 
 ## Exact watchdog transition CLI
 

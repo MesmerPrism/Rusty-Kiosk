@@ -6,8 +6,10 @@ Ship two same-signer APKs with deliberately separate authority:
 
 - `app` is the ordinary Spatial SDK application. `RustyKioskActivity` owns the
   panel, catalogue, tag state, explicit launches, user-control projection, and
-  typed operator adaptation. `KioskAccessibilityService` owns only top-level
-  package/window observation while a kiosk launch is armed.
+  typed operator adaptation. Its wearer-enabled `OperatorBridgeService` owns a
+  bounded authenticated local listener and app-owned staging. Android
+  `PackageInstaller` owns attended installation. `KioskAccessibilityService`
+  owns only top-level package/window observation while a kiosk launch is armed.
 - `setup-helper` is non-launchable and has no network permission. It may be
   granted `WRITE_SECURE_SETTINGS` once over USB-C and accepts only an explicit,
   signature-protected fixed-operation broadcast from the main app.
@@ -45,6 +47,9 @@ and Wi-Fi ADB state after completion.
 | Armed target and escape state | `GuardStateStore` |
 | Window/package transitions | `KioskAccessibilityService` |
 | Meta Home and protected approval UI | Horizon OS |
+| Visible passthrough composition | Spatial SDK `Scene.enablePassthrough` |
+| Passthrough color style | retained 16³ `Lut` through `Scene.setPassthroughLUT` |
+| Passthrough effective state | Spatial SDK `Scene.isSystemPassthroughEnabled` readback |
 | Visible status and consent actions | `RustyKioskActivity` / `UserControlState` |
 | Fixed privileged operations | `setup-helper` / `SetupExecutor` |
 | Effective Accessibility state | Android `AccessibilityManager` readback |
@@ -53,10 +58,14 @@ and Wi-Fi ADB state after completion.
 | Debug CLI admission | debug manifest + sender-held `android.permission.DUMP` |
 | CLI vocabulary and bounds | `RustyKioskCliProtocol` |
 | CLI queue and result receipt | app-private `RustyKioskCliStore` |
-| App action semantics | the same activity handlers used by Compose |
+| App action semantics | the same activity handlers used by the native panel |
 | Release host admission | `DUMP`-protected `RustyKioskOperatorProvider.call()` v2 |
 | Fixed tag transfer | ordered bounded provider chunks + SHA-256/schema/atomic activation |
-| Desktop transport/install | authorized serial-scoped ADB host |
+| Direct-link opt-in and pairing-code rotation | visible `RustyKioskActivity` controls |
+| Direct request admission | expiry + replay store + HMAC-SHA-256 body/response checks |
+| Direct file bytes | bounded app-owned `operator-staging` directory |
+| Local APK transaction | Android `PackageInstaller` + matching app-private receipt |
+| ADB fallback/bootstrap | authorized serial-scoped host |
 
 ## Panel preview authority
 
@@ -87,6 +96,13 @@ Rusty Kiosk --Exit to Meta Home--> Meta Home
 Returning to Rusty Kiosk starts a fresh MAIN task after a short teardown delay
 so a stale Spatial panel runtime is not reused.
 
+Rusty Kiosk declares Meta's optional passthrough capability and reapplies its
+persisted style whenever the Spatial scene becomes ready or resumes. Natural
+uses an identity LUT. Contour LUT uses hard luminance-to-color bands so scene
+contours are conspicuous. A point LUT is not neighborhood edge detection. The
+app does not create a second `XR_FB_passthrough` layer because Spatial SDK owns
+frame submission; an unsubmitted native layer would have no visual authority.
+
 Normal launch may resume an existing target task. Initial kiosk launch clears
 the target's old task so hidden panels or stopped visual output cannot leak in
 from a previous XR session. Watchdog recovery then reorders and resumes that
@@ -99,13 +115,15 @@ fresh kiosk session without clearing its state.
 - UI content retrieval, Accessibility node traversal, clicks, gestures, or
   global actions;
 - force-stopping target or system packages;
-- app installation or sideload management from the headset UI;
+- silent or unattended app installation, installer-prompt approval, downgrade,
+  test-only, or automatic runtime-permission grants through the direct link;
 - `WRITE_SECURE_SETTINGS` in the main Rusty Kiosk APK;
-- raw shell, terminal UI, arbitrary package/component input, or a
-  network-accessible control listener in either APK;
+- raw shell, terminal UI, arbitrary package/component input, unrestricted
+  paths, or arbitrary network commands;
 - display-coordinate touch injection as acceptance evidence;
 - a debug CLI activity in release builds, arbitrary intents through the debug CLI,
   USB-C provisioning through the CLI, or protected-prompt approval;
-- a generic release provider query, file browser, shell proxy, component
-  launcher, endpoint listener, or background business-logic owner;
+- a generic release provider query, protected-data browser, shell proxy,
+  component launcher, or background app-management plane;
+- fleet discovery, multi-device scheduling, online relays, or remote management;
 - high-rate media, tracking, mesh, or rendering data in the tag file.

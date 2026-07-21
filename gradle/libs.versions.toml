@@ -7,6 +7,7 @@ composeActivity = "1.9.2"
 composeBom = "2024.09.03"
 junit = "4.13.2"
 json = "20240303"
+nanohttpd = "2.3.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -25,6 +26,7 @@ meta-spatial-sdk-uiset = { group = "com.meta.spatial", name = "meta-spatial-sdk-
 meta-spatial-sdk-vr = { group = "com.meta.spatial", name = "meta-spatial-sdk-vr", version.ref = "spatialsdk" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 json = { group = "org.json", name = "json", version.ref = "json" }
+nanohttpd = { group = "org.nanohttpd", name = "nanohttpd", version.ref = "nanohttpd" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -14,6 +14,7 @@ $manifestPath = Join-Path $repoRoot 'app\src\main\AndroidManifest.xml'
 $serviceXmlPath = Join-Path $repoRoot 'app\src\main\res\xml\kiosk_accessibility_service.xml'
 $serviceSourcePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\KioskAccessibilityService.kt'
 $activitySourcePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskActivity.kt'
+$passthroughSourcePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskPassthrough.kt'
 $setupBridgePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\SetupHelperControlBridge.kt'
 $setupManifestPath = Join-Path $repoRoot 'setup-helper\src\main\AndroidManifest.xml'
 $setupSourcePath = Join-Path $repoRoot 'setup-helper\src\main\java\io\github\mesmerprism\rustykiosk\setuphelper\SetupOperations.kt'
@@ -55,14 +56,35 @@ foreach ($token in @('disableSelf()', 'user-disabled-accessibility')) {
 }
 
 $activitySource = Get-Content -Raw -LiteralPath $activitySourcePath
-if ($activitySource -notmatch 'scene\.enablePassthrough\(true\)') {
-  throw 'Spatial activity must enable system passthrough.'
+foreach ($token in @(
+  'RustyKioskPassthroughController',
+  'KioskPassthroughStyle.NATURAL',
+  'KioskPassthroughStyle.CONTOUR_LUT'
+)) {
+  if (-not $activitySource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "Spatial activity is missing the passthrough control path: $token"
+  }
 }
 if ($activitySource -match 'skybox|Composition\.glxf|collab_room') {
   throw 'The one-panel example must not restore a room or skybox.'
 }
+$passthroughSource = Get-Content -Raw -LiteralPath $passthroughSourcePath
+foreach ($token in @(
+  'scene.enablePassthrough(true)',
+  'scene.setPassthroughLUT(lut)',
+  'scene.isSystemPassthroughEnabled()',
+  'private var activeLut: Lut?',
+  'neighborhoodEdgeDetection=false'
+)) {
+  if (-not $passthroughSource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The Spatial SDK passthrough implementation is missing: $token"
+  }
+}
 
 $manifest = Get-Content -Raw -LiteralPath $manifestPath
+if ($manifest -notmatch 'com\.oculus\.feature\.PASSTHROUGH') {
+  throw 'The app manifest must declare the Meta passthrough capability.'
+}
 if ($manifest -match 'android\.app\.role\.HOME|android\.intent\.category\.HOME') {
   throw 'Rusty Kiosk must not claim the Android HOME role.'
 }

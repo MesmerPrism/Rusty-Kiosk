@@ -11,6 +11,8 @@ that is distributed under separate terms, including:
 - Cash App Paparazzi, used only by the desktop-native preview harness — Apache
   License 2.0;
 - Gradle wrapper — Apache License 2.0.
+- NanoHTTPD 2.3.1, used for the bounded local operator listener — BSD 3-Clause
+  License.
 
 No Meta sample assets or private room, study, catalogue, package, or release
 artifacts are included in this repository.

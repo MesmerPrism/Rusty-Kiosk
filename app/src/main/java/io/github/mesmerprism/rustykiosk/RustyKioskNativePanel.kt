@@ -55,6 +55,11 @@ internal class RustyKioskNativePanel(
   private val onDisableWifiAdb: () -> Unit,
   private val onEnableAccessibility: () -> Unit,
   private val onDisableAccessibility: () -> Unit,
+  private val onUseNaturalPassthrough: () -> Unit,
+  private val onUseContourPassthrough: () -> Unit,
+  private val onToggleOperatorBridge: () -> Unit,
+  private val onRotateOperatorBridgeCode: () -> Unit,
+  private val onRequestInstallerPermission: () -> Unit,
   private val onExitToMetaHome: () -> Unit,
 ) {
   private var state = KioskUiState()
@@ -87,10 +92,21 @@ internal class RustyKioskNativePanel(
   private lateinit var wifiStatus: TextView
   private lateinit var wifiAfterBootStatus: TextView
   private lateinit var accessibilityStatus: TextView
+  private lateinit var passthroughStatus: TextView
+  private lateinit var passthroughMessage: TextView
+  private lateinit var naturalPassthroughButton: Button
+  private lateinit var contourPassthroughButton: Button
   private lateinit var controlMessage: TextView
   private lateinit var requestWifiButton: Button
   private lateinit var wifiAfterBootButton: Button
   private lateinit var accessibilityButton: Button
+  private lateinit var operatorBridgeStatus: TextView
+  private lateinit var operatorBridgeEndpoint: TextView
+  private lateinit var operatorBridgeCode: TextView
+  private lateinit var installerStatus: TextView
+  private lateinit var operatorBridgeButton: Button
+  private lateinit var rotateOperatorBridgeButton: Button
+  private lateinit var installerPermissionButton: Button
 
   fun registration(): PanelRegistration =
     LayoutXMLPanelRegistration(
@@ -271,11 +287,36 @@ internal class RustyKioskNativePanel(
     addView(text("User-controlled setup", 22f, COLOR_TEXT, true))
     addView(
       text(
-        "Wireless debugging and Accessibility are separate, reversible opt-ins. Rusty Kiosk never enables either silently.",
+        "Wireless debugging, Accessibility, direct PC access, and local APK installs are separate, reversible opt-ins.",
         14f,
         COLOR_MUTED,
       ),
       margin(top = 4, bottom = 10),
+    )
+    addView(
+      controlCard("Passthrough appearance") {
+        passthroughStatus = text("", 14f, COLOR_TEXT, true)
+        passthroughMessage = text("", 13f, COLOR_MUTED)
+        addView(passthroughStatus)
+        addView(passthroughMessage, margin(top = 3))
+        val styleButtons = row().apply { tag = RustyKioskPanelControls.PASSTHROUGH_CONTROLS }
+        naturalPassthroughButton = button("Natural", onUseNaturalPassthrough)
+        contourPassthroughButton = button("Contour LUT", onUseContourPassthrough)
+        styleButtons.addView(
+          naturalPassthroughButton,
+          LinearLayout.LayoutParams(0, dp(46), 1f).apply { rightMargin = dp(7) },
+        )
+        styleButtons.addView(contourPassthroughButton, LinearLayout.LayoutParams(0, dp(46), 1f))
+        addView(styleButtons, margin(top = 7, height = 46))
+        addView(
+          text(
+            "Contour LUT uses hard color bands to reveal contours; it is not camera edge detection.",
+            12f,
+            COLOR_MUTED,
+          ),
+          margin(top = 6),
+        )
+      },
     )
     addView(controlCard("Dedicated setup helper") {
       setupStatus = text("", 14f, COLOR_TEXT, true)
@@ -294,6 +335,25 @@ internal class RustyKioskNativePanel(
         wifiAfterBootButton = button("", onEnableWifiAfterBoot)
         addView(requestWifiButton, margin(top = 7, height = 46))
         addView(wifiAfterBootButton, margin(top = 7, height = 46))
+      },
+      margin(top = 8),
+    )
+    addView(
+      controlCard("Direct PC link (no ADB)") {
+        operatorBridgeStatus = text("", 14f, COLOR_TEXT, true)
+        operatorBridgeEndpoint = text("", 13f, COLOR_MUTED)
+        operatorBridgeCode = text("", 14f, COLOR_PRIMARY, true)
+        installerStatus = text("", 13f, COLOR_MUTED)
+        addView(operatorBridgeStatus)
+        addView(operatorBridgeEndpoint, margin(top = 3))
+        addView(operatorBridgeCode, margin(top = 3))
+        addView(installerStatus, margin(top = 3))
+        operatorBridgeButton = button("", onToggleOperatorBridge)
+        rotateOperatorBridgeButton = button("Rotate pairing code", onRotateOperatorBridgeCode)
+        installerPermissionButton = button("Allow local APK installs", onRequestInstallerPermission)
+        addView(operatorBridgeButton, margin(top = 7, height = 46))
+        addView(rotateOperatorBridgeButton, margin(top = 7, height = 46))
+        addView(installerPermissionButton, margin(top = 7, height = 46))
       },
       margin(top = 8),
     )
@@ -326,7 +386,7 @@ internal class RustyKioskNativePanel(
     catalogueSurface.visibility = if (state.userControlsOpen) View.GONE else View.VISIBLE
     controlsSurface.visibility = if (state.userControlsOpen) View.VISIBLE else View.GONE
     controlStatus.text =
-      "Wi-Fi ADB ${state.userControls.wifiStatusLabel}  ·  Accessibility ${state.userControls.accessibilityStatusLabel}  ·  Setup ${state.userControls.setupStatusLabel}"
+      "Passthrough ${state.userControls.passthroughStatusLabel}  ·  Accessibility ${state.userControls.accessibilityStatusLabel}  ·  Direct ${state.userControls.operatorBridgeStatusLabel}"
     controlStatus.setOnClickListener {
       if (state.userControlsOpen) onCloseUserControls() else onOpenUserControls()
     }
@@ -418,6 +478,23 @@ internal class RustyKioskNativePanel(
     wifiStatus.text = "Wireless debugging: ${controls.wifiStatusLabel}"
     wifiAfterBootStatus.text = if (controls.requestWifiAfterBoot) "Ask again after restart: On" else "Ask again after restart: Off"
     accessibilityStatus.text = "Accessibility: ${controls.accessibilityStatusLabel}"
+    passthroughStatus.text = "System passthrough: ${controls.passthroughStatusLabel}"
+    passthroughMessage.text = controls.passthroughMessage
+    naturalPassthroughButton.isEnabled =
+      controls.passthroughStyle != KioskPassthroughStyle.NATURAL ||
+        !controls.systemPassthroughEnabled || !controls.passthroughLutApplied
+    contourPassthroughButton.isEnabled =
+      controls.passthroughStyle != KioskPassthroughStyle.CONTOUR_LUT ||
+        !controls.systemPassthroughEnabled || !controls.passthroughLutApplied
+    operatorBridgeStatus.text = "Direct link: ${controls.operatorBridgeStatusLabel}"
+    operatorBridgeEndpoint.text = controls.operatorBridgeEndpoint ?: "Connect the headset to Wi-Fi to get an address."
+    operatorBridgeCode.text = "Pairing code: ${controls.operatorBridgePairingCode}"
+    installerStatus.text =
+      if (controls.installerAllowed) {
+        "Local APK installer: wearer allowed"
+      } else {
+        "Local APK installer: needs wearer permission"
+      }
     controlMessage.text = controls.message
 
     requestWifiButton.text = if (controls.wirelessDebuggingEnabled) "Turn off wireless debugging" else "Request wireless debugging"
@@ -432,6 +509,10 @@ internal class RustyKioskNativePanel(
     accessibilityButton.setOnClickListener {
       if (controls.accessibilityEnabled) onDisableAccessibility() else onEnableAccessibility()
     }
+    operatorBridgeButton.text = if (controls.operatorBridgeEnabled) "Disable direct link" else "Enable direct link"
+    operatorBridgeButton.setOnClickListener { onToggleOperatorBridge() }
+    rotateOperatorBridgeButton.isEnabled = !controls.operatorBridgeRunning
+    installerPermissionButton.visibility = if (controls.installerAllowed) View.GONE else View.VISIBLE
     val ready = controls.setupHelperReady && controls.operationInProgress == null
     requestWifiButton.isEnabled = ready
     wifiAfterBootButton.isEnabled = ready
@@ -506,14 +587,37 @@ internal class RustyKioskNativePanel(
   }
 
   private fun requestKeyboard(field: EditText, controlName: String) {
+    requestKeyboard(field, controlName, attempt = 1)
+  }
+
+  private fun requestKeyboard(field: EditText, controlName: String, attempt: Int) {
     field.post {
+      if (!field.hasFocus()) field.requestFocus()
+
+      // Spatial panels are hosted on a Meta-owned virtual display. An InputMethodManager obtained
+      // from the Activity remains bound to display 0 and cannot reliably serve this EditText.
+      val fieldDisplay = field.display
+      val imeContext =
+        if (fieldDisplay == null) field.context else field.context.createDisplayContext(fieldDisplay)
+      val inputMethodManager = imeContext.getSystemService(InputMethodManager::class.java)
+      inputMethodManager.restartInput(field)
       val accepted =
-        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-          .showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)
+        inputMethodManager.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)
       Log.i(
         QUEST_IME_LOG_TAG,
-        "status=keyboard-requested control=$controlName showSoftInputAccepted=$accepted textLogged=false",
+        "status=keyboard-requested control=$controlName attempt=$attempt " +
+          "fieldDisplayId=${fieldDisplay?.displayId ?: -1} " +
+          "imeContextDisplayId=${imeContext.display?.displayId ?: -1} " +
+          "attached=${field.isAttachedToWindow} windowTokenPresent=${field.windowToken != null} " +
+          "showSoftInputAccepted=$accepted textLogged=false",
       )
+
+      if (!accepted && attempt < MAX_KEYBOARD_REQUEST_ATTEMPTS) {
+        field.postDelayed(
+          { requestKeyboard(field, controlName, attempt + 1) },
+          KEYBOARD_REQUEST_RETRY_DELAY_MS,
+        )
+      }
     }
   }
 
@@ -584,6 +688,8 @@ internal class RustyKioskNativePanel(
     const val WRAP = ViewGroup.LayoutParams.WRAP_CONTENT
     const val PANEL_LAYER_Z_INDEX = 99
     const val QUEST_IME_LOG_TAG = "RustyKioskIme"
+    const val MAX_KEYBOARD_REQUEST_ATTEMPTS = 2
+    const val KEYBOARD_REQUEST_RETRY_DELAY_MS = 150L
     val COLOR_BACKGROUND = Color.rgb(25, 25, 25)
     val COLOR_SURFACE = Color.rgb(35, 35, 35)
     val COLOR_SURFACE_ALT = Color.rgb(48, 48, 48)

@@ -96,9 +96,16 @@ files:
 
 The production search and tag fields are direct Android `EditText` descendants
 of a Spatial SDK `LayoutXMLPanelRegistration`. They enable soft input on focus
-and explicitly request the Quest IME from both focus and click. The native
-renderer verifies the source-bound design projection; only a real Quest run
-proves Meta keyboard opening and text entry.
+and explicitly request the Quest IME from both focus and click. Because Meta
+hosts the panel on a virtual display, the request obtains a display-scoped
+`InputMethodManager` from the attached field instead of the Activity's display
+0 instance. A rejected request receives one bounded retry; diagnostics contain
+display, attachment, token, attempt, and acceptance state but never field text.
+The main Spatial activity also uses `FLAG_ALT_FOCUSABLE_IM`: Meta's compatibility
+route for the case where Android serves the field and reports the IME as shown,
+but the immersive compositor does not make the keyboard surface visible.
+The native renderer verifies the source-bound design projection; only a real
+Quest run proves Meta keyboard opening and text entry.
 
 Paparazzi supports direct Compose snapshots without an emulator. The exporter
 records `catalog-ready`, `tag-filter-missing`, and `guard-setup`, verifies each

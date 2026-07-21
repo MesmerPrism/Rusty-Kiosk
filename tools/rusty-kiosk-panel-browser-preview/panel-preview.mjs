@@ -129,6 +129,11 @@ function renderControlStatus() {
   manage.id = "rusty-kiosk-user-controls-open";
   elements.controlStatus.replaceChildren(
     statusBadge("Setup", setupStatusLabel(controls), controls.setupHelperReady),
+    statusBadge(
+      "Passthrough",
+      passthroughStatusLabel(controls),
+      controls.systemPassthroughEnabled && controls.passthroughLutApplied,
+    ),
     statusBadge("Wi-Fi ADB", wifiStatusLabel(controls), controls.wirelessDebuggingEnabled),
     statusBadge("Accessibility", controls.accessibilityEnabled ? "Enabled" : "Disabled", controls.accessibilityEnabled),
     statusBadge("Meta Home", "Available", true),
@@ -139,6 +144,40 @@ function renderControlStatus() {
 
 function renderUserControls() {
   const controls = state.userControls;
+  const naturalPassthrough = button("Natural", "outline-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        passthroughStyle: "natural",
+        systemPassthroughEnabled: true,
+        passthroughLutApplied: true,
+        passthroughMessage: "System passthrough is active with the Natural style · browser simulation.",
+      },
+    };
+    render();
+  });
+  naturalPassthrough.disabled =
+    controls.passthroughStyle === "natural" &&
+    controls.systemPassthroughEnabled &&
+    controls.passthroughLutApplied;
+  const contourPassthrough = button("Contour LUT", "outline-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        passthroughStyle: "contour-lut",
+        systemPassthroughEnabled: true,
+        passthroughLutApplied: true,
+        passthroughMessage: "System passthrough is active with the Contour LUT style · browser simulation.",
+      },
+    };
+    render();
+  });
+  contourPassthrough.disabled =
+    controls.passthroughStyle === "contour-lut" &&
+    controls.systemPassthroughEnabled &&
+    controls.passthroughLutApplied;
   const connectivityActions = [];
   const refreshSetup = button("Refresh setup status", "outline-button control-button", () => {
     state = {
@@ -233,6 +272,18 @@ function renderUserControls() {
       node("p", {}, [controls.message]),
     ]),
     node("div", { className: "control-card-grid" }, [
+      controlCard("Passthrough appearance", [
+        controlFact("System passthrough", passthroughStatusLabel(controls)),
+        node("p", { className: "detail-copy" }, [controls.passthroughMessage]),
+        node("p", { className: "detail-copy" }, [
+          "Natural is the default. Contour LUT uses hard color bands to reveal contours; it is not camera edge detection.",
+        ]),
+        node(
+          "div",
+          { className: "control-actions", id: "rusty-kiosk-passthrough-controls" },
+          [naturalPassthrough, contourPassthrough],
+        ),
+      ]),
       controlCard("Wi-Fi ADB · explicit opt-in", [
         node("p", { className: "detail-copy" }, [
           "The dedicated setup helper exposes only fixed Rusty Kiosk operations. USB-C provisions it once; no terminal app is needed.",
@@ -519,6 +570,11 @@ function setupStatusLabel(controls) {
   if (!controls.setupHelperInstalled) return "Not installed";
   if (!controls.setupHelperReady) return "Needs USB-C setup";
   return "Ready";
+}
+
+function passthroughStatusLabel(controls) {
+  if (!controls.systemPassthroughEnabled || !controls.passthroughLutApplied) return "Unavailable";
+  return controls.passthroughStyle === "contour-lut" ? "Contour LUT" : "Natural";
 }
 
 function statusBadge(label, value, positive) {

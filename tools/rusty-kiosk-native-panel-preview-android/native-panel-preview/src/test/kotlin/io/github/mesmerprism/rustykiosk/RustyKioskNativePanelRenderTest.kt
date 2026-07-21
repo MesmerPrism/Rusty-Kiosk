@@ -58,6 +58,8 @@ class RustyKioskNativePanelRenderTest {
           onDisableWifiAdb = {},
           onEnableAccessibility = {},
           onDisableAccessibility = {},
+          onUseNaturalPassthrough = {},
+          onUseContourPassthrough = {},
           onExitToMetaHome = {},
         )
       }
@@ -132,6 +134,10 @@ private object PreviewFixtures {
       userControlsOpen = userControlsOpen,
       userControls =
         UserControlState(
+          passthroughStyle = KioskPassthroughStyle.NATURAL,
+          systemPassthroughEnabled = true,
+          passthroughLutApplied = true,
+          passthroughMessage = "System passthrough is active with the Natural style.",
           setupHelperInstalled = true,
           setupHelperReady = true,
           requestWifiAfterBoot = true,
