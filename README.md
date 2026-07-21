@@ -6,7 +6,7 @@ browses launchable apps installed on the headset, assigns searchable tags, and
 offers normal or soft-kiosk launch.
 
 New-user setup and behavior are explained on the
-[Rusty Kiosk onboarding site](https://mesmerprism.github.io/Rusty-Kiosk/).
+[Rusty Kiosk onboarding site](https://mesmerprism.com/Rusty-Kiosk/).
 
 The project is intentionally not a Home replacement or managed-device kiosk.
 Its optional Accessibility service is a foreground watchdog:
