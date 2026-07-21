@@ -4,10 +4,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.meta.spatial.uiset.theme.SpatialTheme
 
 @Composable
 internal fun RustyKioskTheme(content: @Composable () -> Unit) {
-  MaterialTheme(colorScheme = RustyKioskColorScheme, content = content)
+  MaterialTheme(colorScheme = RustyKioskColorScheme) {
+    SpatialTheme(content = content)
+  }
 }
 
 private val RustyKioskColorScheme =

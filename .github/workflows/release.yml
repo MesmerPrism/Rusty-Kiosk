@@ -1,0 +1,138 @@
+name: Release APK bundle
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Semantic version without v, for example 0.5.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2025
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Resolve and validate version
+        id: version
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $semanticVersion = '${{ inputs.version }}'
+            $tagName = "v$semanticVersion"
+          }
+          else {
+            $tagName = '${{ github.ref_name }}'
+            $semanticVersion = $tagName -replace '^v', ''
+          }
+          if ($semanticVersion -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Version must look like 0.5.0, got $semanticVersion"
+          }
+          $gradleText = Get-Content -Raw app/build.gradle.kts
+          $declared = [regex]::Match($gradleText, 'versionName\s*=\s*"([^"]+)"').Groups[1].Value
+          if ($declared -ne $semanticVersion) {
+            throw "Tag/input version $semanticVersion does not match app versionName $declared."
+          }
+          "semantic_version=$semanticVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag_name=$tagName" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Restore Android signing identity
+        shell: pwsh
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:KEYSTORE_BASE64)) {
+            throw 'ANDROID_SIGNING_KEYSTORE_BASE64 is not configured.'
+          }
+          [IO.File]::WriteAllBytes(
+            (Join-Path $env:RUNNER_TEMP 'rusty-kiosk-release.jks'),
+            [Convert]::FromBase64String($env:KEYSTORE_BASE64))
+
+      - name: Test and build the same-signer release pair
+        shell: pwsh
+        env:
+          RUSTY_KIOSK_KEYSTORE_PATH: ${{ runner.temp }}\rusty-kiosk-release.jks
+          RUSTY_KIOSK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
+          RUSTY_KIOSK_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
+          RUSTY_KIOSK_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+        run: |
+          foreach ($value in @(
+            $env:RUSTY_KIOSK_KEYSTORE_PASSWORD,
+            $env:RUSTY_KIOSK_KEY_ALIAS,
+            $env:RUSTY_KIOSK_KEY_PASSWORD)) {
+            if ([string]::IsNullOrWhiteSpace($value)) {
+              throw 'Android signing passwords and key alias must be configured.'
+            }
+          }
+          .\gradlew.bat test lint :app:assembleRelease :setup-helper:assembleRelease --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'Gradle release build failed.' }
+          pwsh -NoProfile -File .\tools\check_repo.ps1 -SkipAssemble
+          if ($LASTEXITCODE -ne 0) { throw 'Repository validation failed.' }
+
+      - name: Verify signing identity and stage public bundle
+        shell: pwsh
+        run: |
+          $mainApk = (Get-ChildItem app\build\outputs\apk\release\*.apk | Select-Object -First 1).FullName
+          $helperApk = (Get-ChildItem setup-helper\build\outputs\apk\release\*.apk | Select-Object -First 1).FullName
+          if (-not $mainApk -or -not $helperApk) { throw 'Expected release APK outputs were not found.' }
+
+          $apksigner = (Get-ChildItem "$env:ANDROID_HOME\build-tools\*\apksigner.bat" |
+            Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $apksigner) { throw 'apksigner was not found in the Android SDK.' }
+          $mainCert = (& $apksigner verify --print-certs $mainApk |
+            Select-String 'Signer #1 certificate SHA-256 digest:' | Select-Object -First 1).Line
+          if ($LASTEXITCODE -ne 0 -or -not $mainCert) { throw 'Main APK signature verification failed.' }
+          $helperCert = (& $apksigner verify --print-certs $helperApk |
+            Select-String 'Signer #1 certificate SHA-256 digest:' | Select-Object -First 1).Line
+          if ($LASTEXITCODE -ne 0 -or -not $helperCert) { throw 'Setup helper signature verification failed.' }
+          if ($mainCert -ne $helperCert) { throw 'The main and setup-helper APKs are not signed by the same certificate.' }
+
+          .\tools\Stage-ReleaseBundle.ps1 `
+            -MainApkPath $mainApk `
+            -SetupHelperApkPath $helperApk `
+            -SourceRevision $env:GITHUB_SHA `
+            -ApkSignerPath $apksigner
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rusty-kiosk-${{ steps.version.outputs.semantic_version }}
+          path: artifacts/release-bundle
+
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tagName = '${{ steps.version.outputs.tag_name }}'
+          $assets = Get-ChildItem artifacts\release-bundle -File | ForEach-Object FullName
+          gh release view $tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tagName $assets --clobber
+          }
+          else {
+            gh release create $tagName $assets `
+              --title "Rusty Kiosk $tagName" `
+              --generate-notes `
+              --latest `
+              --target $env:GITHUB_SHA
+          }
+
+      - name: Remove temporary signing material
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -LiteralPath (Join-Path $env:RUNNER_TEMP 'rusty-kiosk-release.jks') -Force -ErrorAction SilentlyContinue

@@ -6,8 +6,9 @@ Rusty Kiosk has two complementary desktop views of its one Spatial SDK panel:
 
 - **Browser projection** is interactive and optimized for rapid layout,
   catalogue-state, tag, and onboarding-flow iteration.
-- **Native Android** compiles and renders the production Jetpack Compose panel
-  with Android Layoutlib through Paparazzi. It is the desktop visual authority.
+- **Native Android** compiles and renders the source-bound Android design
+  projection with Layoutlib through Paparazzi. It is the desktop visual
+  authority; the Quest production panel itself is a native Android View tree.
 
 The Quest APK remains the final authority for compositor filtering, apparent
 angular size, controller/hand-pointer behavior, keyboard behavior, and scene
@@ -25,7 +26,7 @@ to fit the desktop viewport.
 The checked contract is
 `references/rusty-kiosk-panel-contract.v1.json`. Accepted geometry, palette,
 control tags, scenarios, and renderer roles must change together across the
-production Compose source, browser projection, native renderer, and tests.
+production native source, browser projection, native renderer, and tests.
 
 Meta’s current panel-resolution guide explains both the
 `DpPerMeterDisplayOptions` calculation and matching Compose previews:
@@ -51,6 +52,8 @@ The projection supports:
 - tag filters and tag add/remove interactions;
 - launchable, installed-without-front-door, and not-installed states;
 - guard-enabled and guard-setup states;
+- setup-helper readiness, Wi-Fi ADB, Accessibility, and Meta Home status;
+- reversible user-control simulations, including explicit setup and revocation;
 - normal/kiosk launch simulations;
 - deterministic JSON state export/import;
 - native Android and 50% comparison views after native generation.
@@ -90,6 +93,19 @@ files:
 - `RustyKioskPanel.kt`
 - `RustyKioskPanelContract.kt`
 - `RustyKioskTheme.kt`
+
+The production search and tag fields are direct Android `EditText` descendants
+of a Spatial SDK `LayoutXMLPanelRegistration`. They enable soft input on focus
+and explicitly request the Quest IME from both focus and click. Because Meta
+hosts the panel on a virtual display, the request obtains a display-scoped
+`InputMethodManager` from the attached field instead of the Activity's display
+0 instance. A rejected request receives one bounded retry; diagnostics contain
+display, attachment, token, attempt, and acceptance state but never field text.
+The main Spatial activity also uses `FLAG_ALT_FOCUSABLE_IM`: Meta's compatibility
+route for the case where Android serves the field and reports the IME as shown,
+but the immersive compositor does not make the keyboard surface visible.
+The native renderer verifies the source-bound design projection; only a real
+Quest run proves Meta keyboard opening and text entry.
 
 Paparazzi supports direct Compose snapshots without an emulator. The exporter
 records `catalog-ready`, `tag-filter-missing`, and `guard-setup`, verifies each

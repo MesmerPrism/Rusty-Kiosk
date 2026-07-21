@@ -55,6 +55,11 @@ internal class TagFileStore(context: Context) {
     writeAtomically(TagFileCodec.encode(records))
   }
 
+  fun replaceJson(json: String) {
+    TagFileCodec.parse(json)
+    writeAtomically(json)
+  }
+
   fun startWatching(onChanged: () -> Unit) {
     stopWatching()
     ensureExists()

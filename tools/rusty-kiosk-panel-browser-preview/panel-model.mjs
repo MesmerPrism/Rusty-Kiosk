@@ -52,6 +52,20 @@ export function scenarioState(name = "catalog-ready") {
     tagFilePath:
       "/sdcard/Android/data/io.github.mesmerprism.rustykiosk/files/tags/app-tags.v1.json",
     guardEnabled: true,
+    userControlsOpen: false,
+    userControls: {
+      passthroughStyle: "natural",
+      systemPassthroughEnabled: true,
+      passthroughLutApplied: true,
+      passthroughMessage: "System passthrough is active with the Natural style.",
+      setupHelperInstalled: true,
+      setupHelperReady: true,
+      requestWifiAfterBoot: true,
+      wirelessDebuggingEnabled: true,
+      accessibilityEnabled: true,
+      operationInProgress: null,
+      message: "Dedicated setup helper is installed and provisioned.",
+    },
   };
   if (scenario === "tag-filter-missing") {
     state.selectedTag = "onboarding";
@@ -60,6 +74,10 @@ export function scenarioState(name = "catalog-ready") {
   if (scenario === "guard-setup") {
     state.selectedKey = "package:io.example.movement";
     state.guardEnabled = false;
+    state.userControlsOpen = true;
+    state.userControls.accessibilityEnabled = false;
+    state.userControls.message =
+      "Wi-Fi ADB is ready. Accessibility remains off until you explicitly enable it.";
   }
   return state;
 }
@@ -137,6 +155,27 @@ export function importPreviewState(value) {
     selectedKey: value.selectedKey == null ? null : String(value.selectedKey).slice(0, 160),
     statusLine: String(value.statusLine ?? base.statusLine).slice(0, 180),
     guardEnabled: Boolean(value.guardEnabled),
+    userControlsOpen: Boolean(value.userControlsOpen),
+    userControls: {
+      ...base.userControls,
+      passthroughStyle:
+        value.userControls?.passthroughStyle === "contour-lut" ? "contour-lut" : "natural",
+      systemPassthroughEnabled: Boolean(value.userControls?.systemPassthroughEnabled),
+      passthroughLutApplied: Boolean(value.userControls?.passthroughLutApplied),
+      passthroughMessage: String(
+        value.userControls?.passthroughMessage ?? base.userControls.passthroughMessage,
+      ).slice(0, 240),
+      setupHelperInstalled: Boolean(value.userControls?.setupHelperInstalled),
+      setupHelperReady: Boolean(value.userControls?.setupHelperReady),
+      requestWifiAfterBoot: Boolean(value.userControls?.requestWifiAfterBoot),
+      wirelessDebuggingEnabled: Boolean(value.userControls?.wirelessDebuggingEnabled),
+      accessibilityEnabled: Boolean(value.userControls?.accessibilityEnabled),
+      operationInProgress:
+        value.userControls?.operationInProgress == null
+          ? null
+          : String(value.userControls.operationInProgress).slice(0, 40),
+      message: String(value.userControls?.message ?? base.userControls.message).slice(0, 240),
+    },
   };
 }
 

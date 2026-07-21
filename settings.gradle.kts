@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "RustyKiosk"
 include(":app")
+include(":setup-helper")

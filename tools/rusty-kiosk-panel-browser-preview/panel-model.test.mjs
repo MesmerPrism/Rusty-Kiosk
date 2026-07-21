@@ -30,5 +30,9 @@ assert.deepEqual(selectedEntry(removeTag(tagged, "web")).tags, ["onboarding", "u
 
 assert.throws(() => importPreviewState({ schema: "wrong" }), /Unsupported/);
 assert.equal(importPreviewState(tagged).guardEnabled, true);
+assert.equal(scenarioState("guard-setup").userControlsOpen, true);
+assert.equal(scenarioState("guard-setup").userControls.accessibilityEnabled, false);
+assert.equal(ready.userControls.passthroughStyle, "natural");
+assert.equal(ready.userControls.systemPassthroughEnabled, true);
 
 console.log("Rusty Kiosk browser panel model passed.");

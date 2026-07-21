@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <permission
+        android:name="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"
+        android:protectionLevel="signature" />
+
+    <uses-permission android:name="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL" />
+    <!-- Intentionally granted once with `pm grant` from an attended USB-C ADB session. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application
+        android:allowBackup="false"
+        android:label="Rusty Kiosk Setup"
+        android:supportsRtl="true">
+        <receiver
+            android:name=".SetupControlReceiver"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL">
+            <intent-filter>
+                <action android:name="io.github.mesmerprism.rustykiosk.setuphelper.action.CONTROL" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".BootRequestReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -12,8 +12,14 @@
   },
   "authority": {
     "browser": "interactive non-authoritative projection with synthetic catalogue data",
-    "native": "production Jetpack Compose panel rendered by Android Layoutlib through Paparazzi",
+    "native": "Android Layoutlib design projection rendered through Paparazzi",
     "quest": "final Spatial compositor, apparent-size, pointer, keyboard, and placement acceptance"
+  },
+  "text_input": {
+    "backend": "android-edit-text-layoutxml-panel",
+    "panel_registration": "native-layout-xml",
+    "keyboard_request": "explicit-on-focus-and-click-display-scoped",
+    "content_logged": false
   },
   "layout": {
     "outer_padding_dp": 20,
@@ -44,7 +50,13 @@
     "rusty-kiosk-app-details",
     "rusty-kiosk-normal-launch",
     "rusty-kiosk-kiosk-launch",
-    "rusty-kiosk-accessibility-settings"
+    "rusty-kiosk-user-control-status",
+    "rusty-kiosk-user-controls-open",
+    "rusty-kiosk-user-controls",
+    "rusty-kiosk-passthrough-controls",
+    "rusty-kiosk-wifi-adb-controls",
+    "rusty-kiosk-accessibility-toggle",
+    "rusty-kiosk-meta-home-exit"
   ],
   "preview": {
     "synthetic_only": true,

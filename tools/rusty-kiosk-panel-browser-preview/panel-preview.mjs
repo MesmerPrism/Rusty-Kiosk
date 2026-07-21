@@ -23,6 +23,8 @@ const elements = {
   tags: document.querySelector("#rusty-kiosk-tag-filters"),
   list: document.querySelector("#rusty-kiosk-app-list"),
   details: document.querySelector("#rusty-kiosk-app-details"),
+  controlStatus: document.querySelector("#rusty-kiosk-user-control-status"),
+  userControls: document.querySelector("#rusty-kiosk-user-controls"),
   footer: document.querySelector("#panel-footer"),
   scenario: document.querySelector("#preview-scenario"),
   renderer: document.querySelector("#preview-renderer"),
@@ -66,7 +68,11 @@ elements.renderer.addEventListener("change", () => {
   updateRendererView();
 });
 elements.guard.addEventListener("change", () => {
-  state = { ...state, guardEnabled: elements.guard.checked };
+  state = {
+    ...state,
+    guardEnabled: elements.guard.checked,
+    userControls: { ...state.userControls, accessibilityEnabled: elements.guard.checked },
+  };
   render();
 });
 elements.search.addEventListener("input", () => {
@@ -90,6 +96,8 @@ function render() {
   elements.scenario.value = state.scenario;
   elements.guard.checked = state.guardEnabled;
   elements.search.value = state.searchQuery;
+  elements.panel.classList.toggle("controls-open", state.userControlsOpen);
+  elements.userControls.hidden = !state.userControlsOpen;
   elements.header.replaceChildren(
     node("div", { className: "panel-title" }, [
       node("h1", {}, ["Rusty Kiosk"]),
@@ -100,10 +108,206 @@ function render() {
       render();
     }),
   );
-  renderCatalogue();
+  renderControlStatus();
+  if (state.userControlsOpen) renderUserControls();
+  else renderCatalogue();
   elements.footer.textContent = state.tagFilePath;
   updateRendererView();
   resizePreview();
+}
+
+function renderControlStatus() {
+  const controls = state.userControls;
+  const manage = button(
+    state.userControlsOpen ? "Back to apps" : "User controls",
+    "outline-button",
+    () => {
+      state = { ...state, userControlsOpen: !state.userControlsOpen };
+      render();
+    },
+  );
+  manage.id = "rusty-kiosk-user-controls-open";
+  elements.controlStatus.replaceChildren(
+    statusBadge("Setup", setupStatusLabel(controls), controls.setupHelperReady),
+    statusBadge(
+      "Passthrough",
+      passthroughStatusLabel(controls),
+      controls.systemPassthroughEnabled && controls.passthroughLutApplied,
+    ),
+    statusBadge("Wi-Fi ADB", wifiStatusLabel(controls), controls.wirelessDebuggingEnabled),
+    statusBadge("Accessibility", controls.accessibilityEnabled ? "Enabled" : "Disabled", controls.accessibilityEnabled),
+    statusBadge("Meta Home", "Available", true),
+    node("span", { className: "control-status-spacer" }),
+    manage,
+  );
+}
+
+function renderUserControls() {
+  const controls = state.userControls;
+  const naturalPassthrough = button("Natural", "outline-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        passthroughStyle: "natural",
+        systemPassthroughEnabled: true,
+        passthroughLutApplied: true,
+        passthroughMessage: "System passthrough is active with the Natural style · browser simulation.",
+      },
+    };
+    render();
+  });
+  naturalPassthrough.disabled =
+    controls.passthroughStyle === "natural" &&
+    controls.systemPassthroughEnabled &&
+    controls.passthroughLutApplied;
+  const contourPassthrough = button("Contour LUT", "outline-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        passthroughStyle: "contour-lut",
+        systemPassthroughEnabled: true,
+        passthroughLutApplied: true,
+        passthroughMessage: "System passthrough is active with the Contour LUT style · browser simulation.",
+      },
+    };
+    render();
+  });
+  contourPassthrough.disabled =
+    controls.passthroughStyle === "contour-lut" &&
+    controls.systemPassthroughEnabled &&
+    controls.passthroughLutApplied;
+  const connectivityActions = [];
+  const refreshSetup = button("Refresh setup status", "outline-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        message: controls.setupHelperReady
+          ? "Dedicated setup helper is installed and provisioned · browser simulation."
+          : "One USB-C provisioning step is required · browser simulation.",
+      },
+    };
+    render();
+  });
+  refreshSetup.id = "rusty-kiosk-wifi-adb-controls";
+  connectivityActions.push(refreshSetup);
+  const requestWifi = button("Request Wi-Fi ADB", "solid-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        wirelessDebuggingEnabled: true,
+        message: "Wi-Fi ADB requested; Meta approval remains visible and manual · browser simulation.",
+      },
+    };
+    render();
+  });
+  requestWifi.disabled = !controls.setupHelperReady;
+  connectivityActions.push(requestWifi);
+  const restartRequest = button(
+    controls.requestWifiAfterBoot ? "Stop asking after restart" : "Ask after every restart",
+    "outline-button control-button",
+    () => {
+      state = {
+        ...state,
+        userControls: {
+          ...controls,
+          requestWifiAfterBoot: !controls.requestWifiAfterBoot,
+          message: "Restart request preference changed · browser simulation.",
+        },
+      };
+      render();
+    },
+  );
+  restartRequest.disabled = !controls.setupHelperReady;
+  connectivityActions.push(restartRequest);
+  const disableWifi = button("Disable Wi-Fi ADB", "outline-button control-button", () => {
+    state = {
+      ...state,
+      userControls: {
+        ...controls,
+        wirelessDebuggingEnabled: false,
+        message: "Wi-Fi ADB disabled · browser simulation. Accessibility was not changed.",
+      },
+    };
+    render();
+  });
+  disableWifi.disabled = !controls.setupHelperReady || !controls.wirelessDebuggingEnabled;
+  connectivityActions.push(disableWifi);
+
+  const accessibilityToggle = button(
+    controls.accessibilityEnabled ? "Disable Accessibility" : "Enable Accessibility",
+    controls.accessibilityEnabled ? "outline-button control-button" : "solid-button control-button",
+    () => {
+      const enabled = !controls.accessibilityEnabled;
+      state = {
+        ...state,
+        guardEnabled: enabled,
+        userControls: {
+          ...controls,
+          accessibilityEnabled: enabled,
+          message: enabled
+            ? "Accessibility enabled. The soft guard remains inactive here · browser simulation."
+            : "Accessibility disabled. Other services were preserved · browser simulation.",
+        },
+      };
+      render();
+    },
+  );
+  accessibilityToggle.id = "rusty-kiosk-accessibility-toggle";
+  accessibilityToggle.disabled =
+    !controls.accessibilityEnabled && !controls.setupHelperReady;
+
+  const exitHome = button("Exit to Meta Home", "solid-button secondary-button control-button", () => {
+    state = { ...state, statusLine: "Exited to Meta Home · browser simulation" };
+    render();
+  });
+  exitHome.id = "rusty-kiosk-meta-home-exit";
+
+  elements.userControls.replaceChildren(
+    node("div", { className: "control-center-heading" }, [
+      node("h2", {}, ["Transparent, reversible setup"]),
+      node("p", {}, [controls.message]),
+    ]),
+    node("div", { className: "control-card-grid" }, [
+      controlCard("Passthrough appearance", [
+        controlFact("System passthrough", passthroughStatusLabel(controls)),
+        node("p", { className: "detail-copy" }, [controls.passthroughMessage]),
+        node("p", { className: "detail-copy" }, [
+          "Natural is the default. Contour LUT uses hard color bands to reveal contours; it is not camera edge detection.",
+        ]),
+        node(
+          "div",
+          { className: "control-actions", id: "rusty-kiosk-passthrough-controls" },
+          [naturalPassthrough, contourPassthrough],
+        ),
+      ]),
+      controlCard("Wi-Fi ADB · explicit opt-in", [
+        node("p", { className: "detail-copy" }, [
+          "The dedicated setup helper exposes only fixed Rusty Kiosk operations. USB-C provisions it once; no terminal app is needed.",
+        ]),
+        controlFact("Wireless Debugging", controls.wirelessDebuggingEnabled ? "On" : "Off"),
+        controlFact("Setup helper", setupStatusLabel(controls)),
+        controlFact("Request after restart", controls.requestWifiAfterBoot ? "On" : "Off"),
+        node("div", { className: "control-actions" }, connectivityActions),
+      ]),
+      controlCard("Accessibility · explicit opt-in", [
+        node("p", { className: "detail-copy" }, [
+          "Enables the soft guard for kiosk launches only. It is disarmed while this Rusty Kiosk panel is visible.",
+        ]),
+        controlFact("Service", controls.accessibilityEnabled ? "Enabled" : "Disabled"),
+        controlFact("Inside Rusty Kiosk", "Guard inactive"),
+        node("p", { className: "detail-copy" }, [
+          "Home #1 and #2 restore a kiosk-launched app. Home #3 returns here. Home from here opens Meta Home.",
+        ]),
+        node("div", { className: "control-actions" }, [accessibilityToggle, node("div", { className: "detail-divider" }), exitHome]),
+      ]),
+    ]),
+  );
+  elements.userControls.hidden = false;
+  updateRendererView();
 }
 
 function renderCatalogue() {
@@ -203,11 +407,11 @@ function renderDetails() {
     children.push(node("p", { className: "detail-copy" }, ["Soft guard ready. Home #1 and #2 restore the app; Home #3 within five seconds returns here."]));
   } else {
     children.push(node("p", { className: "detail-copy missing" }, ["Kiosk launch needs the opt-in Accessibility service."]));
-    const settings = button("Open Accessibility settings", "outline-button launch-button", () => {
-      state = { ...state, statusLine: "Accessibility settings requested · browser simulation" };
+    const settings = button("Manage user controls", "outline-button launch-button", () => {
+      state = { ...state, userControlsOpen: true };
       render();
     });
-    settings.id = "rusty-kiosk-accessibility-settings";
+    settings.id = "rusty-kiosk-user-controls-open";
     children.push(settings);
   }
   children.push(node("p", { className: "detail-copy" }, ["The guard is inactive in Rusty Kiosk. Press Home here to open Meta Home normally."]));
@@ -353,6 +557,45 @@ function statusLabel(entry) {
   if (!entry.installed) return "Not installed";
   if (!entry.launchable) return "Installed, no public launch activity";
   return "Installed";
+}
+
+function wifiStatusLabel(controls) {
+  if (controls.operationInProgress === "request_wifi_adb") return "Requesting";
+  if (controls.operationInProgress === "disable_wifi_adb") return "Turning off";
+  if (!controls.wirelessDebuggingEnabled) return "Off";
+  return "On";
+}
+
+function setupStatusLabel(controls) {
+  if (!controls.setupHelperInstalled) return "Not installed";
+  if (!controls.setupHelperReady) return "Needs USB-C setup";
+  return "Ready";
+}
+
+function passthroughStatusLabel(controls) {
+  if (!controls.systemPassthroughEnabled || !controls.passthroughLutApplied) return "Unavailable";
+  return controls.passthroughStyle === "contour-lut" ? "Contour LUT" : "Natural";
+}
+
+function statusBadge(label, value, positive) {
+  return node("span", { className: "status-badge" }, [
+    node("strong", {}, [label]),
+    node("span", { className: positive ? "installed" : "missing" }, [value]),
+  ]);
+}
+
+function controlCard(title, children) {
+  return node("section", { className: "control-card" }, [
+    node("h3", {}, [title]),
+    ...children,
+  ]);
+}
+
+function controlFact(label, value) {
+  return node("div", { className: "control-fact" }, [
+    node("span", {}, [label]),
+    node("strong", {}, [value]),
+  ]);
 }
 
 function scenarioLabel(value) {

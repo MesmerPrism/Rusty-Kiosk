@@ -13,7 +13,13 @@
         android:name="android.hardware.vr.headtracking"
         android:required="true" />
     <uses-feature
+        android:name="com.oculus.feature.PASSTHROUGH"
+        android:required="false" />
+    <uses-feature
         android:name="com.oculus.feature.VIRTUAL_KEYBOARD"
+        android:required="false" />
+    <uses-feature
+        android:name="oculus.software.overlay_keyboard"
         android:required="false" />
     <uses-feature
         android:name="oculus.software.handtracking"
@@ -28,11 +34,19 @@
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
+    <!-- Granted only when the separately installed setup helper has the same signer. -->
+    <uses-permission android:name="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL" />
     <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR" />
     <uses-permission android:name="org.khronos.openxr.permission.OPENXR_SYSTEM" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <queries>
+        <package android:name="io.github.mesmerprism.rustykiosk.setuphelper" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
@@ -100,5 +114,30 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/kiosk_accessibility_service" />
         </service>
+
+        <!--
+          Explicitly wearer-enabled, bounded local operator bridge. It exposes no shell or
+          arbitrary Android intents. Authentication is application-level HMAC with expiry and
+          replay protection; the setup helper remains network-free.
+        -->
+        <service
+            android:name=".OperatorBridgeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="false" />
+
+        <receiver
+            android:name=".RustyKioskInstallReceiver"
+            android:exported="false" />
+
+        <!--
+          Fixed typed host operations for an already authorized ADB shell. Ordinary headset apps
+          cannot hold android.permission.DUMP, and this provider supports call() only.
+        -->
+        <provider
+            android:name=".RustyKioskOperatorProvider"
+            android:authorities="io.github.mesmerprism.rustykiosk.operator"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
     </application>
 </manifest>

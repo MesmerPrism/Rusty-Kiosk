@@ -5,6 +5,11 @@ plugins {
   alias(libs.plugins.meta.spatial.plugin)
 }
 
+val releaseKeystorePath = providers.environmentVariable("RUSTY_KIOSK_KEYSTORE_PATH").orNull
+val releaseKeystorePassword = providers.environmentVariable("RUSTY_KIOSK_KEYSTORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("RUSTY_KIOSK_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("RUSTY_KIOSK_KEY_PASSWORD").orNull
+
 android {
   namespace = "io.github.mesmerprism.rustykiosk"
   compileSdk = 34
@@ -13,8 +18,8 @@ android {
     applicationId = "io.github.mesmerprism.rustykiosk"
     minSdk = 34
     targetSdk = 34
-    versionCode = 1
-    versionName = "0.1.0"
+    versionCode = 10
+    versionName = "0.6.0"
 
     ndk {
       abiFilters += listOf("arm64-v8a")
@@ -27,9 +32,21 @@ android {
     resources.excludes.add("META-INF/LICENSE-notice.md")
   }
 
+  signingConfigs {
+    if (!releaseKeystorePath.isNullOrBlank()) {
+      create("release") {
+        storeFile = file(releaseKeystorePath)
+        storePassword = releaseKeystorePassword
+        keyAlias = releaseKeyAlias
+        keyPassword = releaseKeyPassword
+      }
+    }
+  }
+
   buildTypes {
     release {
       isMinifyEnabled = false
+      signingConfig = signingConfigs.findByName("release")
     }
   }
 
@@ -67,7 +84,9 @@ dependencies {
   implementation(libs.meta.spatial.sdk.base)
   implementation(libs.meta.spatial.sdk.compose)
   implementation(libs.meta.spatial.sdk.toolkit)
+  implementation(libs.meta.spatial.sdk.uiset)
   implementation(libs.meta.spatial.sdk.vr)
+  implementation(libs.nanohttpd)
 
   testImplementation(libs.junit)
   testImplementation(libs.json)

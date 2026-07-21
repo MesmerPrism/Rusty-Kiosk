@@ -13,6 +13,16 @@ internal data class LaunchResult(
   val message: String,
 )
 
+internal object LaunchTaskPolicy {
+  fun initialFlags(kind: LaunchKind): Int =
+    when (kind) {
+      LaunchKind.NORMAL ->
+        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
+      LaunchKind.KIOSK ->
+        Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+}
+
 internal class LaunchController(context: Context) {
   private val appContext = context.applicationContext
   private val guardStore = GuardStateStore(appContext)
@@ -33,15 +43,11 @@ internal class LaunchController(context: Context) {
     }
 
     return runCatching {
-        appContext.startActivity(
-          target.toIntent(
-            Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED
-          )
-        )
+        appContext.startActivity(target.toIntent(LaunchTaskPolicy.initialFlags(kind)))
         LaunchResult(
           true,
           if (kind == LaunchKind.KIOSK) {
-            "Kiosk launched ${entry.label}. Triple-Home returns to Rusty Kiosk."
+            "Fresh kiosk launched ${entry.label}. Triple-Home returns to Rusty Kiosk."
           } else {
             "Launched ${entry.label} normally."
           },
