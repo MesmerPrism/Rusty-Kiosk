@@ -14,6 +14,17 @@ $manifestPath = Join-Path $repoRoot 'app\src\main\AndroidManifest.xml'
 $serviceXmlPath = Join-Path $repoRoot 'app\src\main\res\xml\kiosk_accessibility_service.xml'
 $serviceSourcePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\KioskAccessibilityService.kt'
 $activitySourcePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskActivity.kt'
+$setupBridgePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\SetupHelperControlBridge.kt'
+$setupManifestPath = Join-Path $repoRoot 'setup-helper\src\main\AndroidManifest.xml'
+$setupSourcePath = Join-Path $repoRoot 'setup-helper\src\main\java\io\github\mesmerprism\rustykiosk\setuphelper\SetupOperations.kt'
+$cliContractPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskCliContract.kt'
+$cliDebugManifestPath = Join-Path $repoRoot 'app\src\debug\AndroidManifest.xml'
+$cliActivityPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskCliActivity.kt'
+$guardCliReceiverPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskGuardCliReceiver.kt'
+$cliScriptPath = Join-Path $repoRoot 'tools\Invoke-RustyKioskCli.ps1'
+$homeScriptPath = Join-Path $repoRoot 'tools\Invoke-RustyKioskHome.ps1'
+$guardCliScriptPath = Join-Path $repoRoot 'tools\Invoke-RustyKioskGuardCli.ps1'
+$provisionScriptPath = Join-Path $repoRoot 'tools\Provision-RustyKiosk.ps1'
 
 $serviceXml = Get-Content -Raw -LiteralPath $serviceXmlPath
 if ($serviceXml -notmatch 'canRetrieveWindowContent="false"') {
@@ -36,6 +47,11 @@ foreach ($token in $forbiddenAccessibilityTokens) {
     throw "Forbidden Accessibility capability found: $token"
   }
 }
+foreach ($token in @('disableSelf()', 'user-disabled-accessibility')) {
+  if (-not $serviceSource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "Accessibility must keep the direct user-disable path: $token"
+  }
+}
 
 $activitySource = Get-Content -Raw -LiteralPath $activitySourcePath
 if ($activitySource -notmatch 'scene\.enablePassthrough\(true\)') {
@@ -49,11 +65,161 @@ $manifest = Get-Content -Raw -LiteralPath $manifestPath
 if ($manifest -match 'android\.app\.role\.HOME|android\.intent\.category\.HOME') {
   throw 'Rusty Kiosk must not claim the Android HOME role.'
 }
+if ($manifest -match 'android\.permission\.WRITE_SECURE_SETTINGS') {
+  throw 'The main Rusty Kiosk APK must not receive broad secure-settings authority.'
+}
+if ($manifest -notmatch 'io\.github\.mesmerprism\.rustykiosk\.permission\.SETUP_CONTROL') {
+  throw 'The main app is missing its same-signer setup control permission.'
+}
+if ($manifest -match 'com\.termux|RUN_COMMAND') {
+  throw 'The product manifest must not depend on Termux.'
+}
+if ($manifest -match 'RustyKioskCliActivity|RustyKioskGuardCliReceiver|android\.permission\.DUMP') {
+  throw 'The release/main manifest must not contain the debug CLI boundary.'
+}
+
+$cliDebugManifest = Get-Content -Raw -LiteralPath $cliDebugManifestPath
+foreach ($pattern in @(
+  'RustyKioskCliActivity',
+  'RustyKioskGuardCliReceiver',
+  'android:exported="true"',
+  'android:permission="android.permission.DUMP"'
+)) {
+  if ($cliDebugManifest -notmatch [Regex]::Escape($pattern)) {
+    throw "The debug CLI manifest boundary is missing: $pattern"
+  }
+}
+
+$cliActivity = Get-Content -Raw -LiteralPath $cliActivityPath
+$guardCliReceiver = Get-Content -Raw -LiteralPath $guardCliReceiverPath
+$cliContract = Get-Content -Raw -LiteralPath $cliContractPath
+$cliScript = Get-Content -Raw -LiteralPath $cliScriptPath
+foreach ($token in @('RustyKioskCliProtocol.parse', 'RustyKioskCliStore(this).enqueue')) {
+  if (-not $cliActivity.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The debug CLI admission adapter is missing: $token"
+  }
+}
+foreach ($token in @('EXTRA_VALUE_BASE64', 'Base64.decode')) {
+  if (-not $cliActivity.Contains($token, [StringComparison]::Ordinal) -and
+      -not $cliContract.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The CLI text transport is missing: $token"
+  }
+}
+foreach ($token in @('ToBase64String', 'rusty_kiosk_cli_value_base64')) {
+  if (-not $cliScript.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The host CLI text transport is missing: $token"
+  }
+}
+foreach ($token in @('raw-shell', 'Runtime.getRuntime', 'ProcessBuilder', 'java.lang.Process')) {
+  if ($cliActivity.Contains($token, [StringComparison]::Ordinal) -or
+      $cliContract.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The debug CLI must not expose process or raw-shell authority: $token"
+  }
+}
+foreach ($token in @(
+  'ACTION_EXTERNAL_HOME_TRANSITION',
+  'ACTION_INTERNAL_HOME_TRANSITION',
+  'validRequestId'
+)) {
+  if (-not $guardCliReceiver.Contains($token, [StringComparison]::Ordinal) -and
+      -not $serviceSource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The exact guard CLI boundary is missing: $token"
+  }
+}
+foreach ($token in @('CliValueRule', 'MAX_VALUE_LENGTH', 'MAX_RESULT_ENTRIES', 'visibleEntries')) {
+  if (-not $cliContract.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The bounded CLI contract is missing: $token"
+  }
+}
+if ($cliScript -notmatch '''-s'', \$Serial') {
+  throw 'The Rusty Kiosk CLI wrapper must keep every ADB command serial-scoped.'
+}
+$homeScript = Get-Content -Raw -LiteralPath $homeScriptPath
+foreach ($token in @('android.intent.action.MAIN', 'android.intent.category.HOME', '-s $Serial')) {
+  if (-not $homeScript.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The typed Android HOME wrapper is missing: $token"
+  }
+}
+$guardCliScript = Get-Content -Raw -LiteralPath $guardCliScriptPath
+foreach ($token in @('-s $Serial', 'RustyKioskGuardCliReceiver', 'guard-last-result.json')) {
+  if (-not $guardCliScript.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The exact guard CLI wrapper is missing: $token"
+  }
+}
+foreach ($scriptPath in @($cliScriptPath, $homeScriptPath, $guardCliScriptPath)) {
+  $scriptContent = Get-Content -Raw -LiteralPath $scriptPath
+  if ($scriptContent -match 'shell\s+input|input\s+(tap|swipe|keyevent|text)') {
+    throw "Wearer-equivalent CLI wrappers must not use input injection: $scriptPath"
+  }
+}
+
+$setupBridge = Get-Content -Raw -LiteralPath $setupBridgePath
+foreach ($token in @(
+  'SetupHelperOperation',
+  'REQUEST_WIFI_ADB',
+  'ENABLE_WIFI_AFTER_BOOT',
+  'DISABLE_WIFI_AFTER_BOOT',
+  'ENABLE_ACCESSIBILITY',
+  'DISABLE_ACCESSIBILITY',
+  'CONTROL_PERMISSION'
+)) {
+  if (-not $setupBridge.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fixed setup-helper bridge is missing: $token"
+  }
+}
+foreach ($token in @('RUN_COMMAND', 'userCommand', 'rawShell', 'ProcessBuilder', 'Runtime.getRuntime')) {
+  if ($setupBridge.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The setup-helper bridge must not expose an expandable command surface: $token"
+  }
+}
+
+$setupManifest = Get-Content -Raw -LiteralPath $setupManifestPath
+$setupSource = Get-Content -Raw -LiteralPath $setupSourcePath
+foreach ($pattern in @(
+  'android.permission.WRITE_SECURE_SETTINGS',
+  'android.permission.RECEIVE_BOOT_COMPLETED',
+  'android:protectionLevel="signature"',
+  'android:permission="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"'
+)) {
+  if ($setupManifest -notmatch [Regex]::Escape($pattern)) {
+    throw "The dedicated setup helper manifest is missing: $pattern"
+  }
+}
+if ($setupManifest -match 'android.permission.INTERNET|android.intent.category.LAUNCHER') {
+  throw 'The setup helper must remain non-networked and must not expose a launcher UI.'
+}
+foreach ($token in @(
+  'ACCESSIBILITY_COMPONENT',
+  'AccessibilityServiceList.enable',
+  'AccessibilityServiceList.disable',
+  'Settings.Global.ADB_ENABLED',
+  'WIFI_ADB_SETTING',
+  'ACTION_BOOT_COMPLETED'
+)) {
+  if (-not $setupSource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fixed setup helper is missing: $token"
+  }
+}
+foreach ($token in @('ProcessBuilder', 'Runtime.getRuntime', 'java.lang.Process', 'startActivity(')) {
+  if ($setupSource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The setup helper contains forbidden generic authority: $token"
+  }
+}
+
+$provisionScript = Get-Content -Raw -LiteralPath $provisionScriptPath
+foreach ($token in @('-s $Serial', 'WRITE_SECURE_SETTINGS', 'setup-helper-debug.apk', 'dumpsys package')) {
+  if (-not $provisionScript.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The serial-scoped provisioning workflow is missing: $token"
+  }
+}
+if ($provisionScript -match 'shell\s+input|input\s+(tap|swipe|keyevent|text)') {
+  throw 'The provisioning workflow must not use input injection.'
+}
 
 $publicFiles =
   Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
     Where-Object {
-      $_.FullName -notmatch '[\\/](\.git|\.gradle|build|local-artifacts|artifacts)[\\/]'
+      $_.FullName -notmatch '[\\/](\.git|\.gradle|\.kotlin|build|local-artifacts|artifacts)[\\/]'
     }
 $privatePatterns = @(
   [Regex]::Escape(('S:' + '\Work' + '\')),
@@ -86,8 +252,23 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Gradle unit/lint gate failed with exit code $LASTEXITCODE."
   }
+  & .\gradlew.bat :app:processReleaseMainManifest :setup-helper:processReleaseMainManifest
+  if ($LASTEXITCODE -ne 0) {
+    throw "Gradle release-manifest gate failed with exit code $LASTEXITCODE."
+  }
+  $releaseManifest =
+    Get-ChildItem -Path .\app\build\intermediates -Recurse -Filter AndroidManifest.xml |
+      Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
+      Select-Object -First 1
+  if ($null -eq $releaseManifest) {
+    throw 'The release-manifest gate did not produce a merged manifest.'
+  }
+  if ((Get-Content -Raw -LiteralPath $releaseManifest.FullName) -match
+      'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
+    throw 'A debug Rusty Kiosk CLI component leaked into the release manifest.'
+  }
   if (-not $SkipAssemble) {
-    & .\gradlew.bat assembleDebug
+    & .\gradlew.bat :app:assembleDebug :setup-helper:assembleDebug
     if ($LASTEXITCODE -ne 0) {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }

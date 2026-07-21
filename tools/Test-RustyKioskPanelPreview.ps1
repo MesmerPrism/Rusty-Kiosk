@@ -9,10 +9,13 @@ $contractPath = Join-Path $repoRoot 'references\rusty-kiosk-panel-contract.v1.js
 $browserRoot = Join-Path $repoRoot 'tools\rusty-kiosk-panel-browser-preview'
 $panelPath =
   Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskPanel.kt'
+$productionPanelPath =
+  Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskNativePanel.kt'
 $geometryPath =
   Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskPanelContract.kt'
 $activityPath =
   Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskActivity.kt'
+$manifestPath = Join-Path $repoRoot 'app\src\main\AndroidManifest.xml'
 $nativeTestPath =
   Join-Path $repoRoot 'tools\rusty-kiosk-native-panel-preview-android\native-panel-preview\src\test\kotlin\io\github\mesmerprism\rustykiosk\RustyKioskNativePanelRenderTest.kt'
 $nativeBuildPath =
@@ -42,10 +45,20 @@ if (
 if ($contract.preview.synthetic_only -ne $true) {
   throw 'Browser and native panel fixtures must remain synthetic-only.'
 }
+if (
+  $contract.text_input.backend -ne 'android-edit-text-layoutxml-panel' -or
+  $contract.text_input.panel_registration -ne 'native-layout-xml' -or
+  $contract.text_input.keyboard_request -ne 'explicit-on-focus-and-click' -or
+  $contract.text_input.content_logged -ne $false
+) {
+  throw 'Quest text-input authority changed.'
+}
 
 $geometry = Get-Content -Raw -LiteralPath $geometryPath
 $activity = Get-Content -Raw -LiteralPath $activityPath
+$manifest = Get-Content -Raw -LiteralPath $manifestPath
 $panel = Get-Content -Raw -LiteralPath $panelPath
+$productionPanel = Get-Content -Raw -LiteralPath $productionPanelPath
 foreach ($token in @(
   'const val WIDTH_METERS = 1.55f',
   'const val HEIGHT_METERS = 1.05f',
@@ -60,10 +73,20 @@ foreach ($token in @(
 }
 foreach ($token in @(
   'RustyKioskPanelGeometry.WIDTH_METERS',
-  'RustyKioskPanelGeometry.HEIGHT_METERS',
-  'RustyKioskPanelGeometry.DP_PER_METER'
+  'RustyKioskPanelGeometry.HEIGHT_METERS'
 )) {
   if (-not $activity.Contains($token)) { throw "Spatial host is missing shared panel geometry: $token" }
+}
+foreach ($token in @(
+  'LayoutXMLPanelRegistration(',
+  'R.layout.rusty_kiosk_panel',
+  'RustyKioskPanelGeometry.WIDTH_DP',
+  'RustyKioskPanelGeometry.HEIGHT_DP',
+  'RustyKioskPanelGeometry.LAYOUT_DPI'
+)) {
+  if (-not $productionPanel.Contains($token)) {
+    throw "Production native panel is missing shared registration geometry: $token"
+  }
 }
 
 $html = Get-Content -Raw -LiteralPath (Join-Path $browserRoot 'index.html')
@@ -84,10 +107,39 @@ foreach ($controlToken in @(
   'RustyKioskPanelControls.APP_DETAILS',
   'RustyKioskPanelControls.NORMAL_LAUNCH',
   'RustyKioskPanelControls.KIOSK_LAUNCH',
-  'RustyKioskPanelControls.ACCESSIBILITY_SETTINGS'
+  'RustyKioskPanelControls.USER_CONTROL_STATUS',
+  'RustyKioskPanelControls.USER_CONTROLS_OPEN',
+  'RustyKioskPanelControls.USER_CONTROLS',
+  'RustyKioskPanelControls.WIFI_ADB_CONTROLS',
+  'RustyKioskPanelControls.ACCESSIBILITY_TOGGLE',
+  'RustyKioskPanelControls.META_HOME_EXIT'
 )) {
-  if (-not $panel.Contains($controlToken)) {
-    throw "Production Compose panel is missing stable preview control tag: $controlToken"
+  if (-not $productionPanel.Contains($controlToken)) {
+    throw "Production native panel is missing stable control tag: $controlToken"
+  }
+}
+foreach ($inputToken in @(
+  'EditText(context).apply',
+  'isFocusableInTouchMode = true',
+  'showSoftInputOnFocus = true',
+  'setOnFocusChangeListener',
+  'setOnClickListener',
+  '.showSoftInput(field, InputMethodManager.SHOW_IMPLICIT)',
+  'textLogged=false'
+)) {
+  if (-not $productionPanel.Contains($inputToken)) {
+    throw "Production native Quest IME path is missing: $inputToken"
+  }
+}
+if (-not $productionPanel.Contains('input = PanelInputOptions()')) {
+  throw 'Spatial panel is missing explicit input configuration.'
+}
+foreach ($feature in @(
+  'com.oculus.feature.VIRTUAL_KEYBOARD',
+  'oculus.software.overlay_keyboard'
+)) {
+  if (-not $manifest.Contains($feature)) {
+    throw "Quest manifest is missing keyboard capability: $feature"
   }
 }
 foreach ($token in @(
@@ -112,7 +164,9 @@ foreach ($token in @(
   'native_raster_width_px',
   'importPreviewState',
   'addTag',
-  'removeTag'
+  'removeTag',
+  'renderUserControls',
+  'Exit to Meta Home'
 )) {
   if (-not $script.Contains($token)) { throw "Browser projection is missing behavior: $token" }
 }
@@ -138,6 +192,7 @@ foreach ($token in @(
   'RustyKioskPanel.kt',
   'RustyKioskPanelContract.kt',
   'RustyKioskTheme.kt',
+  'libs.meta.spatial.sdk.uiset',
   'alias(libs.plugins.paparazzi)'
 )) {
   if (-not $nativeBuild.Contains($token)) { throw "Native host is not source-bound: $token" }
@@ -160,4 +215,4 @@ if ($RenderNative) {
   if ($LASTEXITCODE -ne 0) { throw 'Native panel rendering failed.' }
 }
 
-Write-Output 'Rusty Kiosk production Compose, browser projection, and native preview contracts passed.'
+Write-Output 'Rusty Kiosk production native panel, browser projection, and native preview contracts passed.'

@@ -61,6 +61,10 @@ internal data class KioskUiState(
   val statusLine: String = "Loading installed apps",
   val tagFilePath: String = "",
   val guardEnabled: Boolean = false,
+  val userControlsOpen: Boolean = false,
+  val userControls: UserControlState = UserControlState(),
+  val searchFocusRequest: Long = 0L,
+  val tagFocusRequest: Long = 0L,
 ) {
   val tags: List<String>
     get() = entries.flatMap { it.tags }.distinct().sorted()
@@ -70,6 +74,37 @@ internal data class KioskUiState(
 
   val selectedEntry: CatalogEntry?
     get() = entries.firstOrNull { it.key == selectedKey }
+}
+
+internal data class UserControlState(
+  val setupHelperInstalled: Boolean = false,
+  val setupHelperReady: Boolean = false,
+  val requestWifiAfterBoot: Boolean = false,
+  val wirelessDebuggingEnabled: Boolean = false,
+  val accessibilityEnabled: Boolean = false,
+  val operationInProgress: String? = null,
+  val message: String =
+    "Both Wi-Fi ADB and Accessibility are optional. Nothing is enabled automatically.",
+) {
+  val setupStatusLabel: String
+    get() =
+      when {
+        !setupHelperInstalled -> "Not installed"
+        !setupHelperReady -> "Needs USB-C setup"
+        else -> "Ready"
+      }
+
+  val wifiStatusLabel: String
+    get() =
+      when {
+        operationInProgress == "request_wifi_adb" -> "Requesting"
+        operationInProgress == "disable_wifi_adb" -> "Turning off"
+        !wirelessDebuggingEnabled -> "Off"
+        else -> "On"
+      }
+
+  val accessibilityStatusLabel: String
+    get() = if (accessibilityEnabled) "Enabled" else "Disabled"
 }
 
 internal object CatalogFilter {

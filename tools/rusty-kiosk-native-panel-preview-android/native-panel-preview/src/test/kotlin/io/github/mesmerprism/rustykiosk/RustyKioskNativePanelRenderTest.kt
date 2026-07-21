@@ -49,7 +49,16 @@ class RustyKioskNativePanelRenderTest {
           onRemoveTag = {},
           onNormalLaunch = {},
           onKioskLaunch = {},
-          onOpenAccessibilitySettings = {},
+          onOpenUserControls = {},
+          onCloseUserControls = {},
+          onCheckSetupHelper = {},
+          onRequestWifiAdb = {},
+          onEnableWifiAfterBoot = {},
+          onDisableWifiAfterBoot = {},
+          onDisableWifiAdb = {},
+          onEnableAccessibility = {},
+          onDisableAccessibility = {},
+          onExitToMetaHome = {},
         )
       }
     }
@@ -103,12 +112,14 @@ private object PreviewFixtures {
   fun tagFilterMissing() =
     state(selectedKey = planned.key, selectedTag = "onboarding", guardEnabled = true)
 
-  fun guardSetup() = state(selectedKey = movement.key, guardEnabled = false)
+  fun guardSetup() =
+    state(selectedKey = movement.key, guardEnabled = false, userControlsOpen = true)
 
   private fun state(
     selectedKey: String,
     selectedTag: String? = null,
     guardEnabled: Boolean,
+    userControlsOpen: Boolean = false,
   ) =
     KioskUiState(
       entries = listOf(browser, movement, gallery, planned),
@@ -118,6 +129,21 @@ private object PreviewFixtures {
       tagFilePath =
         "/sdcard/Android/data/io.github.mesmerprism.rustykiosk/files/tags/app-tags.v1.json",
       guardEnabled = guardEnabled,
+      userControlsOpen = userControlsOpen,
+      userControls =
+        UserControlState(
+          setupHelperInstalled = true,
+          setupHelperReady = true,
+          requestWifiAfterBoot = true,
+          wirelessDebuggingEnabled = true,
+          accessibilityEnabled = guardEnabled,
+          message =
+            if (guardEnabled) {
+              "Dedicated setup helper is installed and provisioned."
+            } else {
+              "Wi-Fi ADB is ready. Accessibility remains off until you explicitly enable it."
+            },
+        ),
     )
 
   private fun target(packageName: String) =

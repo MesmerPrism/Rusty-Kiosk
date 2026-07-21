@@ -13,8 +13,8 @@ android {
     applicationId = "io.github.mesmerprism.rustykiosk"
     minSdk = 34
     targetSdk = 34
-    versionCode = 1
-    versionName = "0.1.0"
+    versionCode = 8
+    versionName = "0.4.4"
 
     ndk {
       abiFilters += listOf("arm64-v8a")
@@ -67,6 +67,7 @@ dependencies {
   implementation(libs.meta.spatial.sdk.base)
   implementation(libs.meta.spatial.sdk.compose)
   implementation(libs.meta.spatial.sdk.toolkit)
+  implementation(libs.meta.spatial.sdk.uiset)
   implementation(libs.meta.spatial.sdk.vr)
 
   testImplementation(libs.junit)
