@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Install, understand, and use Rusty Kiosk, a transparent soft-kiosk launcher example for Meta Quest.">
+  <meta name="theme-color" content="#181716">
+  <title>Rusty Kiosk</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="./" aria-label="Rusty Kiosk home">
+      <span class="brand-mark" aria-hidden="true">RK</span>
+      <span>Rusty Kiosk</span>
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#understand">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#use">Use it</a>
+      <a href="#controls">User control</a>
+      <a href="#help">Help</a>
+      <a href="https://github.com/MesmerPrism/Rusty-Kiosk">Source</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Open-source Meta Spatial SDK example</p>
+        <h1>A simple headset launcher that never traps the wearer.</h1>
+        <p class="lead">Rusty Kiosk presents one native panel over passthrough. Search installed Quest apps, organize them with portable tags, then launch normally or with a reversible soft guard.</p>
+        <div class="actions">
+          <a class="primary" href="#install">Set up a headset</a>
+          <a class="secondary" href="https://github.com/MesmerPrism/Rusty-Kiosk/releases">Open releases</a>
+        </div>
+        <p class="release-note">AGPL-3.0-or-later. Independent and not affiliated with or endorsed by Meta.</p>
+      </div>
+      <aside class="summary" aria-label="Key behavior">
+        <h2>At a glance</h2>
+        <dl>
+          <div><dt>View</dt><dd>One panel over passthrough</dd></div>
+          <div><dt>Launch</dt><dd>Normal or softly guarded</dd></div>
+          <div><dt>Home</dt><dd>Two recoveries, third returns</dd></div>
+          <div><dt>Escape</dt><dd>Home from Kiosk opens Meta Home</dd></div>
+          <div><dt>Setup</dt><dd>Explicit, visible, reversible</dd></div>
+        </dl>
+      </aside>
+    </section>
+
+    <section id="understand" class="section">
+      <p class="eyebrow">Understand the boundary</p>
+      <h2>Soft guard, not device lock-down</h2>
+      <p class="section-intro">Rusty Kiosk is a normal Spatial SDK app. It is not Android Home, device owner, managed Shared Mode, or tamper-resistant lock task.</p>
+      <div class="card-grid">
+        <article>
+          <span class="card-number">01</span>
+          <h3>Normal launch</h3>
+          <p>Opens the selected app with the guard off. The app behaves as it normally would on the headset.</p>
+        </article>
+        <article>
+          <span class="card-number">02</span>
+          <h3>Kiosk launch</h3>
+          <p>Starts a fresh target task and arms the Accessibility watchdog for that explicit app.</p>
+        </article>
+        <article>
+          <span class="card-number">03</span>
+          <h3>Intentional Home behavior</h3>
+          <p>The first two distinct Home invocations restore the guarded app. The third within five seconds returns to Rusty Kiosk.</p>
+        </article>
+        <article>
+          <span class="card-number">04</span>
+          <h3>Wearer-controlled exit</h3>
+          <p>The guard is inactive inside Rusty Kiosk. Press Home there, or select <strong>Exit to Meta Home</strong>, to leave normally.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="install" class="section guide-section">
+      <p class="eyebrow">First-time setup</p>
+      <h2>Prepare a new headset</h2>
+      <p class="section-intro">USB-C and Developer Mode are required for initial installation and the setup helper's narrow one-time grant. Rusty Kiosk does not silently enable Accessibility, wireless debugging, the direct link, or local APK installation.</p>
+      <div class="route-grid">
+        <article class="recommended">
+          <p class="route-label">Recommended</p>
+          <h3>Use Meta Quest File Manager</h3>
+          <p>The Windows app installs and confirms both APKs, provisions the same-signer helper, and provides the matching desktop catalogue and tag controls.</p>
+          <a href="https://mesmerprism.github.io/Meta-Quest-File-Manager/">Open File Manager onboarding</a>
+        </article>
+        <article>
+          <p class="route-label">Developer route</p>
+          <h3>Use the repository script</h3>
+          <p>Build the project, connect one explicitly selected Quest, and run the serial-scoped provisioning script documented in the source repository.</p>
+          <a href="https://github.com/MesmerPrism/Rusty-Kiosk#dedicated-no-terminal-setup">Read the build and provisioning guide</a>
+        </article>
+      </div>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>Enable Developer Mode</h3>
+            <p>Use Meta's supported account and device flow. Rusty Kiosk cannot enable account-level Developer Mode.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Authorize this computer</h3>
+            <p>Connect a USB data cable, put on the headset, and approve the USB debugging prompt. Trust only a computer you control.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Install and provision</h3>
+            <p>Install the main Rusty Kiosk APK and its same-signer setup helper. The helper has no launcher, network access, terminal, or general command surface.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>Make each optional choice in-headset</h3>
+            <p>Open <strong>User controls</strong>. Enable only the capabilities you want; each control reports its current state and offers a corresponding disable or recovery route.</p>
+          </div>
+        </li>
+      </ol>
+      <p class="notice"><strong>No terminal app is required.</strong> USB-C performs the one-time bootstrap. Meta or Android still owns every protected approval shown to the wearer.</p>
+    </section>
+
+    <section id="use" class="section">
+      <p class="eyebrow">Everyday use</p>
+      <h2>Find, tag, and launch apps</h2>
+      <div class="card-grid three-column">
+        <article>
+          <h3>Search everything launchable</h3>
+          <p>Search by displayed name, Android package, or tag. Both official and sideloaded launchable apps can appear.</p>
+        </article>
+        <article>
+          <h3>Use portable tags</h3>
+          <p>Add tags in the panel or edit the JSON tag file outside the app. Changes hotload while Rusty Kiosk is running.</p>
+        </article>
+        <article>
+          <h3>Keep missing entries visible</h3>
+          <p>A name-only tag entry remains searchable and filterable when its app is absent, clearly labeled <strong>Not installed</strong>.</p>
+        </article>
+        <article>
+          <h3>Choose launch behavior</h3>
+          <p><strong>Normal launch</strong> leaves the guard off. <strong>Kiosk launch</strong> is available only when its Accessibility service is actually enabled.</p>
+        </article>
+        <article>
+          <h3>Type with Meta's keyboard</h3>
+          <p>The search and tag fields use native Android text input inside the Spatial panel. Select either field with a hand or controller pointer.</p>
+        </article>
+        <article>
+          <h3>Adjust passthrough</h3>
+          <p>Natural passthrough is the default. An optional color-banded contour LUT helps reveal scene boundaries without claiming camera edge detection.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="controls" class="section guide-section">
+      <p class="eyebrow">Transparent control</p>
+      <h2>Nothing is enabled silently</h2>
+      <div class="control-list">
+        <article>
+          <div><span class="status-dot neutral" aria-hidden="true"></span><h3>Accessibility soft guard</h3></div>
+          <p>Observes package and window transitions only. It does not inspect interface text, click buttons, perform gestures, or block Meta Home. Enable and disable it independently.</p>
+        </article>
+        <article>
+          <div><span class="status-dot warm" aria-hidden="true"></span><h3>Direct PC link</h3></div>
+          <p>Pairs with Meta Quest File Manager for fixed Kiosk commands, tags, bounded staging, and wearer-confirmed APK sessions without routine ADB. Use a trusted local network or private hotspot.</p>
+        </article>
+        <article>
+          <div><span class="status-dot cool" aria-hidden="true"></span><h3>Wi-Fi ADB</h3></div>
+          <p>A separate optional maintenance path. Rusty Kiosk can ask Meta to show its approval again after restart, but it cannot approve that prompt for the wearer.</p>
+        </article>
+        <article>
+          <div><span class="status-dot bright" aria-hidden="true"></span><h3>Local APK installer</h3></div>
+          <p>Android's visible “install unknown apps” setting is wearer-owned. Even after that one-time grant, Android may request confirmation for each package installation session.</p>
+        </article>
+      </div>
+      <p class="notice"><strong>Direct mode is bounded, not a remote shell.</strong> It accepts only documented operations with expiring authenticated requests and replay protection. Its current HTTP transport is integrity-protected but not encrypted.</p>
+    </section>
+
+    <section id="help" class="section help-section">
+      <p class="eyebrow">Questions</p>
+      <h2>What to expect</h2>
+      <div class="help-list">
+        <details>
+          <summary>Does Kiosk prevent someone from reaching Meta Home?</summary>
+          <p>No. Its deliberate escape sequence returns from a guarded app to Rusty Kiosk, where Home reaches Meta Home normally. The visible exit button does the same.</p>
+        </details>
+        <details>
+          <summary>Why is Kiosk launch unavailable?</summary>
+          <p>The Accessibility watchdog is probably off or the setup helper is not provisioned. Open User controls and check the effective status; normal launch remains available.</p>
+        </details>
+        <details>
+          <summary>Why does an app show as Not installed?</summary>
+          <p>The hotloaded tag file can intentionally retain named apps that are not present on this headset. The entry remains useful for shared catalogues but cannot be launched.</p>
+        </details>
+        <details>
+          <summary>Do I need Wi-Fi ADB after setup?</summary>
+          <p>No for normal Kiosk search, tags, launch, guard behavior, and the optional direct PC link. ADB remains useful for maintenance, diagnostics, unattended batch installs, and recovery.</p>
+        </details>
+        <details>
+          <summary>Can the direct installer silently install everything?</summary>
+          <p>No. It submits a bounded Android PackageInstaller session. Android and Horizon retain the confirmation interface and final authority.</p>
+        </details>
+      </div>
+      <p class="support-links">For source, limitations, and issue reports, visit the <a href="https://github.com/MesmerPrism/Rusty-Kiosk">Rusty Kiosk repository</a>.</p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Rusty Kiosk is free software under AGPL-3.0-or-later. Meta Quest is a trademark of Meta Platforms, Inc.</p>
+  </footer>
+</body>
+</html>
