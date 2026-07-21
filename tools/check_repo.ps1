@@ -18,6 +18,7 @@ $setupBridgePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\
 $setupManifestPath = Join-Path $repoRoot 'setup-helper\src\main\AndroidManifest.xml'
 $setupSourcePath = Join-Path $repoRoot 'setup-helper\src\main\java\io\github\mesmerprism\rustykiosk\setuphelper\SetupOperations.kt'
 $cliContractPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskCliContract.kt'
+$operatorProviderPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskOperatorProvider.kt'
 $cliDebugManifestPath = Join-Path $repoRoot 'app\src\debug\AndroidManifest.xml'
 $cliActivityPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskCliActivity.kt'
 $guardCliReceiverPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskGuardCliReceiver.kt'
@@ -74,8 +75,17 @@ if ($manifest -notmatch 'io\.github\.mesmerprism\.rustykiosk\.permission\.SETUP_
 if ($manifest -match 'com\.termux|RUN_COMMAND') {
   throw 'The product manifest must not depend on Termux.'
 }
-if ($manifest -match 'RustyKioskCliActivity|RustyKioskGuardCliReceiver|android\.permission\.DUMP') {
+if ($manifest -match 'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
   throw 'The release/main manifest must not contain the debug CLI boundary.'
+}
+foreach ($pattern in @(
+  'RustyKioskOperatorProvider',
+  'io.github.mesmerprism.rustykiosk.operator',
+  'android:permission="android.permission.DUMP"'
+)) {
+  if ($manifest -notmatch [Regex]::Escape($pattern)) {
+    throw "The release host-operator manifest boundary is missing: $pattern"
+  }
 }
 
 $cliDebugManifest = Get-Content -Raw -LiteralPath $cliDebugManifestPath
@@ -93,10 +103,25 @@ foreach ($pattern in @(
 $cliActivity = Get-Content -Raw -LiteralPath $cliActivityPath
 $guardCliReceiver = Get-Content -Raw -LiteralPath $guardCliReceiverPath
 $cliContract = Get-Content -Raw -LiteralPath $cliContractPath
+$operatorProvider = Get-Content -Raw -LiteralPath $operatorProviderPath
 $cliScript = Get-Content -Raw -LiteralPath $cliScriptPath
 foreach ($token in @('RustyKioskCliProtocol.parse', 'RustyKioskCliStore(this).enqueue')) {
   if (-not $cliActivity.Contains($token, [StringComparison]::Ordinal)) {
     throw "The debug CLI admission adapter is missing: $token"
+  }
+}
+foreach ($token in @(
+  'rusty.kiosk.host_operator.v2',
+  'METHOD_TAG_READ',
+  'METHOD_TAG_WRITE_BEGIN',
+  'METHOD_TAG_WRITE_CHUNK',
+  'METHOD_TAG_WRITE_COMMIT',
+  'TagFileCodec.MAX_BYTES',
+  'MessageDigest.getInstance("SHA-256")',
+  'TagFileStore(providerContext).replaceJson'
+)) {
+  if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The bounded host tag-transfer contract is missing: $token"
   }
 }
 foreach ($token in @('EXTRA_VALUE_BASE64', 'Base64.decode')) {
@@ -112,8 +137,21 @@ foreach ($token in @('ToBase64String', 'rusty_kiosk_cli_value_base64')) {
 }
 foreach ($token in @('raw-shell', 'Runtime.getRuntime', 'ProcessBuilder', 'java.lang.Process')) {
   if ($cliActivity.Contains($token, [StringComparison]::Ordinal) -or
-      $cliContract.Contains($token, [StringComparison]::Ordinal)) {
+      $cliContract.Contains($token, [StringComparison]::Ordinal) -or
+      $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
     throw "The debug CLI must not expose process or raw-shell authority: $token"
+  }
+}
+foreach ($token in @(
+  'RustyKioskCliProtocol.parse',
+  'RustyKioskCliStore(providerContext).enqueue',
+  'METHOD_INVOKE',
+  'METHOD_RESULT',
+  'RESULT_BASE64',
+  'supports call() only'
+)) {
+  if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The release host-operator boundary is missing: $token"
   }
 }
 foreach ($token in @(

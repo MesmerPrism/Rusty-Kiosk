@@ -67,6 +67,19 @@ changing behavior.
   must not add raw shell, arbitrary intents, arbitrary package/component input,
   USB-C provisioning, protected-prompt approval, Accessibility gestures, or a
   release component.
+- Installed release builds expose the same bounded vocabulary to an already
+  authorized ADB shell through `RustyKioskOperatorProvider`. The provider is
+  protected by caller-held `android.permission.DUMP`, supports `call()` only,
+  admits one app-private request at a time, and returns only the matching
+  Base64-encoded structured receipt. Provider v2 may additionally transfer only
+  the fixed tag document as ordered, bounded Base64 chunks with total-size,
+  SHA-256, schema, and atomic-activation checks. It never accepts shell commands,
+  Android components, intent actions, endpoints, device paths, or new setup
+  operations.
+- Desktop operator tools must admit a request through that provider, launch the
+  fixed Rusty Kiosk activity, then poll the matching receipt. They must not
+  reconstruct guard state, catalogue matching, tag semantics, or setup-helper
+  authority on the host.
 - Exact watchdog-state tests use the separate debug-only, `DUMP`-protected
   guard-transition receiver. One command means one state-machine Home
   transition; it must never be described as physical Meta-button or visible

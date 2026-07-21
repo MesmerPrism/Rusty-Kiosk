@@ -27,6 +27,25 @@ display-coordinate touch injection in automated acceptance runs.
   survive ADB's remote-shell transport without becoming shell syntax.
 - Release builds contain no CLI activity.
 
+## Release host operator
+
+Release builds expose host schema `rusty.kiosk.host_operator.v2` through a
+separate `ContentProvider.call()` adapter for an already authorized ADB shell. Android
+requires the caller to hold `android.permission.DUMP`; ordinary headset apps do
+not. The provider admits one bounded request into the same app-private queue and
+returns only the matching structured result as Base64. The same provider also
+transfers the one fixed tag document through ordered 6 KiB Base64 chunks. A
+write is capped at 256 KiB, SHA-256 checked, schema validated, and atomically
+activated before acknowledgement. It supports no query, insert, update, delete,
+shell, component, intent, host-supplied path, endpoint, or free-form setup route.
+
+The host sequence is deliberately two-stage: call `invoke`, start the fixed
+`.RustyKioskActivity` with the admitted request id, then poll `result`. This
+keeps visible action execution in the same Activity handlers as the panel and
+avoids granting the provider hidden foreground or business-logic authority.
+The public Meta Quest File Manager implements this contract for its optional
+Rusty Kiosk tab.
+
 The CLI never accepts a shell command, executable path, Android component,
 intent action, package to launch, device path, Accessibility gesture, or
 free-form setup operation. App selection is restricted to the current visible

@@ -36,6 +36,8 @@ Its optional Accessibility service is a foreground watchdog:
 - an explicit, reversible user-control center backed by a dedicated fixed-operation setup helper;
 - native Android text inputs using an explicit Quest keyboard path;
 - a typed, ADB-shell-protected debug CLI for stable wearer-equivalent testing.
+- a release-safe, `DUMP`-protected typed host adapter for optional desktop
+  management through Meta Quest File Manager.
 
 ## Build
 
@@ -55,6 +57,11 @@ The main debug APK is generated under `app/build/outputs/apk/debug/`; the
 non-launchable setup helper is generated under
 `setup-helper/build/outputs/apk/debug/`. Both remain ignored by Git and must be
 signed with the same key.
+
+Tagged public releases build and verify a same-signer release pair, then attach
+the two APKs, their hashes/source manifest, the AGPL license, and source pointer
+using the stable filenames consumed by Meta Quest File Manager. Release signing
+material stays in GitHub Actions secrets and is never committed.
 
 ## Typed debug CLI
 

@@ -41,3 +41,11 @@ rejects an invalid schema or oversized file.
 
 The file contains low-rate user organization data only. It never stores APK
 paths, activities, signing data, permissions, commands, or binary payloads.
+
+An authorized desktop ADB host uses the `DUMP`-protected host-provider v2 tag
+methods instead of depending on raw access to Android's app-specific external
+directory. The provider reads or writes only this document in ordered 6 KiB
+Base64 chunks, caps the complete file at 256 KiB, verifies SHA-256, validates
+the schema, and atomically activates a valid replacement. The directory watcher
+hotloads that replacement without restarting Rusty Kiosk. Host tools must not
+supply or infer a device path or treat the tag file as a command channel.

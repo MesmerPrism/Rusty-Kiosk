@@ -120,9 +120,9 @@ internal class RustyKioskCliStore(context: Context) {
   ) {
     val selected = state.selectedEntry
     val controls = state.userControls
-    val visibleEntries =
+    fun encodeEntries(entries: List<CatalogEntry>): JSONArray =
       JSONArray().also { array ->
-        state.visibleEntries.take(MAX_RESULT_ENTRIES).forEach { entry ->
+        entries.take(MAX_RESULT_ENTRIES).forEach { entry ->
           array.put(
             JSONObject()
               .put("key", entry.key)
@@ -134,6 +134,8 @@ internal class RustyKioskCliStore(context: Context) {
           )
         }
       }
+    val entries = encodeEntries(state.entries)
+    val visibleEntries = encodeEntries(state.visibleEntries)
     val json =
       JSONObject()
         .put("schema", RustyKioskCliProtocol.SCHEMA)
@@ -149,6 +151,8 @@ internal class RustyKioskCliStore(context: Context) {
             .put("installed_count", state.entries.count(CatalogEntry::installed))
             .put("not_installed_count", state.entries.count { !it.installed })
             .put("visible_count", state.visibleEntries.size)
+            .put("entries_truncated", state.entries.size > MAX_RESULT_ENTRIES)
+            .put("entries", entries)
             .put("visible_entries_truncated", state.visibleEntries.size > MAX_RESULT_ENTRIES)
             .put("visible_entries", visibleEntries)
             .put("search", state.searchQuery)
@@ -157,6 +161,7 @@ internal class RustyKioskCliStore(context: Context) {
             .put("tag_filter", state.selectedTag ?: JSONObject.NULL)
             .put("controls_open", state.userControlsOpen)
             .put("status_line", state.statusLine.take(MAX_MESSAGE_LENGTH))
+            .put("tag_file_path", state.tagFilePath)
             .put("selected_key", selected?.key ?: JSONObject.NULL)
             .put("selected_name", selected?.label ?: JSONObject.NULL)
             .put("selected_package", selected?.packageName ?: JSONObject.NULL)
@@ -181,13 +186,31 @@ internal class RustyKioskCliStore(context: Context) {
     }.getOrDefault(false)) { "Could not record CLI result." }
   }
 
+  fun readResult(requestId: String): String? {
+    val resultFile = File(appContext.filesDir, RustyKioskCliProtocol.RESULT_RELATIVE_PATH)
+    if (!resultFile.isFile || resultFile.length() > MAX_RESULT_BYTES) return null
+    return runCatching {
+        val json = JSONObject(resultFile.readText(StandardCharsets.UTF_8))
+        if (
+          json.optString("schema") != RustyKioskCliProtocol.SCHEMA ||
+            json.optString("request_id") != requestId
+        ) {
+          null
+        } else {
+          json.toString()
+        }
+      }
+      .getOrNull()
+  }
+
   private companion object {
     const val PREFERENCES = "rusty_kiosk_cli"
     const val KEY_PENDING_REQUEST_ID = "pending_request_id"
     const val KEY_PENDING_COMMAND = "pending_command"
     const val KEY_PENDING_VALUE = "pending_value"
     const val KEY_LAST_CONSUMED_REQUEST_ID = "last_consumed_request_id"
-    const val MAX_RESULT_ENTRIES = 25
+    const val MAX_RESULT_ENTRIES = 500
     const val MAX_MESSAGE_LENGTH = 240
+    const val MAX_RESULT_BYTES = 512 * 1024L
   }
 }

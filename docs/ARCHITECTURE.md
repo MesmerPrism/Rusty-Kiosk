@@ -6,7 +6,7 @@ Ship two same-signer APKs with deliberately separate authority:
 
 - `app` is the ordinary Spatial SDK application. `RustyKioskActivity` owns the
   panel, catalogue, tag state, explicit launches, user-control projection, and
-  debug-CLI adaptation. `KioskAccessibilityService` owns only top-level
+  typed operator adaptation. `KioskAccessibilityService` owns only top-level
   package/window observation while a kiosk launch is armed.
 - `setup-helper` is non-launchable and has no network permission. It may be
   granted `WRITE_SECURE_SETTINGS` once over USB-C and accepts only an explicit,
@@ -54,6 +54,9 @@ and Wi-Fi ADB state after completion.
 | CLI vocabulary and bounds | `RustyKioskCliProtocol` |
 | CLI queue and result receipt | app-private `RustyKioskCliStore` |
 | App action semantics | the same activity handlers used by Compose |
+| Release host admission | `DUMP`-protected `RustyKioskOperatorProvider.call()` v2 |
+| Fixed tag transfer | ordered bounded provider chunks + SHA-256/schema/atomic activation |
+| Desktop transport/install | authorized serial-scoped ADB host |
 
 ## Panel preview authority
 
@@ -101,6 +104,8 @@ fresh kiosk session without clearing its state.
 - raw shell, terminal UI, arbitrary package/component input, or a
   network-accessible control listener in either APK;
 - display-coordinate touch injection as acceptance evidence;
-- a CLI component in release builds, arbitrary intents through the debug CLI,
+- a debug CLI activity in release builds, arbitrary intents through the debug CLI,
   USB-C provisioning through the CLI, or protected-prompt approval;
+- a generic release provider query, file browser, shell proxy, component
+  launcher, endpoint listener, or background business-logic owner;
 - high-rate media, tracking, mesh, or rendering data in the tag file.

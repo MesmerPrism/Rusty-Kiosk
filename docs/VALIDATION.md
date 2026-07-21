@@ -42,6 +42,21 @@ the debug source set, require sender-held `android.permission.DUMP`, use
 serial-scoped ADB, and avoid process execution or raw command forwarding.
 The exact watchdog-transition receiver is held to the same debug-only and
 `DUMP` boundary and accepts only one fixed logical Home transition.
+The release host-operator provider is checked separately: it must remain
+`DUMP`-protected, expose only `ContentProvider.call()`, reuse the bounded typed
+protocol and one-request queue, and return only the matching structured
+receipt. Release builds must still exclude both debug components.
+
+To validate the same-signer release asset path without using production
+credentials, run:
+
+```powershell
+pwsh -NoProfile -File .\tools\Test-ReleasePipeline.ps1
+```
+
+The test generates a one-day local key under ignored `artifacts/`, builds both
+release APKs with that key, verifies their certificate digests match, stages the
+five-file public bundle contract, and removes the temporary key and bundle.
 
 The standard host gate runs the interactive browser model and verifies that
 the production native panel, shared geometry/control contract, browser
