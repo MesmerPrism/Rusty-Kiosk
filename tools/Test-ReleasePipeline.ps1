@@ -45,7 +45,7 @@ try {
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
-        -Version '0.6.3' `
+        -Version '0.6.4' `
         -SourceRevision 'local-release-pipeline-test' `
         -OutputDirectory $bundle
     if ($LASTEXITCODE -ne 0) { throw 'The release bundle staging test failed.' }
@@ -53,7 +53,7 @@ try {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $bundle 'bundle-manifest.json') | ConvertFrom-Json
     if ($manifest.schema -ne 'meta.quest.file_manager.rusty_kiosk_bundle.v1' -or
         $manifest.build_type -ne 'release' -or
-        $manifest.version -ne '0.6.3' -or
+        $manifest.version -ne '0.6.4' -or
         [string]::IsNullOrWhiteSpace($manifest.signer_sha256) -or
         @($manifest.files).Count -ne 4) {
         throw 'The staged release manifest did not record the expected schema, version, signer, and complete file set.'
@@ -80,7 +80,7 @@ try {
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
-        -Version '0.6.3' `
+        -Version '0.6.4' `
         -SourceRevision 'native-output-regression-test' `
         -ApkSignerPath $nativeOutputProxy `
         -OutputDirectory $nativeOutputBundle
@@ -98,7 +98,7 @@ try {
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
-        -Version '0.6.3' `
+        -Version '0.6.4' `
         -SourceRevision 'v2-label-regression-test' `
         -ApkSignerPath $v2LabelProxy `
         -OutputDirectory $v2LabelBundle

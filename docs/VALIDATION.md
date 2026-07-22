@@ -29,6 +29,9 @@ Unit tests cover:
 - first/second Home recovery and third-Home return;
 - Home debounce and five-second escape-window reset;
 - generic and exact Horizon signals from one Home press counting only once;
+- launch requests remaining provisional until a target-package event confirms focus;
+- late Meta-shell tails requesting a bounded, minimum-spaced recovery burst without
+  advancing the Home escape count;
 - fixed setup-helper result parsing and fail-closed request matching;
 - exact-component Accessibility enable/disable list construction;
 - preservation of other enabled Accessibility services;

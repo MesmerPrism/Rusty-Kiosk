@@ -14,20 +14,23 @@ internal class GuardDecisionEngine(
   private val triggerCount: Int = GuardContract.HOME_TRIGGER_COUNT,
   private val triggerWindowMs: Long = GuardContract.HOME_TRIGGER_WINDOW_MS,
   private val homeInvocationDebounceMs: Long = GuardContract.HOME_INVOCATION_DEBOUNCE_MS,
-  private val recoverySettleMs: Long = GuardContract.HOME_RECOVERY_SETTLE_MS,
+  private val recoveryRetryMinIntervalMs: Long = GuardContract.RECOVERY_RETRY_MIN_INTERVAL_MS,
+  private val recoveryMaxAttempts: Int = GuardContract.RECOVERY_MAX_ATTEMPTS,
 ) {
   private val homeTransitions = ArrayDeque<Long>()
   private var targetObserved = false
   private var lastHomeInvocationMs = Long.MIN_VALUE
-  private var ignoreNonTargetUntilMs = Long.MIN_VALUE
+  private var recoveryBurstActive = false
+  private var recoveryAttemptsRequested = 0
+  private var lastRecoveryRequestMs = Long.MIN_VALUE
 
   var currentPackage: String? = null
     private set
 
-  fun noteTargetRecoveryLaunched(nowMs: Long) {
-    targetObserved = true
-    currentPackage = targetPackage
-    ignoreNonTargetUntilMs = nowMs + recoverySettleMs
+  fun noteRecoveryRequested(nowMs: Long) {
+    if (!recoveryBurstActive || recoveryAttemptsRequested >= recoveryMaxAttempts) return
+    recoveryAttemptsRequested += 1
+    lastRecoveryRequestMs = nowMs
   }
 
   fun observeHomeInvocation(packageName: String, nowMs: Long): GuardDecision {
@@ -35,24 +38,32 @@ internal class GuardDecisionEngine(
       lastHomeInvocationMs != Long.MIN_VALUE &&
         nowMs - lastHomeInvocationMs < homeInvocationDebounceMs
     ) {
-      return GuardDecision.NoChange
+      currentPackage = packageName
+      recoveryBurstActive = true
+      return nextRecoveryDecision(nowMs)
     }
 
     lastHomeInvocationMs = nowMs
     targetObserved = true
     currentPackage = packageName
+    beginRecoveryBurst()
     pruneHomeTransitions(nowMs)
     homeTransitions.addLast(nowMs)
     return if (homeTransitions.size >= triggerCount) {
+      recoveryBurstActive = false
       GuardDecision.DisarmAndReturn
     } else {
-      GuardDecision.ScheduleRecovery(gracePeriodMs)
+      nextRecoveryDecision(nowMs)
     }
   }
 
   fun observe(packageName: String, nowMs: Long): GuardDecision {
-    if (packageName != targetPackage && nowMs < ignoreNonTargetUntilMs) {
-      return GuardDecision.NoChange
+    if (packageName == targetPackage) {
+      val shouldCancelRecovery = currentPackage != targetPackage || recoveryBurstActive
+      targetObserved = true
+      currentPackage = targetPackage
+      recoveryBurstActive = false
+      return if (shouldCancelRecovery) GuardDecision.CancelRecovery else GuardDecision.NoChange
     }
     if (
       packageName in metaShellPackages &&
@@ -62,28 +73,52 @@ internal class GuardDecisionEngine(
       // An exact Home signal already counted this invocation. Horizon can finish opening a
       // shell window after recovery, so request recovery without counting the event burst twice.
       currentPackage = packageName
-      return GuardDecision.ScheduleRecovery(gracePeriodMs)
+      recoveryBurstActive = true
+      return nextRecoveryDecision(nowMs)
     }
-    if (packageName == currentPackage) return GuardDecision.NoChange
+    if (!targetObserved) {
+      currentPackage = packageName
+      return GuardDecision.NoChange
+    }
+    if (packageName == currentPackage) {
+      return if (recoveryBurstActive) nextRecoveryDecision(nowMs) else GuardDecision.NoChange
+    }
     val previousPackage = currentPackage
     currentPackage = packageName
 
-    if (packageName == targetPackage) {
-      targetObserved = true
-      return GuardDecision.CancelRecovery
-    }
-    if (!targetObserved) return GuardDecision.NoChange
-
     if (previousPackage == targetPackage && packageName in metaShellPackages) {
+      beginRecoveryBurst()
       pruneHomeTransitions(nowMs)
       // This is the generic target-to-shell fallback for Horizon versions that do not expose
       // a known Home activity class. Debounce a later exact event from the same physical press.
       lastHomeInvocationMs = nowMs
       homeTransitions.addLast(nowMs)
-      if (homeTransitions.size >= triggerCount) return GuardDecision.DisarmAndReturn
+      if (homeTransitions.size >= triggerCount) {
+        recoveryBurstActive = false
+        return GuardDecision.DisarmAndReturn
+      }
+    } else if (previousPackage == targetPackage || !recoveryBurstActive) {
+      beginRecoveryBurst()
     }
 
-    return GuardDecision.ScheduleRecovery(gracePeriodMs)
+    return nextRecoveryDecision(nowMs)
+  }
+
+  private fun beginRecoveryBurst() {
+    recoveryBurstActive = true
+    recoveryAttemptsRequested = 0
+    lastRecoveryRequestMs = Long.MIN_VALUE
+  }
+
+  private fun nextRecoveryDecision(nowMs: Long): GuardDecision {
+    if (recoveryAttemptsRequested >= recoveryMaxAttempts) return GuardDecision.NoChange
+    val retryDelayMs =
+      if (lastRecoveryRequestMs == Long.MIN_VALUE) {
+        0L
+      } else {
+        (recoveryRetryMinIntervalMs - (nowMs - lastRecoveryRequestMs)).coerceAtLeast(0L)
+      }
+    return GuardDecision.ScheduleRecovery(maxOf(gracePeriodMs, retryDelayMs))
   }
 
   private fun pruneHomeTransitions(nowMs: Long) {
