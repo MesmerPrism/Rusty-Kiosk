@@ -77,6 +77,9 @@ The recommended installation route remains
 [Meta Quest File Manager](https://mesmerprism.com/Meta-Quest-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
+Version `0.6.1` is the first published bundle; the earlier `v0.6.0` tag is
+retained as a pre-publication workflow-failure checkpoint and has no release
+assets.
 
 ## Typed debug CLI
 
