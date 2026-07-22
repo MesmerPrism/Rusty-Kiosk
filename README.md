@@ -31,6 +31,8 @@ Its optional Accessibility service is a foreground watchdog:
   front doors;
 - installed-app search by label, package, or tag;
 - tag filtering;
+- search text, active tag filter, and selected visible app retained across
+  fresh Kiosk returns until the wearer changes or clears them;
 - tag editing from the panel;
 - hot reload of an externally editable JSON tag file;
 - unresolved name-only entries shown as **Not installed**;

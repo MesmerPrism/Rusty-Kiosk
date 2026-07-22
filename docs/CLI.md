@@ -108,6 +108,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | `passthrough-natural` / `passthrough-contour` | none | Select the same persisted passthrough appearance control |
 | `exit-meta-home` | none | Disarm and use the visible Meta Home exit action |
 
+`set-search`, `filter-tag`, and `select` update the same retained browsing state
+as the visible search field, tag chips, and app rows. Their values survive the
+fresh Spatial task created by a triple-Home return; blank filter values
+explicitly clear that state, and an app outside the current results is never
+retained in the details area.
+
 Fixed helper commands write their result only after the helper answers and the
 main app performs effective-state readback. A Wi-Fi ADB request can complete as
 an app operation while Meta's protected approval remains pending; call `status`

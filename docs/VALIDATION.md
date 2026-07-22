@@ -16,6 +16,8 @@ Unit tests cover:
 - package-first and name-only catalogue matching;
 - missing name-only entries remaining visible under their tags;
 - search plus tag filtering;
+- retained search, tag-filter, and visible-selection restoration plus explicit
+  filter clearing;
 - normal launch disarming before launch;
 - normal launch retaining resumable-task flags while initial kiosk launch uses
   a fresh-task policy;
@@ -91,7 +93,8 @@ run should prove:
 5. a name-only missing entry appears and is labeled not installed;
 6. normal launch leaves the watchdog disarmed;
 7. kiosk launch restores the target after Home #1 and Home #2;
-8. Home #3 within five seconds returns to a fresh Rusty Kiosk panel;
+8. Home #3 within five seconds returns to a fresh Rusty Kiosk panel while the
+   previous search text, active tag filter, and visible app selection remain;
 9. one Home press from Rusty Kiosk reaches Meta Home;
 10. no Rusty Kiosk or target-package fatal occurs in the bounded log window.
 11. both native Android text fields open the Meta keyboard on a normal

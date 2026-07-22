@@ -45,6 +45,9 @@ class RustyKioskActivity : AppSystemActivity() {
   private val guardLaunchHandoffLease by lazy(LazyThreadSafetyMode.NONE) {
     GuardLaunchHandoffLease(this)
   }
+  private val browsingStateStore by lazy(LazyThreadSafetyMode.NONE) {
+    KioskBrowsingStateStore(this)
+  }
   private val mainHandler = Handler(Looper.getMainLooper())
   private var panelEntity: Entity? = null
   private var passthroughController: RustyKioskPassthroughController? = null
@@ -80,6 +83,13 @@ class RustyKioskActivity : AppSystemActivity() {
     window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
     operatorBridgeSettings.ensureStartedIfEnabled()
     runCatching { systemManager.unregisterSystem<LocomotionSystem>() }
+    val browsingState = browsingStateStore.load()
+    state =
+      state.copy(
+        searchQuery = browsingState.searchQuery,
+        selectedTag = browsingState.selectedTag,
+        selectedKey = browsingState.selectedKey,
+      )
     guardLaunchHandoffLease.clear()
     launchController.disarm(
       if (launchIntent.action == GuardContract.ACTION_RETURN_TO_KIOSK) {
@@ -167,9 +177,9 @@ class RustyKioskActivity : AppSystemActivity() {
   private fun createKioskPanel(): RustyKioskNativePanel =
     RustyKioskNativePanel(
       context = this,
-      onSearchChanged = { query -> state = state.copy(searchQuery = query) },
-      onTagSelected = { tag -> state = state.copy(selectedTag = tag) },
-      onAppSelected = { key -> state = state.copy(selectedKey = key) },
+      onSearchChanged = ::setSearchQuery,
+      onTagSelected = ::setTagFilter,
+      onAppSelected = ::setSelectedKey,
       onRefresh = { refreshCatalogue("panel-refresh") },
       onAddTag = ::addTag,
       onRemoveTag = ::removeTag,
@@ -202,15 +212,17 @@ class RustyKioskActivity : AppSystemActivity() {
       runCatching {
         val records = tagStore.load()
         val entries = CatalogAssembler.assemble(installedApps.snapshot(), records)
-        val selected = previousSelection?.takeIf { key -> entries.any { it.key == key } }
-          ?: entries.firstOrNull()?.key
+        val selectedTag = state.selectedTag?.takeIf { tag -> entries.any { tag in it.tags } }
+        if (selectedTag != state.selectedTag) browsingStateStore.setSelectedTag(selectedTag)
+        val visibleEntries = CatalogFilter.apply(entries, state.searchQuery, selectedTag)
+        val selected = previousSelection?.takeIf { key -> visibleEntries.any { it.key == key } }
+          ?: visibleEntries.firstOrNull()?.key
+        if (selected != state.selectedKey) browsingStateStore.setSelectedKey(selected)
         val userControls = readUserControls()
         KioskUiState(
           entries = entries,
           searchQuery = state.searchQuery,
-          selectedTag = state.selectedTag?.takeIf { selectedTag ->
-            entries.any { selectedTag in it.tags }
-          },
+          selectedTag = selectedTag,
           selectedKey = selected,
           statusLine = "${entries.count { it.installed }} installed · ${entries.count { !it.installed }} not installed · $source",
           tagFilePath = tagStore.tagFile.absolutePath,
@@ -332,7 +344,7 @@ class RustyKioskActivity : AppSystemActivity() {
         }
       }
       RustyKioskCliCommand.SET_SEARCH -> {
-        state = state.copy(searchQuery = request.value.orEmpty())
+        setSearchQuery(request.value.orEmpty())
         cliOutcome(true, true, "Search updated.")
       }
       RustyKioskCliCommand.SELECT -> selectFromCli(request.value.orEmpty())
@@ -378,7 +390,7 @@ class RustyKioskActivity : AppSystemActivity() {
           normalizeLookup(candidate.label) == normalized
       }
       ?: return cliOutcome(false, true, "No visible app matches the selector.")
-    state = state.copy(selectedKey = entry.key)
+    setSelectedKey(entry.key)
     return cliOutcome(true, true, "Selected ${entry.label}.")
   }
 
@@ -387,8 +399,31 @@ class RustyKioskActivity : AppSystemActivity() {
     if (tag != null && tag !in state.tags) {
       return cliOutcome(false, true, "No catalogue tag matches the requested filter.")
     }
-    state = state.copy(selectedTag = tag)
+    setTagFilter(tag)
     return cliOutcome(true, true, if (tag == null) "Tag filter cleared." else "Tag filter set to $tag.")
+  }
+
+  private fun setSearchQuery(query: String) {
+    val searchQuery = browsingStateStore.setSearchQuery(query)
+    val selectedKey = retainedVisibleSelection(searchQuery, state.selectedTag)
+    state = state.copy(searchQuery = searchQuery, selectedKey = selectedKey)
+  }
+
+  private fun setTagFilter(tag: String?) {
+    val selectedTag = browsingStateStore.setSelectedTag(tag)
+    val selectedKey = retainedVisibleSelection(state.searchQuery, selectedTag)
+    state = state.copy(selectedTag = selectedTag, selectedKey = selectedKey)
+  }
+
+  private fun setSelectedKey(key: String?) {
+    state = state.copy(selectedKey = browsingStateStore.setSelectedKey(key))
+  }
+
+  private fun retainedVisibleSelection(searchQuery: String, selectedTag: String?): String? {
+    val visibleEntries = CatalogFilter.apply(state.entries, searchQuery, selectedTag)
+    val selectedKey = state.selectedKey?.takeIf { key -> visibleEntries.any { it.key == key } }
+      ?: visibleEntries.firstOrNull()?.key
+    return browsingStateStore.setSelectedKey(selectedKey)
   }
 
   private fun addTagFromCli(value: String): RustyKioskCliOutcome {

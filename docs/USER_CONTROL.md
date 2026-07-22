@@ -107,9 +107,10 @@ component while preserving all other enabled services.
 
 ## Security and privacy
 
-- Rusty Kiosk stores only its generated pairing code, direct-link opt-in,
-  bounded replay IDs, app-owned staging files, and install receipts. It stores
-  no ADB key, shell output, or list of other enabled Accessibility services.
+- Rusty Kiosk stores only its last catalogue search, tag filter, and selected
+  app key, generated pairing code, direct-link opt-in, bounded replay IDs,
+  app-owned staging files, and install receipts. It stores no ADB key, shell
+  output, or list of other enabled Accessibility services.
 - Direct v1 authenticates and integrity-checks requests and responses but does
   not encrypt HTTP bodies. Use a trusted local network or private hotspot.
 - `WRITE_SECURE_SETTINGS` is broad Android authority even though this helper

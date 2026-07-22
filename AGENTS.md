@@ -45,6 +45,11 @@ changing behavior.
   Rusty Kiosk both disarm pending guard state.
 - A name-only tag-file entry that does not match an installed launchable app
   remains visible and is labeled not installed.
+- A fresh Rusty Kiosk task restores the last search text, active tag filter,
+  and selected visible app. The wearer clears the filters through the empty
+  search field or **All apps**; a tag removed entirely by a tag-file reload
+  must not remain as a hidden filter, and details must not retain an app that
+  is outside the filtered list.
 - The browser preview is synthetic interactive design tooling, never a runtime
   WebView or installed-app authority.
 - The production Quest surface is a native Android View tree registered through
