@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semantic version without v, for example 0.6.1"
+        description: "Semantic version without v, for example 0.6.2"
         required: true
         type: string
 
