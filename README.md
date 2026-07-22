@@ -71,7 +71,12 @@ signed with the same key.
 Tagged public releases build and verify a same-signer release pair, then attach
 the two APKs, their hashes/source manifest, the AGPL license, and source pointer
 using the stable filenames consumed by Meta Quest File Manager. Release signing
-material stays in GitHub Actions secrets and is never committed.
+material stays in GitHub Actions secrets and is never committed. Release assets
+are versioned and are never overwritten; publish a new version for any change.
+The recommended installation route remains
+[Meta Quest File Manager](https://mesmerprism.com/Meta-Quest-File-Manager/#kiosk),
+while advanced operators can inspect the standalone bundle on
+[GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
 
 ## Typed debug CLI
 

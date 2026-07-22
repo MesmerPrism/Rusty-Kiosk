@@ -9,6 +9,9 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1
 The gate checks public-boundary terms, both APK manifests, Kotlin unit tests,
 browser/native panel contracts, Android lint, release CLI exclusion, and debug
 assembly for both APKs.
+The same complete gate runs in GitHub Actions for every pull request and push
+to `main`; release publication additionally rebuilds and verifies the signed
+release pair.
 
 Unit tests cover:
 

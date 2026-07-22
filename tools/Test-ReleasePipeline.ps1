@@ -41,6 +41,7 @@ try {
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
+        -Version '0.6.0' `
         -SourceRevision 'local-release-pipeline-test' `
         -OutputDirectory $bundle
     if ($LASTEXITCODE -ne 0) { throw 'The release bundle staging test failed.' }
@@ -48,8 +49,18 @@ try {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $bundle 'bundle-manifest.json') | ConvertFrom-Json
     if ($manifest.schema -ne 'meta.quest.file_manager.rusty_kiosk_bundle.v1' -or
         $manifest.build_type -ne 'release' -or
-        [string]::IsNullOrWhiteSpace($manifest.signer_sha256)) {
-        throw 'The staged release manifest did not record the expected schema, build type, and signer.'
+        $manifest.version -ne '0.6.0' -or
+        [string]::IsNullOrWhiteSpace($manifest.signer_sha256) -or
+        @($manifest.files).Count -ne 4) {
+        throw 'The staged release manifest did not record the expected schema, version, signer, and complete file set.'
+    }
+    foreach ($file in @($manifest.files)) {
+        $path = Join-Path $bundle $file.name
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf) -or
+            (Get-Item -LiteralPath $path).Length -ne $file.bytes -or
+            (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.sha256) {
+            throw "The staged release file does not match its manifest entry: $($file.name)"
+        }
     }
 
     Write-Output 'Rusty Kiosk signed release-pipeline test passed.'

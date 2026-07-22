@@ -6,6 +6,10 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$SetupHelperApkPath,
 
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version,
+
     [string]$SourceUrl = 'https://github.com/MesmerPrism/Rusty-Kiosk',
     [string]$SourceRevision = 'working-tree',
     [string]$ApkSignerPath,
@@ -72,11 +76,20 @@ $mainOutput = Join-Path $OutputDirectory 'rusty-kiosk.apk'
 $helperOutput = Join-Path $OutputDirectory 'rusty-kiosk-setup-helper.apk'
 Copy-Item -LiteralPath $mainApk -Destination $mainOutput
 Copy-Item -LiteralPath $helperApk -Destination $helperOutput
-Copy-Item -LiteralPath $license -Destination (Join-Path $OutputDirectory 'RUSTY-KIOSK-LICENSE.txt')
+$licenseOutput = Join-Path $OutputDirectory 'RUSTY-KIOSK-LICENSE.txt'
+$sourceOutput = Join-Path $OutputDirectory 'RUSTY-KIOSK-SOURCE.txt'
+Copy-Item -LiteralPath $license -Destination $licenseOutput
+Set-Content -LiteralPath $sourceOutput -Encoding utf8 -Value @"
+Rusty Kiosk source: $SourceUrl
+Source revision: $SourceRevision
+Version: $Version
+License: GNU Affero General Public License v3.0 or later (see RUSTY-KIOSK-LICENSE.txt)
+"@
 
 $manifest = [ordered]@{
     schema = 'meta.quest.file_manager.rusty_kiosk_bundle.v1'
     build_type = 'release'
+    version = $Version
     source_url = $SourceUrl
     source_revision = $SourceRevision
     signer_sha256 = $mainCertificate
@@ -91,14 +104,19 @@ $manifest = [ordered]@{
             name = 'rusty-kiosk-setup-helper.apk'
             sha256 = (Get-FileHash -LiteralPath $helperOutput -Algorithm SHA256).Hash.ToLowerInvariant()
             bytes = (Get-Item -LiteralPath $helperOutput).Length
+        },
+        [ordered]@{
+            name = 'RUSTY-KIOSK-LICENSE.txt'
+            sha256 = (Get-FileHash -LiteralPath $licenseOutput -Algorithm SHA256).Hash.ToLowerInvariant()
+            bytes = (Get-Item -LiteralPath $licenseOutput).Length
+        },
+        [ordered]@{
+            name = 'RUSTY-KIOSK-SOURCE.txt'
+            sha256 = (Get-FileHash -LiteralPath $sourceOutput -Algorithm SHA256).Hash.ToLowerInvariant()
+            bytes = (Get-Item -LiteralPath $sourceOutput).Length
         }
     )
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'bundle-manifest.json') -Encoding utf8
-Set-Content -LiteralPath (Join-Path $OutputDirectory 'RUSTY-KIOSK-SOURCE.txt') -Encoding utf8 -Value @"
-Rusty Kiosk source: $SourceUrl
-Source revision: $SourceRevision
-License: GNU Affero General Public License v3.0 or later (see RUSTY-KIOSK-LICENSE.txt)
-"@
 
 Get-ChildItem -LiteralPath $OutputDirectory -File | Sort-Object Name | Select-Object Name, Length, FullName
