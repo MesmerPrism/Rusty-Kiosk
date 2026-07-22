@@ -22,9 +22,11 @@ class GuardDecisionEngineTest {
     assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 0L))
 
     assertTrue(engine.observeHomeInvocation(homePackage, 1_000L) is GuardDecision.ScheduleRecovery)
-    engine.noteTargetRecoveryLaunched(1_000L)
+    engine.noteRecoveryRequested(1_000L)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 1_100L))
     assertTrue(engine.observeHomeInvocation(homePackage, 2_500L) is GuardDecision.ScheduleRecovery)
-    engine.noteTargetRecoveryLaunched(2_500L)
+    engine.noteRecoveryRequested(2_500L)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 2_600L))
     assertEquals(GuardDecision.DisarmAndReturn, engine.observeHomeInvocation(homePackage, 4_000L))
   }
 
@@ -34,8 +36,14 @@ class GuardDecisionEngineTest {
     engine.observe(targetPackage, 0L)
 
     assertTrue(engine.observeHomeInvocation(homePackage, 1_000L) is GuardDecision.ScheduleRecovery)
-    assertEquals(GuardDecision.NoChange, engine.observeHomeInvocation(homePackage, 1_300L))
-    assertEquals(GuardDecision.NoChange, engine.observeHomeInvocation(homePackage, 1_700L))
+    engine.noteRecoveryRequested(1_000L)
+    assertTrue(engine.observeHomeInvocation(homePackage, 1_300L) is GuardDecision.ScheduleRecovery)
+    engine.noteRecoveryRequested(1_300L)
+    assertTrue(engine.observeHomeInvocation(homePackage, 1_700L) is GuardDecision.ScheduleRecovery)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 1_800L))
+    assertTrue(engine.observeHomeInvocation(homePackage, 2_300L) is GuardDecision.ScheduleRecovery)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 2_400L))
+    assertEquals(GuardDecision.DisarmAndReturn, engine.observeHomeInvocation(homePackage, 3_600L))
   }
 
   @Test
@@ -44,10 +52,12 @@ class GuardDecisionEngineTest {
     engine.observe(targetPackage, 0L)
 
     assertTrue(engine.observe(homePackage, 100L) is GuardDecision.ScheduleRecovery)
-    assertEquals(GuardDecision.NoChange, engine.observeHomeInvocation(homePackage, 200L))
-    engine.noteTargetRecoveryLaunched(500L)
+    engine.noteRecoveryRequested(100L)
+    assertTrue(engine.observeHomeInvocation(homePackage, 200L) is GuardDecision.ScheduleRecovery)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 500L))
     assertTrue(engine.observeHomeInvocation(homePackage, 1_400L) is GuardDecision.ScheduleRecovery)
-    engine.noteTargetRecoveryLaunched(1_500L)
+    engine.noteRecoveryRequested(1_500L)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 1_600L))
     assertEquals(
       GuardDecision.DisarmAndReturn,
       engine.observeHomeInvocation(homePackage, 2_700L),
@@ -55,14 +65,21 @@ class GuardDecisionEngineTest {
   }
 
   @Test
-  fun shellWindowTailAfterRecoveryDoesNotCreateFalseHomePress() {
+  fun shellWindowTailAfterRecoveryRequestsRefocusWithoutCreatingFalseHomePress() {
     val engine = GuardDecisionEngine(targetPackage)
     engine.observe(targetPackage, 0L)
     assertTrue(engine.observe(homePackage, 100L) is GuardDecision.ScheduleRecovery)
 
-    engine.noteTargetRecoveryLaunched(200L)
+    engine.noteRecoveryRequested(200L)
+    assertTrue(engine.observe(libraryPackage, 210L) is GuardDecision.ScheduleRecovery)
+    engine.noteRecoveryRequested(232L)
+    assertTrue(engine.observe(homePackage, 250L) is GuardDecision.ScheduleRecovery)
+    engine.noteRecoveryRequested(264L)
     assertEquals(GuardDecision.NoChange, engine.observe(libraryPackage, 300L))
-    assertEquals(GuardDecision.NoChange, engine.observe(homePackage, 600L))
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 400L))
+    assertTrue(engine.observeHomeInvocation(homePackage, 1_500L) is GuardDecision.ScheduleRecovery)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 1_600L))
+    assertEquals(GuardDecision.DisarmAndReturn, engine.observeHomeInvocation(homePackage, 2_800L))
   }
 
   @Test
@@ -81,7 +98,8 @@ class GuardDecisionEngineTest {
     engine.observe(targetPackage, 0L)
 
     assertTrue(engine.observe("com.example.other", 1_000L) is GuardDecision.ScheduleRecovery)
-    engine.noteTargetRecoveryLaunched(1_000L)
+    engine.noteRecoveryRequested(1_000L)
+    assertEquals(GuardDecision.CancelRecovery, engine.observe(targetPackage, 1_100L))
     assertTrue(engine.observeHomeInvocation(homePackage, 2_500L) is GuardDecision.ScheduleRecovery)
   }
 

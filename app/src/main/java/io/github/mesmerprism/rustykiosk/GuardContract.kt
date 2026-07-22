@@ -8,8 +8,9 @@ internal object GuardContract {
   const val HOME_TRIGGER_COUNT = 3
   const val HOME_TRIGGER_WINDOW_MS = 5_000L
   const val HOME_INVOCATION_DEBOUNCE_MS = 1_200L
-  const val HOME_RECOVERY_SETTLE_MS = 500L
   const val RECOVERY_GRACE_MS = 0L
+  const val RECOVERY_RETRY_MIN_INTERVAL_MS = 32L
+  const val RECOVERY_MAX_ATTEMPTS = 3
 
   val metaShellPackages =
     setOf(

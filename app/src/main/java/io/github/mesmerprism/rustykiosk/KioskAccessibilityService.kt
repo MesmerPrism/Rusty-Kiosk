@@ -211,9 +211,8 @@ class KioskAccessibilityService : AccessibilityService() {
         val current = store.loadArmed()
         if (current?.generation != generation) return@Runnable
         if (engine?.currentPackage == current.target.packageName) return@Runnable
-        if (launchTarget(current)) {
-          engine?.noteTargetRecoveryLaunched(SystemClock.elapsedRealtime())
-        }
+        engine?.noteRecoveryRequested(SystemClock.elapsedRealtime())
+        launchTarget(current)
       }
     pendingRecovery = recovery
     handler.postDelayed(recovery, delayMs)
