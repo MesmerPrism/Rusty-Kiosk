@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Semantic version without v, for example 0.5.0"
+        description: "Semantic version without v, for example 0.6.0"
         required: true
         type: string
 
@@ -104,6 +104,7 @@ jobs:
           .\tools\Stage-ReleaseBundle.ps1 `
             -MainApkPath $mainApk `
             -SetupHelperApkPath $helperApk `
+            -Version '${{ steps.version.outputs.semantic_version }}' `
             -SourceRevision $env:GITHUB_SHA `
             -ApkSignerPath $apksigner
 
@@ -121,15 +122,13 @@ jobs:
           $assets = Get-ChildItem artifacts\release-bundle -File | ForEach-Object FullName
           gh release view $tagName *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tagName $assets --clobber
+            throw "Release $tagName already exists. Publish a new version instead of replacing release assets."
           }
-          else {
-            gh release create $tagName $assets `
-              --title "Rusty Kiosk $tagName" `
-              --generate-notes `
-              --latest `
-              --target $env:GITHUB_SHA
-          }
+          gh release create $tagName $assets `
+            --title "Rusty Kiosk $tagName" `
+            --generate-notes `
+            --latest `
+            --target $env:GITHUB_SHA
 
       - name: Remove temporary signing material
         if: always()

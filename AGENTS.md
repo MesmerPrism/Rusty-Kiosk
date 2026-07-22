@@ -95,6 +95,10 @@ screenshot, or physical-button validation. Keep raw device evidence private.
 
 ## Checks
 
+The complete repository gate is required on every pull request and push to
+`main`. Tagged releases rerun it against the signed release pair and must create
+new immutable-version assets rather than overwrite an existing release.
+
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1
 ```
