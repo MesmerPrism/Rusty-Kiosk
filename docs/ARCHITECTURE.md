@@ -43,6 +43,7 @@ and Wi-Fi ADB state after completion.
 | Installed launchable-app discovery | `InstalledAppRepository` |
 | Tag-file bytes and matching | `TagFileStore` / `CatalogAssembler` |
 | Search and tag filter | immutable `KioskUiState` projection |
+| Retained search, active tag filter, and visible selection | app-private `KioskBrowsingStateStore` |
 | Normal versus kiosk launch choice | `LaunchController` |
 | Armed target and escape state | `GuardStateStore` |
 | Window/package transitions | `KioskAccessibilityService` |
@@ -95,6 +96,12 @@ Rusty Kiosk --Exit to Meta Home--> Meta Home
 
 Returning to Rusty Kiosk starts a fresh MAIN task after a short teardown delay
 so a stale Spatial panel runtime is not reused.
+The fresh task restores the wearer's last search text, active tag filter, and
+selected visible app from app-private preferences. Selecting **All apps** or
+clearing the search removes the corresponding retained filter. A selected tag
+is also cleared if a tag-file reload removes it from the catalogue entirely,
+and the selection moves to the first visible result if its prior app is no
+longer visible.
 
 Rusty Kiosk declares Meta's optional passthrough capability and reapplies its
 persisted style whenever the Spatial scene becomes ready or resumes. Natural
