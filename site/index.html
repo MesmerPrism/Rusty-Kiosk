@@ -11,7 +11,7 @@
   <meta property="og:description" content="A simple launcher for the apps on your Meta Quest.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://mesmerprism.com/Rusty-Kiosk/">
-  <meta property="og:image" content="https://mesmerprism.com/icon-512.png">
+  <meta property="og:image" content="https://mesmerprism.com/Rusty-Kiosk/assets/onboarding/kiosk-catalog.png">
   <link rel="icon" href="https://mesmerprism.com/favicon.ico" sizes="any">
   <link rel="apple-touch-icon" href="https://mesmerprism.com/apple-touch-icon.png">
   <link rel="stylesheet" href="https://mesmerprism.com/assets/fonts.css">
@@ -31,6 +31,7 @@
         <a class="product-name" href="./">Rusty Kiosk</a>
       </div>
       <nav class="site-nav" aria-label="Rusty Kiosk navigation">
+        <a href="#guide">Visual guide</a>
         <a href="#setup">Set up</a>
         <a href="#use">First use</a>
         <a href="#help">Help</a>
@@ -82,6 +83,51 @@
       </div>
     </section>
 
+    <section id="guide" class="section" aria-labelledby="guide-title">
+      <div class="section-heading">
+        <h2 id="guide-title">Know the panel before you put on the headset</h2>
+        <p>These source-rendered views use sample apps and tags. They show the same controls and states you will see in Rusty Kiosk.</p>
+      </div>
+      <div class="visual-guide">
+        <figure class="visual-step visual-step--wide">
+          <a class="visual-frame visual-frame--dark" href="assets/onboarding/kiosk-catalog.png" aria-label="Open the Rusty Kiosk catalogue view at full size">
+            <img src="assets/onboarding/kiosk-catalog.png" width="1953" height="1323" loading="lazy" decoding="async" alt="Rusty Kiosk catalogue with tag filters, four sample apps, app details, and normal and kiosk launch buttons">
+          </a>
+          <figcaption class="visual-caption">
+            <span class="visual-number" aria-hidden="true">01</span>
+            <div>
+              <h3>Choose an app</h3>
+              <p>Use the search field or the tag row, then select an app on the left. Its tags and the two launch choices appear on the right.</p>
+            </div>
+          </figcaption>
+        </figure>
+        <figure class="visual-step">
+          <a class="visual-frame visual-frame--dark" href="assets/onboarding/kiosk-tag-filter.png" aria-label="Open the Rusty Kiosk tag-filter view at full size">
+            <img src="assets/onboarding/kiosk-tag-filter.png" width="1953" height="1323" loading="lazy" decoding="async" alt="Rusty Kiosk filtered to the onboarding tag, including an app clearly marked Not installed">
+          </a>
+          <figcaption class="visual-caption">
+            <span class="visual-number" aria-hidden="true">02</span>
+            <div>
+              <h3>Understand missing apps</h3>
+              <p>A portable tag can name an app that is absent from this headset. The entry stays visible but is marked <strong>Not installed</strong>, and its launch buttons are disabled.</p>
+            </div>
+          </figcaption>
+        </figure>
+        <figure class="visual-step">
+          <a class="visual-frame visual-frame--dark" href="assets/onboarding/kiosk-user-controls.png" aria-label="Open the Rusty Kiosk user-controls view at full size">
+            <img src="assets/onboarding/kiosk-user-controls.png" width="1953" height="1323" loading="lazy" decoding="async" alt="Rusty Kiosk user controls showing passthrough, Wi-Fi ADB, Accessibility guard, and Exit to Meta Home">
+          </a>
+          <figcaption class="visual-caption">
+            <span class="visual-number" aria-hidden="true">03</span>
+            <div>
+              <h3>Keep optional controls visible</h3>
+              <p><strong>User controls</strong> shows the effective status of passthrough, Wi-Fi ADB, and the soft guard. This is also where you can disable them or leave for Meta Home.</p>
+            </div>
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
     <section id="setup" class="section" aria-labelledby="setup-title">
       <div class="section-heading">
         <h2 id="setup-title">Set it up once</h2>
@@ -116,7 +162,7 @@
       <ol class="steps steps--compact">
         <li>
           <h3>Search or choose a tag</h3>
-          <p>Enter part of an app name, or select a tag to see everything filed under it.</p>
+          <p>Enter part of an app name, or select a tag to see everything filed under it. Rusty Kiosk keeps this search, filter, and selection when a kiosk session returns to the panel; erase the search text and choose <strong>All apps</strong> when you want to start over.</p>
         </li>
         <li>
           <h3>Select an app</h3>

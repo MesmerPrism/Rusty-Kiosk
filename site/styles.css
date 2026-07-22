@@ -492,6 +492,79 @@ p {
   width: 100%;
 }
 
+.visual-guide {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3rem 2rem;
+  margin-top: 2.5rem;
+}
+
+.visual-guide--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.visual-step {
+  min-width: 0;
+  margin: 0;
+}
+
+.visual-step--wide {
+  grid-column: 1 / -1;
+}
+
+.visual-frame {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.visual-frame--dark {
+  background: #171717;
+}
+
+.visual-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.visual-frame:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+
+.visual-caption {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.visual-caption h3 {
+  margin-bottom: 0.35rem;
+}
+
+.visual-caption p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.visual-number {
+  padding-top: 0.2rem;
+  color: var(--accent);
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sample-note {
+  margin-top: 1.5rem;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+}
+
 code {
   font-family: var(--font-mono);
   font-size: 0.88em;
@@ -573,7 +646,8 @@ code {
 
   .requirements ul,
   .feature-list,
-  .choice-table {
+  .choice-table,
+  .visual-guide {
     grid-template-columns: 1fr;
   }
 
