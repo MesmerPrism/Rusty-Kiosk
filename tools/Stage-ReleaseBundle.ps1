@@ -55,18 +55,20 @@ function Get-ApkCertificateDigest {
         throw "APK signature verification failed for $Path`n$($output -join [Environment]::NewLine)"
     }
     $text = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
-    $match = [regex]::Match(
+    $matches = [regex]::Matches(
         $text,
-        '(?im)Signer\s+#?1\s+certificate\s+SHA-?256\s+digest\s*:\s*([0-9a-fA-F:\- ]{64,128})'
+        '(?im)certificate\s+SHA-?256\s+digest\s*:\s*([0-9a-fA-F:\- ]{64,128})'
     )
-    if (-not $match.Success) {
+    if ($matches.Count -eq 0) {
         throw "No signing certificate digest was found for $Path.`nVerifier output:`n$text"
     }
-    $digest = ($match.Groups[1].Value -replace '[^0-9a-fA-F]', '').ToLowerInvariant()
-    if ($digest.Length -ne 64) {
-        throw "The signing certificate digest for $Path was not a 32-byte SHA-256 value: $digest"
+    $digests = @($matches | ForEach-Object {
+        ($_.Groups[1].Value -replace '[^0-9a-fA-F]', '').ToLowerInvariant()
+    } | Sort-Object -Unique)
+    if ($digests.Count -ne 1 -or $digests[0].Length -ne 64) {
+        throw "Expected exactly one 32-byte signing certificate digest for $Path, got: $($digests -join ', ')"
     }
-    return $digest
+    return $digests[0]
 }
 
 $mainCertificate = Get-ApkCertificateDigest -Path $mainApk

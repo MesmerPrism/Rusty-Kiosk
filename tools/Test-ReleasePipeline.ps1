@@ -16,6 +16,8 @@ $keystore = Join-Path $runDirectory 'test-release.jks'
 $bundle = Join-Path $runDirectory 'bundle'
 $nativeOutputBundle = Join-Path $runDirectory 'native-output-bundle'
 $nativeOutputProxy = Join-Path $runDirectory 'apksigner-stderr-proxy.cmd'
+$v2LabelBundle = Join-Path $runDirectory 'v2-label-bundle'
+$v2LabelProxy = Join-Path $runDirectory 'apksigner-v2-label-proxy.cmd'
 $mainApk = Join-Path $repoRoot 'app\build\outputs\apk\release\app-release.apk'
 $helperApk = Join-Path $repoRoot 'setup-helper\build\outputs\apk\release\setup-helper-release.apk'
 
@@ -43,7 +45,7 @@ try {
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
-        -Version '0.6.2' `
+        -Version '0.6.3' `
         -SourceRevision 'local-release-pipeline-test' `
         -OutputDirectory $bundle
     if ($LASTEXITCODE -ne 0) { throw 'The release bundle staging test failed.' }
@@ -51,7 +53,7 @@ try {
     $manifest = Get-Content -Raw -LiteralPath (Join-Path $bundle 'bundle-manifest.json') | ConvertFrom-Json
     if ($manifest.schema -ne 'meta.quest.file_manager.rusty_kiosk_bundle.v1' -or
         $manifest.build_type -ne 'release' -or
-        $manifest.version -ne '0.6.2' -or
+        $manifest.version -ne '0.6.3' -or
         [string]::IsNullOrWhiteSpace($manifest.signer_sha256) -or
         @($manifest.files).Count -ne 4) {
         throw 'The staged release manifest did not record the expected schema, version, signer, and complete file set.'
@@ -78,7 +80,7 @@ try {
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
-        -Version '0.6.2' `
+        -Version '0.6.3' `
         -SourceRevision 'native-output-regression-test' `
         -ApkSignerPath $nativeOutputProxy `
         -OutputDirectory $nativeOutputBundle
@@ -86,6 +88,24 @@ try {
     $nativeOutputManifest = Get-Content -Raw -LiteralPath (Join-Path $nativeOutputBundle 'bundle-manifest.json') | ConvertFrom-Json
     if ($nativeOutputManifest.signer_sha256 -ne $manifest.signer_sha256) {
         throw 'Native output object normalization changed the APK signer digest.'
+    }
+
+    Set-Content -LiteralPath $v2LabelProxy -Encoding ascii -Value @(
+        '@echo off',
+        ('@echo V2 Signer: certificate SHA-256 digest: {0}' -f $manifest.signer_sha256),
+        '@exit /b 0'
+    )
+    & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
+        -MainApkPath $mainApk `
+        -SetupHelperApkPath $helperApk `
+        -Version '0.6.3' `
+        -SourceRevision 'v2-label-regression-test' `
+        -ApkSignerPath $v2LabelProxy `
+        -OutputDirectory $v2LabelBundle
+    if ($LASTEXITCODE -ne 0) { throw 'The V2 signer-label release bundle staging regression test failed.' }
+    $v2LabelManifest = Get-Content -Raw -LiteralPath (Join-Path $v2LabelBundle 'bundle-manifest.json') | ConvertFrom-Json
+    if ($v2LabelManifest.signer_sha256 -ne $manifest.signer_sha256) {
+        throw 'V2 signer-label normalization changed the APK signer digest.'
     }
 
     Write-Output 'Rusty Kiosk signed release-pipeline test passed.'
