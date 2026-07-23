@@ -3,7 +3,7 @@
 ## Purpose
 
 The direct link removes routine ADB from the already bounded Rusty Kiosk and
-Meta Quest File Manager workflow. It is single-headset local control, not fleet
+QuestIonAble File Manager workflow. It is single-headset local control, not fleet
 management. The wearer enables or disables it in Rusty Kiosk's **User controls**
 and can rotate the on-headset pairing code at any time.
 
@@ -46,7 +46,7 @@ implicit property of v1.
 
 Direct files live only in Rusty Kiosk's app-owned `operator-staging` directory.
 This gives the PC a bounded upload/list/download/delete route without granting a
-general headset filesystem capability. Ordinary Meta Quest File Manager ADB
+general headset filesystem capability. Ordinary QuestIonAble File Manager ADB
 browsing remains available separately for shell-visible shared paths.
 
 An install request names one to 32 already staged `.apk` parts. Rusty Kiosk
@@ -59,7 +59,7 @@ but arbitrary first-time installs still require one wearer decision per package
 session. A base APK and all of its selected split APKs share one session and one
 decision.
 
-Meta Quest File Manager therefore presents authorized PC ADB installation as
+QuestIonAble File Manager therefore presents authorized PC ADB installation as
 the default unattended and batch route. Direct PackageInstaller is the explicit
 fallback for times when ADB is unavailable and someone is wearing the headset.
 
