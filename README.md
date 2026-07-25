@@ -44,7 +44,7 @@ Its optional Accessibility service is a foreground watchdog:
 - native Android text inputs using an explicit Quest keyboard path;
 - a typed, ADB-shell-protected debug CLI for stable wearer-equivalent testing.
 - a release-safe, `DUMP`-protected typed host adapter for optional desktop
-  management through Meta Quest File Manager.
+  management through QuestIonAble File Manager.
 - an explicitly wearer-enabled local PC link for the same typed commands, tag
   file, bounded app-owned staging, and Android-confirmed APK sessions without
   routine ADB.
@@ -84,11 +84,11 @@ Rusty Kiosk remains a separately installed APK. See
 
 Tagged public releases build and verify a same-signer release pair, then attach
 the two APKs, their hashes/source manifest, the AGPL license, and source pointer
-using the stable filenames consumed by Meta Quest File Manager. Release signing
+using the stable filenames consumed by QuestIonAble File Manager. Release signing
 material stays in GitHub Actions secrets and is never committed. Release assets
 are versioned and are never overwritten; publish a new version for any change.
 The recommended installation route remains
-[Meta Quest File Manager](https://mesmerprism.com/Meta-Quest-File-Manager/#kiosk),
+[QuestIonAble File Manager](https://mesmerprism.com/QuestIonAble-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
 The current published bundle is version `0.6.4`; version `0.6.3` remains the
@@ -202,7 +202,7 @@ local direct link instead of USB or Wi-Fi ADB. Enable it in **User controls**,
 then enter the displayed `http://` address and pairing code in Meta Quest File
 Manager. The pairing code is generated on-headset and can be rotated locally.
 
-Meta Quest File Manager uses its PC ADB installer as the default APK route once
+QuestIonAble File Manager uses its PC ADB installer as the default APK route once
 that PC is authorized. It supports unattended and batch installation without an
 in-headset decision for every package. The direct local installer is an
 attended fallback: allowing Rusty Kiosk as an install source is a one-time
@@ -249,7 +249,7 @@ See [Tag file](docs/TAG_FILE.md) for the schema and matching rules.
   and Horizon own the per-app installer permission and the install/cancel UI.
 - Direct file operations are intentionally confined to Rusty Kiosk's app-owned
   staging area. General shell-visible filesystem browsing remains an optional
-  ADB function in Meta Quest File Manager.
+  ADB function in QuestIonAble File Manager.
 - The separate launcher knows only Rusty Kiosk's exact package and the signer
   from its checked-in public release manifest. It cannot install, update,
   configure, inspect, or manage the target and deliberately refuses

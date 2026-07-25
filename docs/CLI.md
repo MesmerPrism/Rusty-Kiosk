@@ -48,10 +48,10 @@ The host sequence is deliberately two-stage: call `invoke`, start the fixed
 `.RustyKioskActivity` with the admitted request id, then poll `result`. This
 keeps visible action execution in the same Activity handlers as the panel and
 avoids granting the provider hidden foreground or business-logic authority.
-The public Meta Quest File Manager implements this contract for its optional
+The public QuestIonAble File Manager implements this contract for its optional
 Rusty Kiosk tab.
 
-Meta Quest File Manager also implements `rusty.kiosk.direct_operator.v1` for
+QuestIonAble File Manager also implements `rusty.kiosk.direct_operator.v1` for
 post-bootstrap operation without ADB. Its `kiosk-direct` CLI family covers
 status, typed commands, tag import/export, app-owned staging, and attended APK
 install receipts. This is a separate authenticated network transport, not an
