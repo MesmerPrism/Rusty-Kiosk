@@ -18,8 +18,8 @@ android {
     applicationId = "io.github.mesmerprism.rustykiosk"
     minSdk = 34
     targetSdk = 34
-    versionCode = 14
-    versionName = "0.6.4"
+    versionCode = 15
+    versionName = "0.6.5"
 
     ndk {
       abiFilters += listOf("arm64-v8a")
