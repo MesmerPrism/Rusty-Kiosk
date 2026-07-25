@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rusty Kiosk Launcher</string>
+    <string name="missing_title">Rusty Kiosk is not installed</string>
+    <string name="missing_body">Rusty Kiosk is a separate sideloaded app. Install the current official release with Meta Quest File Manager or ADB, then return here and check again.</string>
+    <string name="repair_title">Rusty Kiosk needs repair</string>
+    <string name="signer_mismatch_body">A package using the Rusty Kiosk name is installed, but it is not signed like the official release. Reinstall the current official Rusty Kiosk bundle before continuing.</string>
+    <string name="no_front_door_body">Rusty Kiosk is installed and trusted, but Android cannot find its launch activity. Reinstall the complete current release bundle.</string>
+    <string name="launch_failed">Android rejected the Rusty Kiosk launch request. Try again or reinstall the current official release.</string>
+    <string name="target_detail">Expected package: %1$s</string>
+    <string name="open_install_guide">Installation guide</string>
+    <string name="open_releases">GitHub releases</string>
+    <string name="check_again">Check again</string>
+    <string name="browser_unavailable">No browser is available. Open this address on another device: %1$s</string>
+</resources>

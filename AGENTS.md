@@ -1,12 +1,14 @@
 # Rusty Kiosk Agent Notes
 
-Rusty Kiosk is a public Meta Spatial SDK example. Keep it portable, small, and
-free of private-project identities, assets, study flows, device serials, logs,
+Rusty Kiosk is a public Meta Quest app family. The main app is a Meta Spatial
+SDK example; the separate Rusty Kiosk Launcher is a minimal native 2D handoff
+app for private Meta release channels. Keep both portable, small, and free of
+private-project identities, assets, study flows, device serials, logs,
 screenshots, signing material, or generated APKs.
 
 Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
-`docs/TAG_FILE.md`, `docs/PANEL_PREVIEW.md`, and `docs/VALIDATION.md` before
-changing behavior.
+`docs/TAG_FILE.md`, `docs/PANEL_PREVIEW.md`, `docs/KIOSK_LAUNCHER.md`, and
+`docs/VALIDATION.md` before changing behavior.
 
 ## Product invariants
 
@@ -89,6 +91,21 @@ changing behavior.
   guard-transition receiver. One command means one state-machine Home
   transition; it must never be described as physical Meta-button or visible
   Android HOME parity.
+- `launcher` is a conventional native 2D Android app, not a Spatial SDK app.
+  It has one Activity, one exact package query, no declared permissions, and no
+  service, provider, receiver, installer, Accessibility, updater, analytics,
+  account, or background authority.
+- The launcher obtains its pinned Rusty Kiosk signing certificate from the
+  provenance-bound public release manifest under `launcher/trust/` and validates
+  it before opening the target package's normal front door. Multiple current
+  signers fail closed. A missing package, wrong signer, missing front door, or
+  rejected launch remains visible as a bounded install/repair explanation.
+- The launcher accepts no package, component, certificate, URL, or command
+  from intents or remote input. Its target identity and official install links
+  are compile-time release inputs.
+- The launcher and Rusty Kiosk are separate packages and signing identities.
+  Meta release channels own launcher distribution; Rusty Kiosk remains
+  separately installed and owns all kiosk, setup, install, and update behavior.
 
 Use `$meta-quest-workflow` before any headset, ADB, APK install/launch, logcat,
 screenshot, or physical-button validation. Keep raw device evidence private.

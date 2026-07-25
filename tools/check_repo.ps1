@@ -27,6 +27,13 @@ $cliScriptPath = Join-Path $repoRoot 'tools\Invoke-RustyKioskCli.ps1'
 $homeScriptPath = Join-Path $repoRoot 'tools\Invoke-RustyKioskHome.ps1'
 $guardCliScriptPath = Join-Path $repoRoot 'tools\Invoke-RustyKioskGuardCli.ps1'
 $provisionScriptPath = Join-Path $repoRoot 'tools\Provision-RustyKiosk.ps1'
+$launcherManifestPath = Join-Path $repoRoot 'launcher\src\main\AndroidManifest.xml'
+$launcherBuildPath = Join-Path $repoRoot 'launcher\build.gradle.kts'
+$launcherTrustManifestPath =
+  Join-Path $repoRoot 'launcher\trust\rusty-kiosk-v0.6.4-bundle-manifest.json'
+$launcherTrustProvenancePath = Join-Path $repoRoot 'launcher\trust\README.md'
+$launcherActivityPath =
+  Join-Path $repoRoot 'launcher\src\main\java\io\github\mesmerprism\rustykiosk\launcher\RustyKioskLauncherActivity.java'
 
 $serviceXml = Get-Content -Raw -LiteralPath $serviceXmlPath
 if ($serviceXml -notmatch 'canRetrieveWindowContent="false"') {
@@ -276,6 +283,109 @@ if ($provisionScript -match 'shell\s+input|input\s+(tap|swipe|keyevent|text)') {
   throw 'The provisioning workflow must not use input injection.'
 }
 
+$launcherManifest = Get-Content -Raw -LiteralPath $launcherManifestPath
+$launcherBuild = Get-Content -Raw -LiteralPath $launcherBuildPath
+$launcherTrustManifest =
+  Get-Content -Raw -LiteralPath $launcherTrustManifestPath | ConvertFrom-Json
+$launcherTrustProvenance = Get-Content -Raw -LiteralPath $launcherTrustProvenancePath
+$launcherActivity = Get-Content -Raw -LiteralPath $launcherActivityPath
+foreach ($token in @(
+  'io.github.mesmerprism.rustykiosk',
+  'com.oculus.intent.category.2D',
+  'android.intent.category.LAUNCHER',
+  'android.hardware.vr.headtracking',
+  'com.oculus.supportedDevices',
+  'android:excludeFromRecents="true"'
+)) {
+  if (-not $launcherManifest.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher manifest is missing: $token"
+  }
+}
+foreach ($token in @(
+  'uses-permission',
+  'QUERY_ALL_PACKAGES',
+  '<service',
+  '<provider',
+  '<receiver',
+  'com.oculus.intent.category.VR'
+)) {
+  if ($launcherManifest.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher contains forbidden authority: $token"
+  }
+}
+if (@([regex]::Matches($launcherManifest, '<package\s+android:name=')).Count -ne 1) {
+  throw 'The native 2D launcher must query exactly one package.'
+}
+foreach ($token in @(
+  'io.github.mesmerprism.rustykiosk.launcher',
+  'rusty-kiosk-v0.6.4-bundle-manifest.json',
+  'expectedTargetSignerSha256'
+)) {
+  if (-not $launcherBuild.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher build identity is missing: $token"
+  }
+}
+$trustedKioskApk = @(
+  $launcherTrustManifest.files |
+    Where-Object { $_.name -eq 'rusty-kiosk.apk' }
+)
+if (
+  $launcherTrustManifest.schema -cne 'meta.quest.file_manager.rusty_kiosk_bundle.v1' -or
+  $launcherTrustManifest.build_type -cne 'release' -or
+  $launcherTrustManifest.version -cne '0.6.4' -or
+  $launcherTrustManifest.source_url -cne 'https://github.com/MesmerPrism/Rusty-Kiosk' -or
+  $launcherTrustManifest.source_revision -cne 'c00bfdb386850692ec977b7f3a22fb187ccc9450' -or
+  $launcherTrustManifest.signer_sha256 -cne
+    '423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb' -or
+  $trustedKioskApk.Count -ne 1 -or
+  $trustedKioskApk[0].sha256 -cne
+    '07306cc03d961fe046e6b5c822b4f28e89386ca62f0930fbe58733f0b7f2600e'
+) {
+  throw 'The native 2D launcher trust anchor no longer matches Rusty Kiosk v0.6.4.'
+}
+foreach ($token in @(
+  'https://github.com/MesmerPrism/Rusty-Kiosk/releases/tag/v0.6.4',
+  'https://github.com/MesmerPrism/Rusty-Kiosk/releases/download/v0.6.4/bundle-manifest.json',
+  'e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2'
+)) {
+  if (-not $launcherTrustProvenance.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher trust provenance is missing: $token"
+  }
+}
+foreach ($token in @(
+  'com.meta.spatial',
+  'REQUEST_INSTALL_PACKAGES',
+  'QUERY_ALL_PACKAGES'
+)) {
+  if ($launcherBuild.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher build contains forbidden authority: $token"
+  }
+}
+foreach ($token in @(
+  'getPackageInfo(',
+  'PackageManager.GET_SIGNING_CERTIFICATES',
+  'getLaunchIntentForPackage(',
+  'finishAndRemoveTask()',
+  'https://mesmerprism.com/Meta-Quest-File-Manager/#kiosk',
+  'https://github.com/MesmerPrism/Rusty-Kiosk/releases/latest'
+)) {
+  if (-not $launcherActivity.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher trust/handoff path is missing: $token"
+  }
+}
+foreach ($token in @(
+  'PackageInstaller',
+  'AccessibilityService',
+  'startService(',
+  'bindService(',
+  'Runtime.getRuntime',
+  'ProcessBuilder'
+)) {
+  if ($launcherActivity.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The native 2D launcher Activity contains forbidden authority: $token"
+  }
+}
+
 $publicFiles =
   Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
     Where-Object {
@@ -312,7 +422,10 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Gradle unit/lint gate failed with exit code $LASTEXITCODE."
   }
-  & .\gradlew.bat :app:processReleaseMainManifest :setup-helper:processReleaseMainManifest
+  & .\gradlew.bat `
+    :app:processReleaseMainManifest `
+    :launcher:processReleaseMainManifest `
+    :setup-helper:processReleaseMainManifest
   if ($LASTEXITCODE -ne 0) {
     throw "Gradle release-manifest gate failed with exit code $LASTEXITCODE."
   }
@@ -327,8 +440,20 @@ try {
       'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
     throw 'A debug Rusty Kiosk CLI component leaked into the release manifest.'
   }
+  $launcherReleaseManifest =
+    Get-ChildItem -Path .\launcher\build\intermediates -Recurse -Filter AndroidManifest.xml |
+      Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
+      Select-Object -First 1
+  if ($null -eq $launcherReleaseManifest) {
+    throw 'The launcher release-manifest gate did not produce a merged manifest.'
+  }
+  $launcherReleaseText = Get-Content -Raw -LiteralPath $launcherReleaseManifest.FullName
+  if ($launcherReleaseText -match
+      '<uses-permission|<service|<provider|<receiver|QUERY_ALL_PACKAGES|com\.oculus\.intent\.category\.VR"') {
+    throw 'Forbidden authority leaked into the native 2D launcher release manifest.'
+  }
   if (-not $SkipAssemble) {
-    & .\gradlew.bat :app:assembleDebug :setup-helper:assembleDebug
+    & .\gradlew.bat :app:assembleDebug :launcher:assembleDebug :setup-helper:assembleDebug
     if ($LASTEXITCODE -ne 0) {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }
