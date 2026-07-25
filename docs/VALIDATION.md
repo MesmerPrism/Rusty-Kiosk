@@ -92,10 +92,12 @@ capabilities in the main manifest:
 The launcher static gate separately requires one native 2D Activity, one exact
 Rusty Kiosk package query, the provenance-bound public v0.6.4 bundle manifest,
 fixed official install links, and no declared permissions or background
-components. The launcher reads its signer pin from that checked-in manifest;
-the gate binds the fixture to its public release URL, upstream manifest digest,
-source revision, APK digest, and signer digest. The release-candidate gate
-performs final APK badging, manifest, signature, and hash inspection.
+components. It resolves both the exact Store and Business package identities
+and rejects unknown or differently cased distribution selectors. The launcher
+reads its signer pin from that checked-in manifest; the gate binds the fixture
+to its public release URL, upstream manifest digest, source revision, APK
+digest, and signer digest. Each release-candidate gate performs exact APK
+package and query parsing plus manifest, signature, and hash inspection.
 
 ## Native 2D launcher headset gate
 
@@ -108,20 +110,24 @@ an already reserved headset. Keep the three cases separate:
 3. A device with the official release signer logs `state=trusted-launch`,
    brings Rusty Kiosk forward, and removes the launcher task.
 
-Every run pulls the installed launcher APK and records its hash, signer,
-version, installer, initiating/originating package, package source, package and
-Activity, foreground before/after, target version, expected marker, bounded
-fatal count, and whether restoring the pre-run launcher-package presence
-requires an explicit uninstall. A sideload run also requires the installed APK
-hash to match its input. Do not uninstall automatically.
+Every run pulls the installed launcher APK and records its selected package,
+hash, signer, version, installer, initiating/originating package, package
+source, package and Activity, foreground before/after, target version, expected
+marker, bounded fatal count, and whether restoring the pre-run
+launcher-package presence requires an explicit uninstall. A sideload run also
+requires the installed APK hash to match its input. Do not uninstall
+automatically.
 
-After Meta Alpha upload, repeat the trusted-target case with
+After Meta Alpha or managed Business installation, repeat the trusted-target
+case with
 `-SkipInstall`, the candidate values supplied through
 `-ExpectedLauncherApkSha256` and `-ExpectedLauncherSignerSha256`, and
-`-RequireNonShellInstallSource`. The run passes only when the installed bits,
-signer, and non-shell install source match as well as the launch behavior. That
-receipt proves the Meta-distributed package launched; it does not replace the
-local missing/wrong-signer policy evidence.
+`-RequireNonShellInstallSource`. The Business run must also pass its exact
+package through `-LauncherPackage`. The run passes only when the installed
+bits, signer, package, and non-shell install source match as well as the launch
+behavior. The two release packages must co-install without replacing one
+another. These receipts prove the selected Meta-distributed packages launched;
+they do not replace the local missing/wrong-signer policy evidence.
 
 ## Headset gate
 

@@ -91,10 +91,12 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   guard-transition receiver. One command means one state-machine Home
   transition; it must never be described as physical Meta-button or visible
   Android HOME parity.
-- `launcher` is a conventional native 2D Android app, not a Spatial SDK app.
-  It has one Activity, one exact package query, no declared permissions, and no
-  service, provider, receiver, installer, Accessibility, updater, analytics,
-  account, or background authority.
+- `launcher` is one conventional native 2D Android implementation, not a
+  Spatial SDK app. It has two closed release identities: the Store package and
+  the distinct Quest Private App Business package required by Meta
+  distribution rules. Both builds have one Activity, one exact package query,
+  no declared permissions, and no service, provider, receiver, installer,
+  Accessibility, updater, analytics, account, or background authority.
 - The launcher obtains its pinned Rusty Kiosk signing certificate from the
   provenance-bound public release manifest under `launcher/trust/` and validates
   it before opening the target package's normal front door. Multiple current
@@ -103,9 +105,11 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - The launcher accepts no package, component, certificate, URL, or command
   from intents or remote input. Its target identity and official install links
   are compile-time release inputs.
-- The launcher and Rusty Kiosk are separate packages and signing identities.
-  Meta release channels own launcher distribution; Rusty Kiosk remains
-  separately installed and owns all kiosk, setup, install, and update behavior.
+- Both launcher release identities use the same launcher signing identity and
+  must remain behaviorally identical. They and Rusty Kiosk remain separately
+  installed packages with distinct signing identities. Meta Store and Business
+  release channels own their respective launcher distribution; Rusty Kiosk
+  owns all kiosk, setup, install, and update behavior.
 
 Use `$meta-quest-workflow` before any headset, ADB, APK install/launch, logcat,
 screenshot, or physical-button validation. Keep raw device evidence private.
