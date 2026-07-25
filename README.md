@@ -78,8 +78,10 @@ contains no Spatial SDK dependency and declares no Android permissions:
 Launching it immediately opens Rusty Kiosk when the expected package,
 provenance-bound public release signer, and normal front door are present.
 Otherwise it shows the official installation guide and GitHub release
-locations. The launcher is intended for private Meta Alpha distribution while
-Rusty Kiosk remains a separately installed APK. See
+locations. One source implementation produces two closed release identities:
+the original Store package for Meta Alpha and a distinct Quest Private App
+package for Meta for Business. Rusty Kiosk remains a separately installed APK.
+See
 [Rusty Kiosk Launcher](docs/KIOSK_LAUNCHER.md).
 
 Tagged public releases build and verify a same-signer release pair, then attach

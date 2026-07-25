@@ -19,9 +19,19 @@ val targetPackage =
   providers.environmentVariable("RUSTY_KIOSK_LAUNCHER_TARGET_PACKAGE")
     .orElse("io.github.mesmerprism.rustykiosk")
 
+val launcherDistribution =
+  providers.environmentVariable("RUSTY_KIOSK_LAUNCHER_DISTRIBUTION")
+    .orElse("Store")
 val launcherApplicationId =
-  providers.environmentVariable("RUSTY_KIOSK_LAUNCHER_APPLICATION_ID")
-    .orElse("io.github.mesmerprism.rustykiosk.launcher")
+  launcherDistribution.map { distribution ->
+    when (distribution) {
+      "Store" -> "io.github.mesmerprism.rustykiosk.launcher"
+      "Business" -> "io.github.mesmerprism.rustykiosk.launcher.business"
+      else -> error(
+        "RUSTY_KIOSK_LAUNCHER_DISTRIBUTION must be exactly Store or Business",
+      )
+    }
+  }
 
 val releaseKeystorePath =
   providers.environmentVariable("RUSTY_KIOSK_LAUNCHER_KEYSTORE_PATH").orNull

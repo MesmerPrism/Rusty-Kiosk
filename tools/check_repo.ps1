@@ -318,12 +318,17 @@ if (@([regex]::Matches($launcherManifest, '<package\s+android:name=')).Count -ne
 }
 foreach ($token in @(
   'io.github.mesmerprism.rustykiosk.launcher',
+  'io.github.mesmerprism.rustykiosk.launcher.business',
+  'RUSTY_KIOSK_LAUNCHER_DISTRIBUTION',
   'rusty-kiosk-v0.6.4-bundle-manifest.json',
   'expectedTargetSignerSha256'
 )) {
   if (-not $launcherBuild.Contains($token, [StringComparison]::Ordinal)) {
     throw "The native 2D launcher build identity is missing: $token"
   }
+}
+if ($launcherBuild.Contains('RUSTY_KIOSK_LAUNCHER_APPLICATION_ID', [StringComparison]::Ordinal)) {
+  throw 'The native 2D launcher must not accept an arbitrary application-id override.'
 }
 $trustedKioskApk = @(
   $launcherTrustManifest.files |
@@ -412,7 +417,35 @@ foreach ($file in $publicFiles) {
 }
 
 Push-Location $repoRoot
+$priorLauncherDistribution = $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION
 try {
+  foreach ($invalidDistribution in @('store', 'business', 'Unknown', ' Store', '')) {
+    $selectorRejected = $false
+    try {
+      & .\tools\Build-RustyKioskLauncherRelease.ps1 `
+        -Distribution $invalidDistribution | Out-Null
+    } catch {
+      $selectorRejected =
+        $_.Exception.Message -ceq 'Distribution must be exactly Store or Business.'
+    }
+    if (-not $selectorRejected) {
+      throw "The launcher release selector accepted '$invalidDistribution'."
+    }
+  }
+  $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Business'
+  $conflictRejected = $false
+  try {
+    & .\tools\Build-RustyKioskLauncherRelease.ps1 -Distribution Store | Out-Null
+  } catch {
+    $conflictRejected =
+      $_.Exception.Message -ceq
+        'The ambient launcher distribution conflicts with the requested release identity.'
+  }
+  if (-not $conflictRejected) {
+    throw 'The launcher release builder accepted a conflicting ambient identity.'
+  }
+
+  $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
   & pwsh -NoProfile -ExecutionPolicy Bypass `
     -File .\tools\Test-RustyKioskPanelPreview.ps1
   if ($LASTEXITCODE -ne 0) {
@@ -425,7 +458,8 @@ try {
   & .\gradlew.bat `
     :app:processReleaseMainManifest `
     :launcher:processReleaseMainManifest `
-    :setup-helper:processReleaseMainManifest
+    :setup-helper:processReleaseMainManifest `
+    --rerun-tasks
   if ($LASTEXITCODE -ne 0) {
     throw "Gradle release-manifest gate failed with exit code $LASTEXITCODE."
   }
@@ -448,11 +482,41 @@ try {
     throw 'The launcher release-manifest gate did not produce a merged manifest.'
   }
   $launcherReleaseText = Get-Content -Raw -LiteralPath $launcherReleaseManifest.FullName
+  $launcherReleasePackage =
+    [regex]::Match($launcherReleaseText, '<manifest[^>]+\bpackage="([^"]+)"').Groups[1].Value
+  if ($launcherReleasePackage -cne 'io.github.mesmerprism.rustykiosk.launcher') {
+    throw "The Store launcher merged to the wrong package: $launcherReleasePackage"
+  }
   if ($launcherReleaseText -match
       '<uses-permission|<service|<provider|<receiver|QUERY_ALL_PACKAGES|com\.oculus\.intent\.category\.VR"') {
     throw 'Forbidden authority leaked into the native 2D launcher release manifest.'
   }
+
+  $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Business'
+  & .\gradlew.bat :launcher:processReleaseMainManifest --rerun-tasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Business launcher release-manifest gate failed with exit code $LASTEXITCODE."
+  }
+  $launcherBusinessReleaseText =
+    Get-Content -Raw -LiteralPath $launcherReleaseManifest.FullName
+  $launcherBusinessReleasePackage =
+    [regex]::Match(
+      $launcherBusinessReleaseText,
+      '<manifest[^>]+\bpackage="([^"]+)"'
+    ).Groups[1].Value
+  if (
+    $launcherBusinessReleasePackage -cne
+      'io.github.mesmerprism.rustykiosk.launcher.business'
+  ) {
+    throw "The Business launcher merged to the wrong package: $launcherBusinessReleasePackage"
+  }
+  if ($launcherBusinessReleaseText -match
+      '<uses-permission|<service|<provider|<receiver|QUERY_ALL_PACKAGES|com\.oculus\.intent\.category\.VR"') {
+    throw 'Forbidden authority leaked into the Business launcher release manifest.'
+  }
+
   if (-not $SkipAssemble) {
+    $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
     & .\gradlew.bat :app:assembleDebug :launcher:assembleDebug :setup-helper:assembleDebug
     if ($LASTEXITCODE -ne 0) {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
@@ -463,6 +527,7 @@ try {
     throw 'git diff --check failed.'
   }
 } finally {
+  $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = $priorLauncherDistribution
   Pop-Location
 }
 

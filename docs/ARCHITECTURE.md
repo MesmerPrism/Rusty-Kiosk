@@ -14,6 +14,13 @@ Ship two same-signer APKs with deliberately separate authority:
   granted `WRITE_SECURE_SETTINGS` once over USB-C and accepts only an explicit,
   signature-protected fixed-operation broadcast from the main app.
 
+The separate native 2D `launcher` implementation has no authority in either
+APK. It is released under two exact package identities because Meta Store apps
+and Quest Private Apps occupy separate distribution namespaces. The Store and
+Business builds use the same source, launcher signer, target package, target
+signer pin, manifest capabilities, and handoff behavior. Their package identity
+is the only intentional runtime difference.
+
 The main APK never receives secure-settings authority. The helper exposes no
 shell, terminal, free-form string operation, package/component choice, file
 path, endpoint, or generic intent. Both APKs must use the same signing key.

@@ -2,8 +2,8 @@
 
 ## Decision
 
-`launcher` is a separate native 2D Android application for private Meta release
-channels. Its complete product job is:
+`launcher` is one native 2D Android implementation released through two
+separate Meta distribution identities. Its complete product job is:
 
 1. inspect the one expected Rusty Kiosk package;
 2. require the pinned official Rusty Kiosk release signing certificate;
@@ -18,11 +18,18 @@ authority.
 
 | Surface | Package |
 | --- | --- |
-| Native 2D launcher | `io.github.mesmerprism.rustykiosk.launcher` |
+| Store / Alpha launcher | `io.github.mesmerprism.rustykiosk.launcher` |
+| Quest Private App / Business launcher | `io.github.mesmerprism.rustykiosk.launcher.business` |
 | Sideloaded Rusty Kiosk target | `io.github.mesmerprism.rustykiosk` |
 
 The launcher manifest declares one exact `<queries><package ... /></queries>`
 entry. It does not use `QUERY_ALL_PACKAGES`.
+
+Meta does not permit a Quest Private App to reuse a package identity that is
+already registered to a Store app. The two launcher packages can therefore be
+installed side by side, while sharing the same source, release signer, target,
+trust pin, version policy, and behavior. Neither build gains authority from its
+distribution channel.
 
 ## Trust and launch flow
 
@@ -79,18 +86,23 @@ pwsh -NoProfile -File .\tools\Initialize-RustyKioskLauncherReleaseSigning.ps1
 ```
 
 The generated keystore and environment loader stay under ignored
-`local-artifacts/`. Dot-source the loader, then prepare a signed Alpha
+`local-artifacts/`. Dot-source the loader, then prepare either signed
 candidate:
 
 ```powershell
 . .\local-artifacts\signing\rusty-kiosk-launcher\Load-RustyKioskLauncherReleaseSigning.ps1
 pwsh -NoProfile -File .\tools\Prepare-RustyKioskLauncherAlphaCandidate.ps1
+pwsh -NoProfile -File .\tools\Prepare-RustyKioskLauncherBusinessCandidate.ps1
 ```
 
-An upload candidate must come from a clean exact commit, retain the production
-package and target identities, contain no permissions or background
-components, pass the 2D Meta manifest checks, and have a verified signature.
-Alpha distribution does not authorize Production or public Store submission.
+The release builder accepts only the case-exact `Store` and `Business`
+identities and maps them internally to the package table above. An upload
+candidate must come from a clean exact commit, retain its exact release and
+target identities, contain no permissions or background components, pass the
+2D Meta manifest checks, and have a verified signature. Store Alpha does not
+authorize Production or public Store submission. The Business candidate is
+only for a Quest Private App's `Q4B_MAIN` channel and must not be uploaded to a
+Store release channel.
 
 ## Validation
 
@@ -123,5 +135,12 @@ The first two states can use purpose-built debug variants without uninstalling
 or replacing an existing Rusty Kiosk installation. Meta-installed proof remains
 separate from sideloaded debug proof. Every run pulls the installed launcher
 APK and records its hash, signer, version, and Android install-source fields.
-The post-Alpha run additionally requires the expected candidate hash and signer
-plus a non-shell initiating package.
+After Meta Alpha or managed Business installation, repeat the trusted-target
+case with `-SkipInstall`, the candidate values supplied through
+`-ExpectedLauncherApkSha256` and `-ExpectedLauncherSignerSha256`, and
+`-RequireNonShellInstallSource`. Pass
+`-LauncherPackage io.github.mesmerprism.rustykiosk.launcher.business` for the
+Business build. The run passes only when the installed bits, signer, selected
+package, and non-shell install source match as well as the launch behavior.
+That receipt proves the selected Meta-distributed package launched; it does not
+replace the local missing/wrong-signer policy evidence.
