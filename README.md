@@ -93,10 +93,10 @@ The recommended installation route remains
 [QuestIonAble File Manager](https://mesmerprism.com/QuestIonAble-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
-The current published bundle is version `0.6.4`; version `0.6.3` remains the
-first published bundle. The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are
-retained as pre-publication workflow-failure checkpoints and have no release
-assets.
+The current published bundle is version `0.6.5`; version `0.6.4` remains the
+watchdog-recovery reliability release and `0.6.3` the first published bundle.
+The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are retained as
+pre-publication workflow-failure checkpoints and have no release assets.
 
 ## Typed debug CLI
 
