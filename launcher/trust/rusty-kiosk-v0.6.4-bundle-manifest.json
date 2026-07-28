@@ -1,0 +1,31 @@
+{
+  "schema": "meta.quest.file_manager.rusty_kiosk_bundle.v1",
+  "build_type": "release",
+  "version": "0.6.4",
+  "source_url": "https://github.com/MesmerPrism/Rusty-Kiosk",
+  "source_revision": "c00bfdb386850692ec977b7f3a22fb187ccc9450",
+  "signer_sha256": "423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb",
+  "staged_at_utc": "2026-07-22T17:59:35.8736612+00:00",
+  "files": [
+    {
+      "name": "rusty-kiosk.apk",
+      "sha256": "07306cc03d961fe046e6b5c822b4f28e89386ca62f0930fbe58733f0b7f2600e",
+      "bytes": 87013093
+    },
+    {
+      "name": "rusty-kiosk-setup-helper.apk",
+      "sha256": "321e50623a1317f69ff5f2b046a7b17d760b0d9eac83079d1f86620854733f84",
+      "bytes": 2105888
+    },
+    {
+      "name": "RUSTY-KIOSK-LICENSE.txt",
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
+      "bytes": 34523
+    },
+    {
+      "name": "RUSTY-KIOSK-SOURCE.txt",
+      "sha256": "acee2f1c65b5a782e8c59410febe7099bd3ddb9cdc5ce529c210e6b35dbe0c4c",
+      "bytes": 224
+    }
+  ]
+}

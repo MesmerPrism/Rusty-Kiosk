@@ -8,7 +8,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1
 
 The gate checks public-boundary terms, both APK manifests, Kotlin unit tests,
 browser/native panel contracts, Android lint, release CLI exclusion, and debug
-assembly for both APKs.
+assembly for both APKs. It also checks the separate native 2D launcher policy,
+manifest, Java tests, lint, and debug assembly.
 The same complete gate runs in GitHub Actions for every pull request and push
 to `main`; release publication additionally rebuilds and verifies the signed
 release pair.
@@ -37,6 +38,9 @@ Unit tests cover:
 - preservation of other enabled Accessibility services;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
+- launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
+  decisions;
+- deterministic lowercase SHA-256 certificate digest formatting.
 
 The static guard checks additionally require Rusty Kiosk to disarm itself when
 its own package becomes foreground and prohibit Accessibility UI-tree access,
@@ -84,6 +88,46 @@ capabilities in the main manifest:
 `com.oculus.feature.PASSTHROUGH`,
 `com.oculus.feature.VIRTUAL_KEYBOARD` and
 `oculus.software.overlay_keyboard`.
+
+The launcher static gate separately requires one native 2D Activity, one exact
+Rusty Kiosk package query, the provenance-bound public v0.6.4 bundle manifest,
+fixed official install links, and no declared permissions or background
+components. It resolves both the exact Store and Business package identities
+and rejects unknown or differently cased distribution selectors. The launcher
+reads its signer pin from that checked-in manifest; the gate binds the fixture
+to its public release URL, upstream manifest digest, source revision, APK
+digest, and signer digest. Each release-candidate gate performs exact APK
+package and query parsing plus manifest, signature, and hash inspection.
+
+## Native 2D launcher headset gate
+
+Use `tools/Invoke-RustyKioskLauncherSmoke.ps1` only with an explicit serial and
+an already reserved headset. Keep the three cases separate:
+
+1. A missing-target debug variant stays visible and logs `state=missing`.
+2. A device with the expected package under a different signer stays visible
+   and logs `state=signer-mismatch`.
+3. A device with the official release signer logs `state=trusted-launch`,
+   brings Rusty Kiosk forward, and removes the launcher task.
+
+Every run pulls the installed launcher APK and records its selected package,
+hash, signer, version, installer, initiating/originating package, package
+source, package and Activity, foreground before/after, target version, expected
+marker, bounded fatal count, and whether restoring the pre-run
+launcher-package presence requires an explicit uninstall. A sideload run also
+requires the installed APK hash to match its input. Do not uninstall
+automatically.
+
+After Meta Alpha or managed Business installation, repeat the trusted-target
+case with
+`-SkipInstall`, the candidate values supplied through
+`-ExpectedLauncherApkSha256` and `-ExpectedLauncherSignerSha256`, and
+`-RequireNonShellInstallSource`. The Business run must also pass its exact
+package through `-LauncherPackage`. The run passes only when the installed
+bits, signer, package, and non-shell install source match as well as the launch
+behavior. The two release packages must co-install without replacing one
+another. These receipts prove the selected Meta-distributed packages launched;
+they do not replace the local missing/wrong-signer policy evidence.
 
 ## Headset gate
 

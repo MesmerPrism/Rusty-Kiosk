@@ -68,6 +68,22 @@ non-launchable setup helper is generated under
 `setup-helper/build/outputs/apk/debug/`. Both remain ignored by Git and must be
 signed with the same key.
 
+The separate Rusty Kiosk Launcher is a conventional native 2D Android app. It
+contains no Spatial SDK dependency and declares no Android permissions:
+
+```powershell
+.\gradlew.bat :launcher:testDebugUnitTest :launcher:lintDebug :launcher:assembleDebug
+```
+
+Launching it immediately opens Rusty Kiosk when the expected package,
+provenance-bound public release signer, and normal front door are present.
+Otherwise it shows the official installation guide and GitHub release
+locations. One source implementation produces two closed release identities:
+the original Store package for Meta Alpha and a distinct Quest Private App
+package for Meta for Business. Rusty Kiosk remains a separately installed APK.
+See
+[Rusty Kiosk Launcher](docs/KIOSK_LAUNCHER.md).
+
 Tagged public releases build and verify a same-signer release pair, then attach
 the two APKs, their hashes/source manifest, the AGPL license, and source pointer
 using the stable filenames consumed by QuestIonAble File Manager. Release signing
@@ -236,6 +252,10 @@ See [Tag file](docs/TAG_FILE.md) for the schema and matching rules.
 - Direct file operations are intentionally confined to Rusty Kiosk's app-owned
   staging area. General shell-visible filesystem browsing remains an optional
   ADB function in QuestIonAble File Manager.
+- The separate launcher knows only Rusty Kiosk's exact package and the signer
+  from its checked-in public release manifest. It cannot install, update,
+  configure, inspect, or manage the target and deliberately refuses
+  debug-signed, multi-signed, or otherwise mismatched builds.
 
 ## License
 
