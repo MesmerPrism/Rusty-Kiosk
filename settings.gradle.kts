@@ -16,5 +16,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "RustyKiosk"
 include(":app")
+include(":foreground-signal-client")
 include(":launcher")
 include(":setup-helper")

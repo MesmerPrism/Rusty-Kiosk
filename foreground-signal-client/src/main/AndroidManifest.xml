@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <queries>
+        <provider
+            android:authorities="io.github.mesmerprism.rustykiosk.foreground-signal" />
+    </queries>
+
+    <application>
+        <meta-data
+            android:name="io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL"
+            android:value="2" />
+    </application>
+</manifest>

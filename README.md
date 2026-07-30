@@ -38,6 +38,9 @@ Its optional Accessibility service is a foreground watchdog:
 - unresolved name-only entries shown as **Not installed**;
 - normal and soft-kiosk launch actions;
 - package/window-only Accessibility monitoring with UI retrieval disabled;
+- an optional authenticated protocol-v2 foreground-loss advisory from the
+  currently armed target, with Accessibility retained as the fallback and sole
+  Home/Triple-Home authority;
 - an always-visible status strip for passthrough, the direct link, and
   Accessibility;
 - an explicit, reversible user-control center backed by a dedicated fixed-operation setup helper;
@@ -122,6 +125,21 @@ transition per command, so the two-recovery/third-return state machine can be
 tested deterministically without touch or key injection. Android HOME activity
 and physical Meta-button runs remain separate integration witnesses.
 See [Typed debug CLI](docs/CLI.md).
+
+## Optional foreground-loss advisory
+
+An app that embeds the engine-neutral `foreground-signal-client` module may
+advise Rusty Kiosk after an app-owned lifecycle or engine integration confirms
+application-level foreground loss. A raw Activity top-resumed callback is
+deliberately insufficient because it also fires during same-package Activity
+handoffs. Kiosk accepts the signal only while that exact package is armed and
+its exclusive Binder UID, protocol metadata, complete signing-certificate
+lineage, and installation identity still match the launch-time observation.
+
+The advisory can request the same bounded recovery episode as Accessibility.
+It never proves that Home was pressed, never advances Triple-Home, and never
+disables Accessibility. Targets without the module behave exactly as before.
+See [Foreground signal](docs/FOREGROUND_SIGNAL.md).
 
 ## Panel design and onboarding visuals
 

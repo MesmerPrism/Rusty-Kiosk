@@ -26,6 +26,7 @@ internal object LaunchTaskPolicy {
 internal class LaunchController(context: Context) {
   private val appContext = context.applicationContext
   private val guardStore = GuardStateStore(appContext)
+  private val foregroundSignalCapability = ForegroundSignalCapabilityDetector(appContext)
 
   fun launch(entry: CatalogEntry, kind: LaunchKind, guardEnabled: Boolean): LaunchResult {
     val target = entry.target
@@ -35,11 +36,21 @@ internal class LaunchController(context: Context) {
     if (kind == LaunchKind.KIOSK && !guardEnabled) {
       return LaunchResult(false, "Enable the Rusty Kiosk Accessibility service first.")
     }
+    val foregroundSignalCapability =
+      if (kind == LaunchKind.KIOSK) {
+        foregroundSignalCapability.supported(target.packageName)
+      } else {
+        null
+      }
 
     if (kind == LaunchKind.NORMAL) {
       guardStore.disarm("normal-launch")
     } else {
-      guardStore.arm(target, entry.label)
+      guardStore.arm(
+        target,
+        entry.label,
+        foregroundSignalCapability,
+      )
     }
 
     return runCatching {
@@ -47,7 +58,15 @@ internal class LaunchController(context: Context) {
         LaunchResult(
           true,
           if (kind == LaunchKind.KIOSK) {
-            "Fresh kiosk launched ${entry.label}. Triple-Home returns to Rusty Kiosk."
+            val signalMode =
+              if (
+                foregroundSignalCapability != null
+              ) {
+                " Direct foreground signaling is preferred with Accessibility fallback."
+              } else {
+                " Accessibility foreground events provide the fallback-only signal."
+              }
+            "Fresh kiosk launched ${entry.label}. Triple-Home returns to Rusty Kiosk.$signalMode"
           } else {
             "Launched ${entry.label} normally."
           },

@@ -30,6 +30,16 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - Accessibility observes package/window transitions only. Do not add UI-tree
   reads, text/view lookup, clicks, gestures, global actions, force-stop, or
   hidden Accessibility activation.
+- A kiosk target may advertise foreground-signal protocol v2 and report its
+  own loss of foreground authority. Admit only the currently armed Binder
+  calling package and exclusive UID with matching launch-time and call-time
+  protocol metadata, signing-certificate lineage, and PackageManager
+  installation/update identity. Shared UIDs, multiple current signers, signer
+  drift, package replacement, missing metadata, and stale guard generations
+  fail closed. The app signal may schedule recovery but never counts as Home,
+  drives Triple-Home, or disables the Accessibility fallback.
+- Keep `foreground-signal-client` engine-neutral: no Spatial SDK, OpenXR,
+  game-engine, Accessibility, service, or launch dependency.
 - Wi-Fi ADB and Accessibility are separate, visible opt-ins. Rusty Kiosk must
   show their effective status and keep both reversible.
 - The main Rusty Kiosk APK never declares `WRITE_SECURE_SETTINGS`. Only the
