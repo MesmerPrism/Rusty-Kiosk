@@ -30,6 +30,12 @@ Unit tests cover:
 - first/second Home recovery and third-Home return;
 - Home debounce and five-second escape-window reset;
 - generic and exact Horizon signals from one Home press counting only once;
+- protocol-v2 foreground-loss signals remaining advisory and sharing the
+  generation-bound bounded recovery episode without advancing Triple-Home;
+- exclusive Binder UID/package, launch/call metadata, signing-lineage
+  continuity, package-installation identity, multi-signer rejection, and stale
+  re-arm rejection;
+- nonzero collision-resistant guard generation allocation;
 - launch requests remaining provisional until a target-package event confirms focus;
 - late Meta-shell tails requesting a bounded, minimum-spaced recovery burst without
   advancing the Home escape count;
@@ -45,6 +51,11 @@ Unit tests cover:
 The static guard checks additionally require Rusty Kiosk to disarm itself when
 its own package becomes foreground and prohibit Accessibility UI-tree access,
 global actions, gestures, and Android HOME-role declarations.
+They require the exported foreground provider to remain call-only, v2-only,
+and bound to the armed package, exclusive UID, protocol metadata, launch-time
+signing lineage, installation/update identity, and current readback. The client
+module must remain engine-neutral and the main Kiosk application must not
+advertise itself as a client.
 They also reject `WRITE_SECURE_SETTINGS` in the main Rusty Kiosk manifest,
 require the service-owned `disableSelf()` path, and require the separate helper
 to remain signature-protected, non-launchable, non-networked, and fixed-operation

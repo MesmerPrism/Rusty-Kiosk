@@ -20,6 +20,21 @@ $setupManifestPath = Join-Path $repoRoot 'setup-helper\src\main\AndroidManifest.
 $setupSourcePath = Join-Path $repoRoot 'setup-helper\src\main\java\io\github\mesmerprism\rustykiosk\setuphelper\SetupOperations.kt'
 $cliContractPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskCliContract.kt'
 $operatorProviderPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskOperatorProvider.kt'
+$foregroundSignalProviderPath =
+  Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ForegroundSignalProvider.kt'
+$foregroundSignalAdmissionPath =
+  Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ForegroundSignalAdmissionPolicy.kt'
+$packageSigningIdentityPath =
+  Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\PackageSigningIdentity.kt'
+$foregroundSignalClientPath =
+  Join-Path $repoRoot 'foreground-signal-client\src\main\java\io\github\mesmerprism\rustykiosk\foregroundsignal\ForegroundSignalClient.java'
+$foregroundSignalDocPath = Join-Path $repoRoot 'docs\FOREGROUND_SIGNAL.md'
+$architecturePath = Join-Path $repoRoot 'docs\ARCHITECTURE.md'
+$readmePath = Join-Path $repoRoot 'README.md'
+$foregroundSignalContractPath =
+  Join-Path $repoRoot 'foreground-signal-client\src\main\java\io\github\mesmerprism\rustykiosk\foregroundsignal\ForegroundSignalContract.java'
+$foregroundSignalManifestPath =
+  Join-Path $repoRoot 'foreground-signal-client\src\main\AndroidManifest.xml'
 $cliDebugManifestPath = Join-Path $repoRoot 'app\src\debug\AndroidManifest.xml'
 $cliActivityPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskCliActivity.kt'
 $guardCliReceiverPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskGuardCliReceiver.kt'
@@ -59,6 +74,18 @@ foreach ($token in $forbiddenAccessibilityTokens) {
 foreach ($token in @('disableSelf()', 'user-disabled-accessibility')) {
   if (-not $serviceSource.Contains($token, [StringComparison]::Ordinal)) {
     throw "Accessibility must keep the direct user-disable path: $token"
+  }
+}
+foreach ($token in @(
+  'ForegroundSignalRouter.attach(this)',
+  'ForegroundSignalRouter.detach(this)',
+  'GuardWindowEventPolicy.shouldObserve',
+  'observeForegroundLoss',
+  'config.generation != signal.generation',
+  'exactHome = false'
+)) {
+  if (-not $serviceSource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The generation-bound advisory foreground route is missing: $token"
   }
 }
 
@@ -110,11 +137,117 @@ if ($manifest -match 'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
 foreach ($pattern in @(
   'RustyKioskOperatorProvider',
   'io.github.mesmerprism.rustykiosk.operator',
-  'android:permission="android.permission.DUMP"'
+  'android:permission="android.permission.DUMP"',
+  'ForegroundSignalProvider',
+  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  'io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL',
+  'tools:node="remove"'
 )) {
   if ($manifest -notmatch [Regex]::Escape($pattern)) {
     throw "The release host-operator manifest boundary is missing: $pattern"
   }
+}
+
+$foregroundSignalProvider = Get-Content -Raw -LiteralPath $foregroundSignalProviderPath
+$foregroundSignalAdmission = Get-Content -Raw -LiteralPath $foregroundSignalAdmissionPath
+$packageSigningIdentity = Get-Content -Raw -LiteralPath $packageSigningIdentityPath
+$foregroundSignalClient = Get-Content -Raw -LiteralPath $foregroundSignalClientPath
+$foregroundSignalDoc = Get-Content -Raw -LiteralPath $foregroundSignalDocPath
+$architecture = Get-Content -Raw -LiteralPath $architecturePath
+$readme = Get-Content -Raw -LiteralPath $readmePath
+$foregroundSignalContract = Get-Content -Raw -LiteralPath $foregroundSignalContractPath
+$foregroundSignalManifest = Get-Content -Raw -LiteralPath $foregroundSignalManifestPath
+foreach ($token in @(
+  'Binder.getCallingUid()',
+  'callingPackage',
+  'getPackagesForUid(callingUid)',
+  'ForegroundSignalAdmissionPolicy.accepts',
+  'installedSigningIdentity',
+  'installedPackageLastUpdateTime',
+  'installedPackageVersionCode',
+  'ForegroundSignalRouter.dispatch',
+  'supports call() only'
+)) {
+  if (-not $foregroundSignalProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The authenticated foreground-signal provider boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'packagesForCallingUid == setOf(armedTargetPackage)',
+  'armedSigningIdentity == installedSigningIdentity',
+  'armedPackageLastUpdateTime == installedPackageLastUpdateTime',
+  'armedPackageVersionCode == installedPackageVersionCode',
+  'requestedProtocolVersion == ForegroundSignalContract.PROTOCOL_VERSION'
+)) {
+  if (-not $foregroundSignalAdmission.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fail-closed foreground-signal admission policy is missing: $token"
+  }
+}
+foreach ($token in @(
+  'PackageManager.GET_SIGNING_CERTIFICATES',
+  'signingCertificateHistory',
+  'hasMultipleSigners()',
+  'packageInfo.lastUpdateTime',
+  'packageInfo.longVersionCode',
+  'MessageDigest.getInstance("SHA-256")'
+)) {
+  if (-not $packageSigningIdentity.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The launch/call signing-identity binding is missing: $token"
+  }
+}
+foreach ($token in @(
+  'notifyApplicationForegroundLost',
+  'application-foreground-callback',
+  'SystemClock.elapsedRealtimeNanos()',
+  'ForegroundSignalContract.METHOD_FOREGROUND_LOST'
+)) {
+  if (-not $foregroundSignalClient.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The engine-neutral foreground-signal client is missing: $token"
+  }
+}
+if ($foregroundSignalClient.Contains('onTopResumedActivityChanged', [StringComparison]::Ordinal)) {
+  throw 'The client must not infer application foreground loss from an Activity callback.'
+}
+if (
+  -not $foregroundSignalDoc.Contains(
+    '`Activity.onTopResumedActivityChanged(false)` is not an application-level',
+    [StringComparison]::Ordinal
+  ) -or
+  -not $readme.Contains(
+    'A raw Activity top-resumed callback is',
+    [StringComparison]::Ordinal
+  ) -or
+  -not $readme.Contains(
+    'deliberately insufficient because it also fires during same-package Activity',
+    [StringComparison]::Ordinal
+  ) -or
+  -not $architecture.Contains(
+    'app-owned aggregate lifecycle or engine signal',
+    [StringComparison]::Ordinal
+  ) -or
+  $architecture.Contains(
+    'stable top-resumed interval',
+    [StringComparison]::Ordinal
+  )
+) {
+  throw 'The Activity-handoff boundary must remain explicit in public documentation.'
+}
+foreach ($token in @(
+  'io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL',
+  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  'android:value="2"'
+)) {
+  if (-not $foregroundSignalManifest.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The foreground-signal capability manifest is missing: $token"
+  }
+}
+if (
+  $foregroundSignalContract.Contains('LEGACY_PROTOCOL', [StringComparison]::Ordinal) -or
+  $foregroundSignalContract.Contains('SYSTEM_MENU_OPENED', [StringComparison]::Ordinal) -or
+  $foregroundSignalClient.Contains('notifySystemMenuOpened', [StringComparison]::Ordinal) -or
+  $foregroundSignalProvider.Contains('LEGACY_PROTOCOL', [StringComparison]::Ordinal)
+) {
+  throw 'The consolidated foreground-signal surface must remain protocol-v2-only.'
 }
 
 $cliDebugManifest = Get-Content -Raw -LiteralPath $cliDebugManifestPath

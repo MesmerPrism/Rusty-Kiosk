@@ -9,7 +9,10 @@ Ship two same-signer APKs with deliberately separate authority:
   typed operator adaptation. Its wearer-enabled `OperatorBridgeService` owns a
   bounded authenticated local listener and app-owned staging. Android
   `PackageInstaller` owns attended installation. `KioskAccessibilityService`
-  owns only top-level package/window observation while a kiosk launch is armed.
+  owns top-level package/window observation while a kiosk launch is armed and
+  consumes an optional authenticated foreground-loss advisory from that exact
+  target. Accessibility remains the fallback and the sole Meta Home and
+  Triple-Home authority.
 - `setup-helper` is non-launchable and has no network permission. It may be
   granted `WRITE_SECURE_SETTINGS` once over USB-C and accepts only an explicit,
   signature-protected fixed-operation broadcast from the main app.
@@ -54,6 +57,9 @@ and Wi-Fi ADB state after completion.
 | Normal versus kiosk launch choice | `LaunchController` |
 | Armed target and escape state | `GuardStateStore` |
 | Window/package transitions | `KioskAccessibilityService` |
+| Optional target foreground-loss advisory | `ForegroundSignalProvider` / `KioskAccessibilityService` |
+| Target protocol and signing identity at arm time | `ForegroundSignalCapabilityDetector` / `GuardStateStore` |
+| Binder caller UID/package and call-time signer readback | Android `ContentProvider` / `PackageManager` |
 | Meta Home and protected approval UI | Horizon OS |
 | Visible passthrough composition | Spatial SDK `Scene.enablePassthrough` |
 | Passthrough color style | retained 16³ `Lut` through `Scene.setPassthroughLUT` |
@@ -122,10 +128,33 @@ the target's old task so hidden panels or stopped visual output cannot leak in
 from a previous XR session. Watchdog recovery then reorders and resumes that
 fresh kiosk session without clearing its state.
 
+## Foreground-signal authority
+
+`foreground-signal-client` is a small Android library with no Spatial SDK,
+OpenXR, game-engine, Accessibility, launch, or recovery-policy dependency. A
+target advertises protocol v2 through application metadata and calls one fixed
+provider method only after an app-owned aggregate lifecycle or engine signal
+confirms application-level foreground loss. An Activity top-resumed callback
+and any fixed-delay inference are deliberately insufficient.
+
+Kiosk records a cryptographically random, nonzero per-arm generation plus the
+target's exact protocol, canonical signing-certificate lineage, and
+PackageManager last-update/version identity. Call-time admission requires the
+immediate Binder package to equal the armed target, the UID package set to
+contain only that target, and current metadata, signer lineage, and installation
+identity to match the recorded values. Package replacement, signer rotation,
+shared UID, multiple current signers, missing metadata, stale queued signals,
+and re-arm races reject.
+
+An accepted signal enters `observeForegroundLoss`. Exact and generic Home
+counting remains exclusively on the Accessibility route. Both routes share the
+same generation-bound recovery engine and bounded attempt claims.
+
 ## Non-scope
 
 - device owner, managed Shared Mode, Android lock task, or tamper resistance;
 - intercepting or consuming the hardware Meta button;
+- treating an app foreground-loss callback as evidence of a Home press;
 - UI content retrieval, Accessibility node traversal, clicks, gestures, or
   global actions;
 - force-stopping target or system packages;
