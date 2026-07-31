@@ -6,7 +6,7 @@ function Resolve-RustyKioskReleaseVersion {
         [Parameter(Mandatory = $true)]
         [string]$Version,
 
-        [ValidateSet('stable', 'alpha')]
+        [ValidateSet('stable', 'labs')]
         [string]$ExpectedChannel
     )
 
@@ -27,17 +27,18 @@ function Resolve-RustyKioskReleaseVersion {
         throw 'Version major must be at most 2099.'
     }
 
-    $channel = if ($match.Groups[4].Success) { 'alpha' } else { 'stable' }
-    if ($ExpectedChannel -and $channel -cne $ExpectedChannel) {
-        throw "Version $Version belongs to channel $channel, not $ExpectedChannel."
+    $productChannel = if ($match.Groups[4].Success) { 'labs' } else { 'stable' }
+    $maturity = if ($match.Groups[4].Success) { 'alpha' } else { 'released' }
+    if ($ExpectedChannel -and $productChannel -cne $ExpectedChannel) {
+        throw "Version $Version belongs to product channel $productChannel, not $ExpectedChannel."
     }
 
-    $alphaOrdinal = if ($channel -ceq 'alpha') {
+    $alphaOrdinal = if ($maturity -ceq 'alpha') {
         [int64]$match.Groups[4].Value
     } else {
         $null
     }
-    $suffix = if ($channel -ceq 'alpha') { $alphaOrdinal } else { 99L }
+    $suffix = if ($maturity -ceq 'alpha') { $alphaOrdinal } else { 99L }
     $versionCode = $major * 1000000L + $minor * 10000L + $patch * 100L + $suffix
     if ($versionCode -lt 1 -or $versionCode -gt 2100000000L) {
         throw "Version $Version maps outside the supported Android version-code range."
@@ -46,12 +47,15 @@ function Resolve-RustyKioskReleaseVersion {
     [pscustomobject][ordered]@{
         Version = $Version
         Tag = "v$Version"
-        Channel = $channel
-        IsPrerelease = $channel -ceq 'alpha'
+        Channel = $productChannel
+        ProductChannel = $productChannel
+        Maturity = $maturity
+        DistributionTrack = if ($productChannel -ceq 'labs') { 'github-prerelease' } else { 'github-release' }
+        IsPrerelease = $productChannel -ceq 'labs'
         AlphaOrdinal = $alphaOrdinal
         VersionCode = [int]$versionCode
-        ExitPolicy = if ($channel -ceq 'alpha') {
-            'in-place; install a later same-signer stable build with a higher versionCode'
+        ExitPolicy = if ($productChannel -ceq 'labs') {
+            'uninstall-labs-without-changing-stable'
         } else {
             'stable'
         }

@@ -15,7 +15,11 @@ Home counting and the Triple-Home escape.
 
 Add the engine-neutral `foreground-signal-client` Android library to the target
 application. The library contributes protocol metadata and a package query for
-the fixed Kiosk provider. Call it only after an app-owned lifecycle or engine
+the provider owned by the selected Kiosk product channel. Stable is the default;
+build the client with `-PrustyKioskProductChannel=labs` for an application that
+must advise the co-installable Labs Kiosk. The property accepts only exact
+`stable` or `labs` values and selects a fixed, non-overridable provider
+authority. Call it only after an app-owned lifecycle or engine
 integration has confirmed that the application as a whole lost foreground
 authority:
 

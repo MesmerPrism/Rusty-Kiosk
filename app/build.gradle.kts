@@ -10,6 +10,22 @@ val releaseKeystorePassword = providers.environmentVariable("RUSTY_KIOSK_KEYSTOR
 val releaseKeyAlias = providers.environmentVariable("RUSTY_KIOSK_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("RUSTY_KIOSK_KEY_PASSWORD").orNull
 val requestedReleaseVersion = providers.gradleProperty("rustyKioskReleaseVersion").orNull
+val productChannel =
+  providers.gradleProperty("rustyKioskProductChannel").orElse("stable").get().also {
+    require(it == "stable" || it == "labs") {
+      "rustyKioskProductChannel must be exactly stable or labs"
+    }
+  }
+val isLabs = productChannel == "labs"
+val kioskApplicationId =
+  if (isLabs) "io.github.mesmerprism.rustykiosk.labs" else "io.github.mesmerprism.rustykiosk"
+val setupHelperPackage =
+  if (isLabs) "io.github.mesmerprism.rustykiosk.setuphelper.labs" else
+    "io.github.mesmerprism.rustykiosk.setuphelper"
+val setupControlPermission = "$kioskApplicationId.permission.SETUP_CONTROL"
+val setupControlAction = "$setupHelperPackage.action.CONTROL"
+val operatorAuthority = "$kioskApplicationId.operator"
+val foregroundSignalAuthority = "$kioskApplicationId.foreground-signal"
 val releaseVersionPattern =
   Regex("""(0|[1-9]\d{0,3})\.(0|[1-9]\d?)\.(0|[1-9]\d?)(?:-alpha\.([1-9]|[1-8]\d|9[0-8]))?""")
 val selectedVersionName = requestedReleaseVersion ?: "0.6.5"
@@ -37,11 +53,21 @@ android {
   compileSdk = 34
 
   defaultConfig {
-    applicationId = "io.github.mesmerprism.rustykiosk"
+    applicationId = kioskApplicationId
     minSdk = 34
     targetSdk = 34
     versionCode = selectedVersionCode
     versionName = selectedVersionName
+    manifestPlaceholders["kioskLabel"] = if (isLabs) "Rusty Kiosk Labs" else "Rusty Kiosk"
+    manifestPlaceholders["setupControlPermission"] = setupControlPermission
+    manifestPlaceholders["setupHelperPackage"] = setupHelperPackage
+    manifestPlaceholders["operatorAuthority"] = operatorAuthority
+    manifestPlaceholders["foregroundSignalAuthority"] = foregroundSignalAuthority
+    buildConfigField("String", "PRODUCT_CHANNEL", "\"$productChannel\"")
+    buildConfigField("String", "SETUP_HELPER_PACKAGE", "\"$setupHelperPackage\"")
+    buildConfigField("String", "SETUP_CONTROL_PERMISSION", "\"$setupControlPermission\"")
+    buildConfigField("String", "SETUP_CONTROL_ACTION", "\"$setupControlAction\"")
+    buildConfigField("String", "OPERATOR_AUTHORITY", "\"$operatorAuthority\"")
 
     ndk {
       abiFilters += listOf("arm64-v8a")

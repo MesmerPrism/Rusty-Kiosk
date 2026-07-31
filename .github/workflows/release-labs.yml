@@ -1,4 +1,4 @@
-name: Release alpha APK bundle
+name: Release Labs APK bundle
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Existing alpha tag version without v, for example 0.6.6-alpha.1"
+        description: "Existing Labs candidate tag without v, for example 0.6.6-alpha.1"
         required: true
         type: string
 
@@ -15,9 +15,9 @@ permissions:
   contents: write
 
 jobs:
-  release-alpha:
+  release-labs:
     runs-on: windows-2025
-    environment: android-alpha-release
+    environment: android-labs-release
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -31,12 +31,12 @@ jobs:
           java-version: "17"
           cache: gradle
 
-      - name: Resolve immutable alpha source
+      - name: Resolve immutable Labs candidate source
         id: version
         shell: pwsh
         run: |
           if ('${{ github.repository }}' -cne 'MesmerPrism/Rusty-Kiosk') {
-            throw 'Alpha owner publication is authorized only for MesmerPrism/Rusty-Kiosk.'
+            throw 'Labs owner publication is authorized only for MesmerPrism/Rusty-Kiosk.'
           }
           Import-Module .\tools\RustyKiosk.ReleaseVersion.psm1 -Force
           $semanticVersion = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
@@ -46,10 +46,10 @@ jobs:
           }
           $release = Resolve-RustyKioskReleaseVersion `
             -Version $semanticVersion `
-            -ExpectedChannel alpha
+            -ExpectedChannel labs
           $expectedRef = "refs/tags/$($release.Tag)"
           if ('${{ github.ref }}' -cne $expectedRef) {
-            throw "Alpha publication must run from exact existing tag $expectedRef."
+            throw "Labs publication must run from exact existing tag $expectedRef."
           }
           git fetch --force --tags origin
           if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh authoritative remote tags.' }
@@ -88,7 +88,7 @@ jobs:
           $response = gh api -i "repos/${{ github.repository }}/releases/tags/$tag" 2>&1
           $exitCode = $LASTEXITCODE
           if ($exitCode -eq 0) {
-            throw "Release $tag already exists; alpha assets are append-never and replace-never."
+            throw "Release $tag already exists; Labs assets are append-never and replace-never."
           }
           if (($response -join "`n") -notmatch '(?m)^HTTP/\S+\s+404\b') {
             throw "Could not positively prove that release $tag is absent.`n$($response -join "`n")"
@@ -106,7 +106,7 @@ jobs:
             (Join-Path $env:RUNNER_TEMP 'rusty-kiosk-release.jks'),
             [Convert]::FromBase64String($env:KEYSTORE_BASE64))
 
-      - name: Test and build the same-signer alpha pair
+      - name: Test and build the co-installable Labs pair
         shell: pwsh
         env:
           RUSTY_KIOSK_KEYSTORE_PATH: ${{ runner.temp }}\rusty-kiosk-release.jks
@@ -123,12 +123,13 @@ jobs:
             }
           }
           $env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion = '${{ steps.version.outputs.semantic_version }}'
+          $env:ORG_GRADLE_PROJECT_rustyKioskProductChannel = 'labs'
           .\gradlew.bat test lint :app:assembleRelease :setup-helper:assembleRelease --stacktrace
-          if ($LASTEXITCODE -ne 0) { throw 'Gradle alpha release build failed.' }
+          if ($LASTEXITCODE -ne 0) { throw 'Gradle Labs release build failed.' }
           pwsh -NoProfile -File .\tools\check_repo.ps1 -SkipAssemble
           if ($LASTEXITCODE -ne 0) { throw 'Repository validation failed.' }
 
-      - name: Verify identity and stage immutable alpha bundle
+      - name: Verify identity and stage immutable Labs bundle
         shell: pwsh
         run: |
           $mainApk = (Get-ChildItem app\build\outputs\apk\release\*.apk | Select-Object -First 1).FullName
@@ -144,14 +145,14 @@ jobs:
             -MainApkPath $mainApk `
             -SetupHelperApkPath $helperApk `
             -Version '${{ steps.version.outputs.semantic_version }}' `
-            -ExpectedChannel alpha `
+            -ExpectedChannel labs `
             -ExpectedSignerSha256 $policy.authorized_signer_sha256 `
             -SourceRevision '${{ steps.version.outputs.source_revision }}' `
             -SourceTree '${{ steps.version.outputs.source_tree }}' `
             -ApkSignerPath $apksigner `
             -Aapt2Path $aapt2
-          .\tools\Test-KioskAlphaOwnerMetadata.ps1 `
-            -MetadataPath .\artifacts\release-bundle\rusty-kiosk-alpha-owner-release.json `
+          .\tools\Test-KioskLabsOwnerMetadata.ps1 `
+            -MetadataPath .\artifacts\release-bundle\rusty-kiosk-labs-owner-release.json `
             -ExpectedTag '${{ steps.version.outputs.tag_name }}' `
             -ExpectedVersion '${{ steps.version.outputs.semantic_version }}' `
             -ExpectedSourceRevision '${{ steps.version.outputs.source_revision }}' `
@@ -161,7 +162,7 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rusty-kiosk-alpha-${{ steps.version.outputs.semantic_version }}
+          name: rusty-kiosk-labs-${{ steps.version.outputs.semantic_version }}
           path: artifacts/release-bundle
 
       - name: Publish immutable GitHub prerelease draft, verify, and promote
@@ -175,12 +176,12 @@ jobs:
             'RUSTY-KIOSK-LICENSE.txt',
             'RUSTY-KIOSK-SOURCE.txt',
             'bundle-manifest.json',
-            'rusty-kiosk-alpha-owner-release.json',
+            'rusty-kiosk-labs-owner-release.json',
             'rusty-kiosk-setup-helper.apk',
             'rusty-kiosk.apk'
           ) | Sort-Object
           if ((@($assets.Name | Sort-Object) -join "`n") -cne ($expectedNames -join "`n")) {
-            throw 'Staged alpha asset inventory is not the exact owner-authorized six-file set.'
+            throw 'Staged Labs asset inventory is not the exact owner-authorized six-file set.'
           }
 
           function Assert-ReleaseReadback {
@@ -193,11 +194,11 @@ jobs:
               $Release.tag_name -cne $tag -or
               -not $Release.prerelease -or
               $Release.draft -ne $ExpectedDraft) {
-              throw "$Phase alpha release identity did not match the immutable owner tuple."
+              throw "$Phase Labs release identity did not match the immutable owner tuple."
             }
             $actualNames = @($Release.assets.name | Sort-Object)
             if (($expectedNames -join "`n") -cne ($actualNames -join "`n")) {
-              throw "$Phase alpha asset set differs from the exact owner inventory."
+              throw "$Phase Labs asset set differs from the exact owner inventory."
             }
             $assetSnapshot = @()
             $assetIds = [Collections.Generic.HashSet[long]]::new()
@@ -212,7 +213,7 @@ jobs:
                 $remote[0].digest -cne $digest -or
                 $remote[0].browser_download_url -cne
                   "https://github.com/${{ github.repository }}/releases/download/$tag/$($asset.Name)") {
-                throw "$Phase alpha asset digest/byte readback failed for $($asset.Name)."
+                throw "$Phase Labs asset digest/byte readback failed for $($asset.Name)."
               }
               $assetSnapshot +=
                 "$($remote[0].id)|$($asset.Name)|$($remote[0].size)|$($remote[0].digest)"
@@ -284,7 +285,7 @@ jobs:
             --draft `
             --verify-tag `
             --target '${{ steps.version.outputs.source_revision }}'
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create alpha draft $tag." }
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create Labs draft $tag." }
 
           $draft = gh api "repos/${{ github.repository }}/releases/tags/$tag" |
             ConvertFrom-Json
@@ -296,7 +297,7 @@ jobs:
 
           gh release edit $tag --draft=false --prerelease
           if ($LASTEXITCODE -ne 0) {
-            throw "Failed to promote verified alpha draft $tag; preserve it for owner review."
+            throw "Failed to promote verified Labs draft $tag; preserve it for owner review."
           }
 
           $published = gh api "repos/${{ github.repository }}/releases/tags/$tag" |
@@ -312,7 +313,7 @@ jobs:
             ($draftTag.Chain -join "`n") -cne ($liveTag.Chain -join "`n") -or
             $draftTag.Commit -cne $liveTag.Commit -or
             $draftTag.Tree -cne $liveTag.Tree) {
-            throw 'Alpha release or Git source identity drifted across promotion.'
+            throw 'Labs release or Git source identity drifted across promotion.'
           }
 
           $latestResponse = @(
@@ -332,7 +333,7 @@ jobs:
               }
             )
             if ($latestTag.Count -ne 1 -or $latestTag[0].ToString().Trim() -ceq $tag) {
-              throw 'Latest-release readback was malformed or selected the alpha tag.'
+              throw 'Latest-release readback was malformed or selected the Labs tag.'
             }
           }
 

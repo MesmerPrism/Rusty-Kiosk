@@ -3,10 +3,10 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     <permission
-        android:name="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"
+        android:name="${setupControlPermission}"
         android:protectionLevel="signature" />
 
-    <uses-permission android:name="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL" />
+    <uses-permission android:name="${setupControlPermission}" />
     <!-- Intentionally granted once with `pm grant` from an attended USB-C ADB session. -->
     <uses-permission
         android:name="android.permission.WRITE_SECURE_SETTINGS"
@@ -15,15 +15,15 @@
 
     <application
         android:allowBackup="false"
-        android:label="Rusty Kiosk Setup"
+        android:label="${setupLabel}"
         android:supportsRtl="true">
         <receiver
             android:name=".SetupControlReceiver"
             android:enabled="true"
             android:exported="true"
-            android:permission="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL">
+            android:permission="${setupControlPermission}">
             <intent-filter>
-                <action android:name="io.github.mesmerprism.rustykiosk.setuphelper.action.CONTROL" />
+                <action android:name="${setupControlAction}" />
             </intent-filter>
         </receiver>
 

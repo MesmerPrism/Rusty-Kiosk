@@ -12,7 +12,7 @@ param(
     [string]$SourceUrl = 'https://github.com/MesmerPrism/Rusty-Kiosk',
     [string]$SourceRevision = 'working-tree',
     [string]$SourceTree = 'working-tree',
-    [ValidateSet('stable', 'alpha')]
+    [ValidateSet('stable', 'labs')]
     [string]$ExpectedChannel,
     [string]$ExpectedSignerSha256,
     [string]$ApkSignerPath,
@@ -23,7 +23,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.ReleaseVersion.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.AlphaOwnerMetadata.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.LabsOwnerMetadata.psm1') -Force
 $release = Resolve-RustyKioskReleaseVersion -Version $Version -ExpectedChannel $ExpectedChannel
 $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
@@ -138,9 +138,18 @@ function Get-ApkIdentity {
     return $identity
 }
 
-$mainIdentity = Get-ApkIdentity -Path $mainApk -ExpectedPackage 'io.github.mesmerprism.rustykiosk'
-$helperIdentity =
-    Get-ApkIdentity -Path $helperApk -ExpectedPackage 'io.github.mesmerprism.rustykiosk.setuphelper'
+$expectedMainPackage = if ($release.ProductChannel -ceq 'labs') {
+    'io.github.mesmerprism.rustykiosk.labs'
+} else {
+    'io.github.mesmerprism.rustykiosk'
+}
+$expectedHelperPackage = if ($release.ProductChannel -ceq 'labs') {
+    'io.github.mesmerprism.rustykiosk.setuphelper.labs'
+} else {
+    'io.github.mesmerprism.rustykiosk.setuphelper'
+}
+$mainIdentity = Get-ApkIdentity -Path $mainApk -ExpectedPackage $expectedMainPackage
+$helperIdentity = Get-ApkIdentity -Path $helperApk -ExpectedPackage $expectedHelperPackage
 
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
@@ -159,20 +168,28 @@ Rusty Kiosk source: $SourceUrl
 Source revision: $SourceRevision
 Source tree: $SourceTree
 Version: $Version
-Channel: $($release.Channel)
+Product channel: $($release.ProductChannel)
+Maturity: $($release.Maturity)
+Distribution track: $($release.DistributionTrack)
 Tag: $($release.Tag)
 License: GNU Affero General Public License v3.0 or later (see RUSTY-KIOSK-LICENSE.txt)
 "@
 
 $manifest = [ordered]@{
-    schema = 'meta.quest.file_manager.rusty_kiosk_bundle.v1'
+    schema = 'meta.quest.file_manager.rusty_kiosk_bundle.v2'
     build_type = 'release'
-    channel = $release.Channel
+    product_channel = $release.ProductChannel
+    maturity = $release.Maturity
+    distribution_track = $release.DistributionTrack
     prerelease = $release.IsPrerelease
     tag = $release.Tag
     version = $release.Version
     version_code = $release.VersionCode
-    identity_mode = 'same-package-in-place'
+    identity_mode = if ($release.ProductChannel -ceq 'labs') {
+        'separate-coinstallable'
+    } else {
+        'stable-single-installation'
+    }
     exit_policy = $release.ExitPolicy
     source_url = $SourceUrl
     source_revision = $SourceRevision
@@ -209,9 +226,9 @@ $manifest = [ordered]@{
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'bundle-manifest.json') -Encoding utf8
 $manifestOutput = Join-Path $OutputDirectory 'bundle-manifest.json'
-if ($release.Channel -ceq 'alpha') {
-    $ownerMetadataOutput = Join-Path $OutputDirectory 'rusty-kiosk-alpha-owner-release.json'
-    New-RustyKioskAlphaOwnerMetadata `
+if ($release.ProductChannel -ceq 'labs') {
+    $ownerMetadataOutput = Join-Path $OutputDirectory 'rusty-kiosk-labs-owner-release.json'
+    New-RustyKioskLabsOwnerMetadata `
         -Release $release `
         -SourceRevision $SourceRevision `
         -SourceTree $SourceTree `
@@ -219,7 +236,7 @@ if ($release.Channel -ceq 'alpha') {
         -BundleManifestPath $manifestOutput |
         ConvertTo-Json -Depth 4 |
         Set-Content -LiteralPath $ownerMetadataOutput -Encoding utf8
-    Assert-RustyKioskAlphaOwnerMetadata `
+    Assert-RustyKioskLabsOwnerMetadata `
         -MetadataPath $ownerMetadataOutput `
         -ExpectedTag $release.Tag `
         -ExpectedVersion $release.Version `

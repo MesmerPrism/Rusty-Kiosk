@@ -14,13 +14,13 @@
         android:version="1" />
 
     <queries>
-        <package android:name="io.github.mesmerprism.rustykiosk" />
+        <package android:name="${kioskTargetPackage}" />
     </queries>
 
     <application
         android:allowBackup="false"
         android:icon="@drawable/ic_rusty_kiosk_launcher"
-        android:label="@string/app_name"
+        android:label="${launcherLabel}"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <meta-data

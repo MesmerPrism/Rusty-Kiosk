@@ -24,15 +24,15 @@ internal enum class SetupOperation(val wireName: String) {
 }
 
 internal object SetupContract {
-  const val ACTION_CONTROL = "io.github.mesmerprism.rustykiosk.setuphelper.action.CONTROL"
+  val ACTION_CONTROL: String = BuildConfig.CONTROL_ACTION
   const val EXTRA_REQUEST_ID = "request_id"
   const val EXTRA_OPERATION = "operation"
   const val EXTRA_SUCCESS = "success"
   const val EXTRA_HELPER_READY = "helper_ready"
   const val EXTRA_REQUEST_AFTER_BOOT = "request_after_boot"
   const val EXTRA_MESSAGE = "message"
-  const val ACCESSIBILITY_COMPONENT =
-    "io.github.mesmerprism.rustykiosk/io.github.mesmerprism.rustykiosk.KioskAccessibilityService"
+  val ACCESSIBILITY_COMPONENT: String =
+    "${BuildConfig.KIOSK_PACKAGE}/io.github.mesmerprism.rustykiosk.KioskAccessibilityService"
   const val WIFI_ADB_SETTING = "adb_wifi_enabled"
   const val WIFI_ALLOWED_CONNECTION_TIME_SETTING = "adb_allowed_connection_time"
 }

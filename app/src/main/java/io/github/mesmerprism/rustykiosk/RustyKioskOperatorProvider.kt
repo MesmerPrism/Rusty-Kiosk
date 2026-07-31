@@ -239,11 +239,11 @@ class RustyKioskOperatorProvider : ContentProvider() {
 
 internal object RustyKioskOperatorContract {
   const val SCHEMA = "rusty.kiosk.host_operator.v2"
-  const val AUTHORITY = "io.github.mesmerprism.rustykiosk.operator"
-  const val PACKAGE_NAME = "io.github.mesmerprism.rustykiosk"
+  val AUTHORITY: String = BuildConfig.OPERATOR_AUTHORITY
+  val PACKAGE_NAME: String = BuildConfig.APPLICATION_ID
   const val ACTIVITY_NAME = ".RustyKioskActivity"
-  const val TAG_FILE_PATH =
-    "/sdcard/Android/data/io.github.mesmerprism.rustykiosk/files/tags/app-tags.v1.json"
+  val TAG_FILE_PATH: String =
+    "/sdcard/Android/data/$PACKAGE_NAME/files/tags/app-tags.v1.json"
   const val METHOD_CONTRACT = "contract"
   const val METHOD_INVOKE = "invoke"
   const val METHOD_RESULT = "result"

@@ -82,7 +82,7 @@ Launching it immediately opens Rusty Kiosk when the expected package,
 provenance-bound public release signer, and normal front door are present.
 Otherwise it shows the official installation guide and GitHub release
 locations. One source implementation produces two closed release identities:
-the original Store package for Meta Alpha and a distinct Quest Private App
+separate stable Store and Labs Store packages plus a distinct Quest Private App
 package for Meta for Business. Rusty Kiosk remains a separately installed APK.
 See
 [Rusty Kiosk Launcher](docs/KIOSK_LAUNCHER.md).
@@ -92,29 +92,28 @@ the two APKs, their hashes/source manifest, the AGPL license, and source pointer
 using the stable filenames consumed by QuestIonAble File Manager. Release signing
 material stays in GitHub Actions secrets and is never committed. Release assets
 are versioned and are never overwritten; publish a new version for any change.
-The optional alpha channel uses exact `vX.Y.Z-alpha.N` tags, GitHub
-prereleases, and those same immutable asset names inside the exact tag. Alpha
+The opt-in Labs product channel initially uses exact `vX.Y.Z-alpha.N` tags, GitHub
+prereleases, and those same immutable asset names inside the exact tag. Labs
 contains the complete current product rather than a reduced feature build.
-It keeps the stable Kiosk and setup-helper package identities and production
-signer, so opting in replaces the installed stable pair in place; stable and
-alpha do not co-install. An alpha can advance to a later same-signer alpha or
-to the later same-semantic stable build. Returning to an older stable version
-is an Android downgrade and is intentionally unsupported.
+It uses distinct Kiosk, setup-helper, provider-authority, permission, and Store
+launcher identities, so stable and Labs can be installed together. Removing
+Labs follows `uninstall-labs-without-changing-stable`; it never requires a
+stable downgrade or replacement.
 
 Release version codes make that exit route explicit:
 `major*1,000,000 + minor*10,000 + patch*100 + alphaN`, with alpha ordinals
 limited to 1 through 98 and suffix 99 reserved for the later stable release.
 Historical stable builds keep their historical codes. The release manifest
-binds channel, exact tag, source commit/tree, signer, APK package/version
+binds product channel, maturity, distribution track, exact tag, source commit/tree, signer, APK package/version
 identity, and asset hashes. The local release-pipeline test uses a temporary
 fixture signer and is not production-signing evidence.
-Every alpha release also carries `rusty-kiosk-alpha-owner-release.json`, a
+Every Labs release also carries `rusty-kiosk-labs-owner-release.json`, a
 Kiosk-owned closed-shape contract for strict live-readback consumers. It names
 `rusty-kiosk.apk` directly as the `complete-product` primary artifact and binds
-its lowercase SHA-256 and byte count to the exact repository, product, alpha
+its lowercase SHA-256 and byte count to the exact repository, product, Labs
 tag/version, source commit/tree, and installation package. It also hash-binds
-the exact `bundle-manifest.json` bytes and directly records the in-place package,
-signer, version name/code, and forward-only exit policy. The legacy manifest
+the exact `bundle-manifest.json` bytes and directly records the co-installable package,
+signer, version name/code, and isolated uninstall exit policy. The bundle manifest
 remains multi-file bundle evidence; its array order is never primary-artifact
 authority.
 The reviewed `release/kiosk-release-signer-policy.v1.json` file is the
@@ -163,7 +162,10 @@ An app that embeds the engine-neutral `foreground-signal-client` module may
 advise Rusty Kiosk after an app-owned lifecycle or engine integration confirms
 application-level foreground loss. A raw Activity top-resumed callback is
 deliberately insufficient because it also fires during same-package Activity
-handoffs. Kiosk accepts the signal only while that exact package is armed and
+handoffs. The client defaults to the stable provider; Labs integrations build
+the same source with `-PrustyKioskProductChannel=labs`, which selects the fixed
+Labs provider authority without allowing an arbitrary endpoint. Kiosk accepts
+the signal only while that exact package is armed and
 its exclusive Binder UID, protocol metadata, complete signing-certificate
 lineage, and installation identity still match the launch-time observation.
 

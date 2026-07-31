@@ -137,6 +137,12 @@ provider method only after an app-owned aggregate lifecycle or engine signal
 confirms application-level foreground loss. An Activity top-resumed callback
 and any fixed-delay inference are deliberately insufficient.
 
+The library's product-channel build property defaults to `stable` and accepts
+only `stable` or `labs`. It derives the fixed stable or Labs provider authority
+at build time; it cannot accept an arbitrary authority or select a provider at
+runtime. This keeps co-installable channel authority separate while preserving
+one protocol and admission policy.
+
 Kiosk records a cryptographically random, nonzero per-arm generation plus the
 target's exact protocol, canonical signing-certificate lineage, and
 PackageManager last-update/version identity. Call-time admission requires the

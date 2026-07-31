@@ -36,10 +36,11 @@ internal data class SetupHelperResult(
 )
 
 internal object SetupHelperProtocol {
-  const val HELPER_PACKAGE = "io.github.mesmerprism.rustykiosk.setuphelper"
-  const val CONTROL_PERMISSION = "io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"
-  const val ACTION_CONTROL = "io.github.mesmerprism.rustykiosk.setuphelper.action.CONTROL"
-  const val RECEIVER_CLASS = "$HELPER_PACKAGE.SetupControlReceiver"
+  val HELPER_PACKAGE: String = BuildConfig.SETUP_HELPER_PACKAGE
+  val CONTROL_PERMISSION: String = BuildConfig.SETUP_CONTROL_PERMISSION
+  val ACTION_CONTROL: String = BuildConfig.SETUP_CONTROL_ACTION
+  val RECEIVER_CLASS: String =
+    "io.github.mesmerprism.rustykiosk.setuphelper.SetupControlReceiver"
   const val WRITE_SECURE_SETTINGS = "android.permission.WRITE_SECURE_SETTINGS"
   const val EXTRA_REQUEST_ID = "request_id"
   const val EXTRA_OPERATION = "operation"

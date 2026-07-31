@@ -6,5 +6,5 @@
     "bundle_manifest_url": "https://github.com/MesmerPrism/Rusty-Kiosk/releases/download/v0.6.4/bundle-manifest.json",
     "bundle_manifest_sha256": "e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2"
   },
-  "rotation_policy": "A signer change requires a separately reviewed policy revision before any stable or alpha publication."
+  "rotation_policy": "A signer change requires a separately reviewed policy revision before any Stable or Labs publication."
 }

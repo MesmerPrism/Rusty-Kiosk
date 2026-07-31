@@ -6,17 +6,17 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [version]'7.6') {
-  throw 'Alpha candidate preparation requires PowerShell 7.6 or newer through pwsh.'
+  throw 'Labs candidate preparation requires PowerShell 7.6 or newer through pwsh.'
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $status = @(& git -C $repoRoot status --porcelain=v1)
 if ($status.Count -ne 0) {
-  throw 'A Meta Alpha candidate must be built from a clean exact source commit.'
+  throw 'A Meta Labs candidate must be built from a clean exact source commit.'
 }
 $branch = (& git -C $repoRoot branch --show-current).Trim()
 if ([string]::IsNullOrWhiteSpace($branch)) {
-  throw 'A Meta Alpha candidate must be built from an attached branch.'
+  throw 'A Meta Labs candidate must be built from an attached branch.'
 }
 
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
@@ -24,24 +24,24 @@ if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
 }
 $buildMetadataPath = Join-Path $repoRoot 'local-artifacts\launcher-release-build\latest.json'
 & (Join-Path $PSScriptRoot 'Build-RustyKioskLauncherRelease.ps1') `
-  -Distribution Store `
+  -Distribution LabsStore `
   -MetadataPath $buildMetadataPath | Out-Host
 if ($LASTEXITCODE -ne 0) {
   throw 'The signed launcher release build failed.'
 }
 $build = Get-Content -Raw -LiteralPath $buildMetadataPath | ConvertFrom-Json
 if (
-  $build.distribution -cne 'Store' -or
-  $build.package -cne 'io.github.mesmerprism.rustykiosk.launcher'
+  $build.distribution -cne 'LabsStore' -or
+  $build.package -cne 'io.github.mesmerprism.rustykiosk.launcher.labs'
 ) {
-  throw 'The Alpha candidate builder returned the wrong release identity.'
+  throw 'The Labs candidate builder returned the wrong release identity.'
 }
 
 $stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd-HHmmss')
-$candidateDir = Join-Path $OutputRoot "alpha-$stamp-signed"
+$candidateDir = Join-Path $OutputRoot "labs-$stamp-signed"
 New-Item -ItemType Directory -Force -Path $candidateDir | Out-Null
 $candidateApk =
-  Join-Path $candidateDir "rusty-kiosk-launcher-alpha-v$($build.version_name)-signed.apk"
+  Join-Path $candidateDir "rusty-kiosk-launcher-labs-v$($build.version_name)-signed.apk"
 Copy-Item -LiteralPath $build.apk -Destination $candidateApk
 
 $head = (& git -C $repoRoot rev-parse HEAD).Trim()
@@ -53,9 +53,11 @@ if ($candidateHash -cne [string]$build.sha256) {
 }
 
 $summary = [ordered]@{
-  schema = 'rusty.kiosk.launcher.meta_alpha_candidate.v1'
+  schema = 'rusty.kiosk.launcher.meta_labs_candidate.v1'
   created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
-  channel = 'ALPHA'
+  product_channel = 'labs'
+  maturity = 'alpha'
+  distribution_track = 'meta-store-app'
   upload_candidate = $true
   source = [ordered]@{
     commit = $head
@@ -76,26 +78,27 @@ $summary = [ordered]@{
   distribution = [ordered]@{
     production_authorized = $false
     public_store_submission_authorized = $false
-    alpha_only = $true
+    labs_only = $true
   }
 }
 $summaryPath = Join-Path $candidateDir 'candidate-summary.json'
 $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding utf8NoBOM
 
 $checklist = @(
-  '# Rusty Kiosk Launcher Meta Alpha Candidate',
+  '# Rusty Kiosk Labs Launcher Candidate',
   '',
   "- Package: $($build.package)",
   "- Version: $($build.version_name) ($($build.version_code))",
   "- APK SHA-256: $candidateHash",
   "- Signer SHA-256: $($build.signer_sha256)",
   "- Source commit: $head",
-  '- Channel: ALPHA only',
+  '- Product channel: Labs',
+  '- Maturity: alpha',
   '',
   '1. Create or select the separate Rusty Kiosk Launcher app in Meta Horizon Developer Dashboard.',
-  '2. Open Distribution > Release Channels > Alpha.',
+  '2. Upload this APK to the separate Rusty Kiosk Labs Launcher Store app.',
   '3. Upload the APK in this directory and wait for build availability.',
-  '4. Add only the intended developer/test account to Alpha.',
+  '4. Add only the intended Labs testers before broadening availability.',
   '5. Install through My Preview Apps and rerun the trusted-target smoke with:',
   "   -SkipInstall -ExpectedLauncherApkSha256 $candidateHash",
   "   -ExpectedLauncherSignerSha256 $($build.signer_sha256) -RequireNonShellInstallSource",

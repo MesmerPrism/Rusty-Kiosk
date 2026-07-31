@@ -10,6 +10,6 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.AlphaOwnerMetadata.psm1') -Force
-Assert-RustyKioskAlphaOwnerMetadata @PSBoundParameters
-Write-Output 'Kiosk alpha owner metadata passed strict validation.'
+Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.LabsOwnerMetadata.psm1') -Force
+Assert-RustyKioskLabsOwnerMetadata @PSBoundParameters
+Write-Output 'Kiosk Labs owner metadata passed strict validation.'

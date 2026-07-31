@@ -13,13 +13,24 @@ if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [vers
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $releasePackages = [ordered]@{
   Store = 'io.github.mesmerprism.rustykiosk.launcher'
+  LabsStore = 'io.github.mesmerprism.rustykiosk.launcher.labs'
   Business = 'io.github.mesmerprism.rustykiosk.launcher.business'
 }
 if ($Distribution -cnotin @($releasePackages.Keys)) {
-  throw 'Distribution must be exactly Store or Business.'
+  throw 'Distribution must be exactly Store, LabsStore, or Business.'
 }
 $releasePackage = [string]$releasePackages[$Distribution]
-$productionTarget = 'io.github.mesmerprism.rustykiosk'
+$productionTarget = if ($Distribution -ceq 'LabsStore') {
+  'io.github.mesmerprism.rustykiosk.labs'
+} else {
+  'io.github.mesmerprism.rustykiosk'
+}
+$productChannel = if ($Distribution -ceq 'LabsStore') { 'labs' } else { 'stable' }
+$expectedLabel = if ($Distribution -ceq 'LabsStore') {
+  'Rusty Kiosk Labs Launcher'
+} else {
+  'Rusty Kiosk Launcher'
+}
 
 if (
   -not [string]::IsNullOrWhiteSpace($env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION) -and
@@ -137,7 +148,7 @@ $expectedActivity =
 $checks = [ordered]@{
   package_id =
     $packageMatch.Success -and $packageMatch.Groups[1].Value -ceq $releasePackage
-  application_label = $badging -match "application-label:'Rusty Kiosk Launcher'"
+  application_label = $badging -match "application-label:'$([regex]::Escape($expectedLabel))'"
   version_code = $badging -match "versionCode='[1-9][0-9]*'"
   version_name = $badging -match "versionName='[0-9]+\.[0-9]+\.[0-9]+'"
   install_location_auto = $badging -match "install-location:'auto'"
@@ -185,9 +196,11 @@ if ($signerDigests.Count -ne 1 -or $signerDigests[0].Length -ne 64) {
 }
 
 $metadata = [ordered]@{
-  schema = 'rusty.kiosk.launcher.release_build.v1'
+  schema = 'rusty.kiosk.launcher.release_build.v2'
   created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   distribution = $Distribution
+  product_channel = $productChannel
+  distribution_track = if ($Distribution -ceq 'Business') { 'meta-private-app' } else { 'meta-store-app' }
   apk = [IO.Path]::GetFullPath($apk.FullName)
   sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $apk.FullName).Hash.ToLowerInvariant()
   signer_sha256 = $signerDigests[0]

@@ -1,18 +1,17 @@
 Set-StrictMode -Version Latest
 
-$script:Schema = 'rusty.kiosk.alpha_release_owner_metadata.v1'
+$script:Schema = 'rusty.kiosk.labs_release_owner_metadata.v2'
 $script:Repository = 'MesmerPrism/Rusty-Kiosk'
-$script:Product = 'rusty-kiosk'
-$script:InstallationIdentity = 'io.github.mesmerprism.rustykiosk'
+$script:Product = 'rusty-kiosk-labs'
+$script:InstallationIdentity = 'io.github.mesmerprism.rustykiosk.labs'
 $script:PrimaryArtifactName = 'rusty-kiosk.apk'
 $script:SetupHelperName = 'rusty-kiosk-setup-helper.apk'
-$script:SetupHelperIdentity = 'io.github.mesmerprism.rustykiosk.setuphelper'
+$script:SetupHelperIdentity = 'io.github.mesmerprism.rustykiosk.setuphelper.labs'
 $script:BundleManifestName = 'bundle-manifest.json'
-$script:BundleManifestSchema = 'meta.quest.file_manager.rusty_kiosk_bundle.v1'
-$script:IdentityMode = 'same-package-in-place'
+$script:BundleManifestSchema = 'meta.quest.file_manager.rusty_kiosk_bundle.v2'
+$script:IdentityMode = 'separate-coinstallable'
 $script:SourceUrl = 'https://github.com/MesmerPrism/Rusty-Kiosk'
-$script:ExitPolicy =
-    'in-place; install a later same-signer stable build with a higher versionCode'
+$script:ExitPolicy = 'uninstall-labs-without-changing-stable'
 
 function Assert-ExactProperties {
     param(
@@ -84,7 +83,7 @@ function Read-StrictJsonObject {
     return $raw | ConvertFrom-Json
 }
 
-function New-RustyKioskAlphaOwnerMetadata {
+function New-RustyKioskLabsOwnerMetadata {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]$Release,
@@ -93,8 +92,10 @@ function New-RustyKioskAlphaOwnerMetadata {
         [Parameter(Mandatory = $true)][string]$PrimaryArtifactPath,
         [Parameter(Mandatory = $true)][string]$BundleManifestPath
     )
-    if ($Release.Channel -cne 'alpha' -or $Release.IsPrerelease -ne $true) {
-        throw 'Kiosk alpha owner metadata can be generated only for an alpha prerelease.'
+    if ($Release.ProductChannel -cne 'labs' -or
+        $Release.Maturity -cne 'alpha' -or
+        $Release.IsPrerelease -ne $true) {
+        throw 'Kiosk Labs owner metadata requires the Labs product channel and alpha maturity.'
     }
     $artifact = Get-Item -LiteralPath $PrimaryArtifactPath -ErrorAction Stop
     if ($artifact.Length -le 0) {
@@ -119,14 +120,16 @@ function New-RustyKioskAlphaOwnerMetadata {
         schema = $script:Schema
         repository = $script:Repository
         product = $script:Product
-        channel = 'alpha'
+        product_channel = 'labs'
+        maturity = 'alpha'
+        distribution_track = 'github-prerelease'
         prerelease = $true
         tag = $Release.Tag
         version = $Release.Version
         source_revision = $SourceRevision
         source_tree = $SourceTree
         installation_identity = $script:InstallationIdentity
-        same_package_lineage = [ordered]@{
+        coinstallable_lineage = [ordered]@{
             identity_mode = $manifest.identity_mode
             package_name = $primaryEntries[0].package_name
             signer_sha256 = $manifest.signer_sha256
@@ -151,7 +154,7 @@ function New-RustyKioskAlphaOwnerMetadata {
     }
 }
 
-function Assert-RustyKioskAlphaOwnerMetadata {
+function Assert-RustyKioskLabsOwnerMetadata {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$MetadataPath,
@@ -164,16 +167,17 @@ function Assert-RustyKioskAlphaOwnerMetadata {
     )
     $metadata = Read-StrictJsonObject `
         -Path $MetadataPath `
-        -Label 'Kiosk alpha owner metadata'
+        -Label 'Kiosk Labs owner metadata'
     Assert-ExactProperties $metadata @(
-        'schema', 'repository', 'product', 'channel', 'prerelease', 'tag', 'version',
+        'schema', 'repository', 'product', 'product_channel', 'maturity',
+        'distribution_track', 'prerelease', 'tag', 'version',
         'source_revision', 'source_tree', 'installation_identity',
-        'same_package_lineage', 'bundle_manifest', 'primary_artifact'
-    ) 'Kiosk alpha owner metadata'
-    Assert-ExactProperties $metadata.same_package_lineage @(
+        'coinstallable_lineage', 'bundle_manifest', 'primary_artifact'
+    ) 'Kiosk Labs owner metadata'
+    Assert-ExactProperties $metadata.coinstallable_lineage @(
         'identity_mode', 'package_name', 'signer_sha256', 'version_name',
         'version_code', 'exit_policy'
-    ) 'same_package_lineage'
+    ) 'coinstallable_lineage'
     Assert-ExactProperties $metadata.bundle_manifest @(
         'schema', 'name', 'sha256', 'bytes'
     ) 'bundle_manifest'
@@ -183,7 +187,9 @@ function Assert-RustyKioskAlphaOwnerMetadata {
         schema = $script:Schema
         repository = $script:Repository
         product = $script:Product
-        channel = 'alpha'
+        product_channel = 'labs'
+        maturity = 'alpha'
+        distribution_track = 'github-prerelease'
         prerelease = $true
         tag = $ExpectedTag
         version = $ExpectedVersion
@@ -193,7 +199,7 @@ function Assert-RustyKioskAlphaOwnerMetadata {
     }
     foreach ($entry in $expected.GetEnumerator()) {
         if ($metadata.($entry.Key) -cne $entry.Value) {
-            throw "Kiosk alpha owner metadata $($entry.Key) does not match its owner-authorized value."
+            throw "Kiosk Labs owner metadata $($entry.Key) does not match its owner-authorized value."
         }
     }
     if ($ExpectedSourceRevision -cnotmatch '^[0-9a-f]{40}$' -or
@@ -228,14 +234,14 @@ function Assert-RustyKioskAlphaOwnerMetadata {
         throw 'primary_artifact.bytes must be positive.'
     }
     Assert-LowercaseSha256 `
-        $metadata.same_package_lineage.signer_sha256 `
-        'same_package_lineage.signer_sha256'
-    if ($metadata.same_package_lineage.identity_mode -cne $script:IdentityMode -or
-        $metadata.same_package_lineage.package_name -cne $script:InstallationIdentity -or
-        $metadata.same_package_lineage.version_name -cne $ExpectedVersion -or
-        [int64]$metadata.same_package_lineage.version_code -ne $expectedVersionCode -or
-        $metadata.same_package_lineage.exit_policy -cne $script:ExitPolicy) {
-        throw 'same_package_lineage is not the exact in-place alpha contract.'
+        $metadata.coinstallable_lineage.signer_sha256 `
+        'coinstallable_lineage.signer_sha256'
+    if ($metadata.coinstallable_lineage.identity_mode -cne $script:IdentityMode -or
+        $metadata.coinstallable_lineage.package_name -cne $script:InstallationIdentity -or
+        $metadata.coinstallable_lineage.version_name -cne $ExpectedVersion -or
+        [int64]$metadata.coinstallable_lineage.version_code -ne $expectedVersionCode -or
+        $metadata.coinstallable_lineage.exit_policy -cne $script:ExitPolicy) {
+        throw 'coinstallable_lineage is not the exact side-by-side Labs contract.'
     }
     Assert-LowercaseSha256 `
         $metadata.bundle_manifest.sha256 `
@@ -269,7 +275,8 @@ function Assert-RustyKioskAlphaOwnerMetadata {
         -Path $bundleFile.FullName `
         -Label 'Kiosk bundle manifest'
     Assert-ExactProperties $bundle @(
-        'schema', 'build_type', 'channel', 'prerelease', 'tag', 'version',
+        'schema', 'build_type', 'product_channel', 'maturity',
+        'distribution_track', 'prerelease', 'tag', 'version',
         'version_code', 'identity_mode', 'exit_policy', 'source_url',
         'source_revision', 'source_tree', 'signer_sha256', 'files'
     ) 'Kiosk bundle manifest'
@@ -308,7 +315,9 @@ function Assert-RustyKioskAlphaOwnerMetadata {
     Assert-LowercaseSha256 $bundle.signer_sha256 'bundle signer_sha256'
     if ($bundle.schema -cne $script:BundleManifestSchema -or
         $bundle.build_type -cne 'release' -or
-        $bundle.channel -cne 'alpha' -or
+        $bundle.product_channel -cne 'labs' -or
+        $bundle.maturity -cne 'alpha' -or
+        $bundle.distribution_track -cne 'github-prerelease' -or
         $bundle.prerelease -ne $true -or
         $bundle.tag -cne $ExpectedTag -or
         $bundle.version -cne $ExpectedVersion -or
@@ -318,7 +327,7 @@ function Assert-RustyKioskAlphaOwnerMetadata {
         $bundle.source_url -cne $script:SourceUrl -or
         $bundle.source_revision -cne $ExpectedSourceRevision -or
         $bundle.source_tree -cne $ExpectedSourceTree -or
-        $bundle.signer_sha256 -cne $metadata.same_package_lineage.signer_sha256 -or
+        $bundle.signer_sha256 -cne $metadata.coinstallable_lineage.signer_sha256 -or
         $bundleEntries.Count -ne 1 -or
         $helperEntries.Count -ne 1 -or
         $bundleEntries[0].package_name -cne $script:InstallationIdentity -or
@@ -329,8 +338,8 @@ function Assert-RustyKioskAlphaOwnerMetadata {
         $helperEntries[0].package_name -cne $script:SetupHelperIdentity -or
         $helperEntries[0].version_name -cne $ExpectedVersion -or
         [int64]$helperEntries[0].version_code -ne $expectedVersionCode) {
-        throw 'Kiosk alpha owner metadata does not match the existing owner build/bundle evidence.'
+        throw 'Kiosk Labs owner metadata does not match the owner build/bundle evidence.'
     }
 }
 
-Export-ModuleMember -Function New-RustyKioskAlphaOwnerMetadata, Assert-RustyKioskAlphaOwnerMetadata
+Export-ModuleMember -Function New-RustyKioskLabsOwnerMetadata, Assert-RustyKioskLabsOwnerMetadata
