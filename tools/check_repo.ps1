@@ -595,6 +595,8 @@ foreach ($contract in @(
   @{ Text = $labsReleaseWorkflow; Token = 'Latest-release readback was malformed or selected the Labs tag.'; Name = 'not-latest readback' },
   @{ Text = $labsReleaseWorkflow; Token = '$PSNativeCommandUseErrorActionPreference = $false'; Name = 'Labs expected-404 native exit handling' },
   @{ Text = $labsReleaseWorkflow; Token = '$global:LASTEXITCODE = 0'; Name = 'Labs expected-404 step result reset' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Remove-Item Env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion'; Name = 'Labs build projection cleanup' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Remove-Item Env:ORG_GRADLE_PROJECT_rustyKioskProductChannel'; Name = 'Labs channel projection cleanup' },
   @{ Text = $labsReleaseWorkflow; Token = 'refs/tags/$($release.Tag)'; Name = 'exact alpha-maturity tag binding' },
   @{ Text = $labsReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'Labs signer policy' },
   @{ Text = $stableReleaseWorkflow; Token = "!contains(github.ref_name, '-')"; Name = 'Stable/Labs workflow isolation' },

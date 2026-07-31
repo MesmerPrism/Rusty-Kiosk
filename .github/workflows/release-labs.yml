@@ -134,6 +134,10 @@ jobs:
           $env:ORG_GRADLE_PROJECT_rustyKioskProductChannel = 'labs'
           .\gradlew.bat test lint :app:assembleRelease :setup-helper:assembleRelease --stacktrace
           if ($LASTEXITCODE -ne 0) { throw 'Gradle Labs release build failed.' }
+          # The repository gate intentionally validates the source default as
+          # stable; do not leak the just-built Labs Gradle projection into it.
+          Remove-Item Env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion
+          Remove-Item Env:ORG_GRADLE_PROJECT_rustyKioskProductChannel
           pwsh -NoProfile -File .\tools\check_repo.ps1 -SkipAssemble
           if ($LASTEXITCODE -ne 0) { throw 'Repository validation failed.' }
 
