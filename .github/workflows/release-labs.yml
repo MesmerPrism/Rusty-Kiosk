@@ -299,25 +299,48 @@ jobs:
             --target '${{ steps.version.outputs.source_revision }}'
           if ($LASTEXITCODE -ne 0) { throw "Failed to create Labs draft $tag." }
 
-          $draft = gh api "repos/${{ github.repository }}/releases/tags/$tag" |
+          $draftPages = gh api --paginate --slurp `
+            "repos/${{ github.repository }}/releases?per_page=100" |
             ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to enumerate the authenticated Labs draft."
+          }
+          $draftMatches = @(
+            $draftPages | ForEach-Object { $_ } | Where-Object {
+              $_.tag_name -ceq $tag -and $_.draft -eq $true
+            }
+          )
+          if ($draftMatches.Count -ne 1) {
+            throw "Expected exactly one authenticated Labs draft for $tag."
+          }
+          $draft = $draftMatches[0]
           $draftRelease = Assert-ReleaseReadback `
             -Release $draft `
             -ExpectedDraft $true `
             -Phase 'Pre-promotion draft'
           $draftTag = Get-TagSnapshot -Phase 'Pre-promotion draft'
 
-          gh release edit $tag --draft=false --prerelease
+          gh api --method PATCH `
+            "repos/${{ github.repository }}/releases/$($draftRelease.ReleaseId)" `
+            -F draft=false -F prerelease=true -f make_latest=false | Out-Null
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to promote verified Labs draft $tag; preserve it for owner review."
           }
 
-          $published = gh api "repos/${{ github.repository }}/releases/tags/$tag" |
+          $published = gh api `
+            "repos/${{ github.repository }}/releases/$($draftRelease.ReleaseId)" |
             ConvertFrom-Json
           $liveRelease = Assert-ReleaseReadback `
             -Release $published `
             -ExpectedDraft $false `
             -Phase 'Post-promotion live'
+          $publishedByTag = gh api `
+            "repos/${{ github.repository }}/releases/tags/$tag" |
+            ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or
+            [int64]$publishedByTag.id -ne $liveRelease.ReleaseId) {
+            throw 'Published Labs tag route differs from the promoted release ID.'
+          }
           $liveTag = Get-TagSnapshot -Phase 'Post-promotion live'
           if ($draftRelease.ReleaseId -ne $liveRelease.ReleaseId -or
             ($draftRelease.Assets -join "`n") -cne
