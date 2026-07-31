@@ -98,6 +98,9 @@ jobs:
           if (($response -join "`n") -notmatch '(?m)^HTTP/\S+\s+404\b') {
             throw "Could not positively prove that release $tag is absent.`n$($response -join "`n")"
           }
+          # GitHub Actions uses the final native exit code as the step result even
+          # when PowerShell intentionally handled that expected 404 above.
+          $global:LASTEXITCODE = 0
 
       - name: Restore Android signing identity
         shell: pwsh
@@ -342,6 +345,7 @@ jobs:
               throw 'Latest-release readback was malformed or selected the Labs tag.'
             }
           }
+          $global:LASTEXITCODE = 0
 
       - name: Remove temporary signing material
         if: always()
