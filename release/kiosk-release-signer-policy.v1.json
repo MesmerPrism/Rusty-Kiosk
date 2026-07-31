@@ -1,0 +1,10 @@
+{
+  "schema": "io.github.mesmerprism.rusty_kiosk.release_signer_policy.v1",
+  "authorized_signer_sha256": "423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb",
+  "authority_source": {
+    "release_tag": "v0.6.4",
+    "bundle_manifest_url": "https://github.com/MesmerPrism/Rusty-Kiosk/releases/download/v0.6.4/bundle-manifest.json",
+    "bundle_manifest_sha256": "e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2"
+  },
+  "rotation_policy": "A signer change requires a separately reviewed policy revision before any Stable or Labs publication."
+}

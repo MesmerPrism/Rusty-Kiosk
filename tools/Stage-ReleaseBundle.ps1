@@ -7,17 +7,24 @@ param(
     [string]$SetupHelperApkPath,
 
     [Parameter(Mandatory = $true)]
-    [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version,
 
     [string]$SourceUrl = 'https://github.com/MesmerPrism/Rusty-Kiosk',
     [string]$SourceRevision = 'working-tree',
+    [string]$SourceTree = 'working-tree',
+    [ValidateSet('stable', 'labs')]
+    [string]$ExpectedChannel,
+    [string]$ExpectedSignerSha256,
     [string]$ApkSignerPath,
+    [string]$Aapt2Path,
     [string]$OutputDirectory = (Join-Path $PSScriptRoot '..\artifacts\release-bundle')
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.ReleaseVersion.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.LabsOwnerMetadata.psm1') -Force
+$release = Resolve-RustyKioskReleaseVersion -Version $Version -ExpectedChannel $ExpectedChannel
 $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 if (-not $OutputDirectory.StartsWith($artifactsRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
@@ -46,6 +53,17 @@ if (-not $ApkSignerPath) {
 }
 if (-not $ApkSignerPath -or -not (Test-Path -LiteralPath $ApkSignerPath -PathType Leaf)) {
     throw 'apksigner is required to verify the release bundle.'
+}
+if (-not $Aapt2Path) {
+    $sdkRoot = if ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $env:ANDROID_SDK_ROOT }
+    if ($sdkRoot) {
+        $Aapt2Path = (Get-ChildItem -Path (Join-Path $sdkRoot 'build-tools\*\aapt2.exe') -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1).FullName
+    }
+}
+if (-not $Aapt2Path -or -not (Test-Path -LiteralPath $Aapt2Path -PathType Leaf)) {
+    throw 'aapt2 is required to inspect release APK identity.'
 }
 
 function Get-ApkCertificateDigest {
@@ -76,6 +94,62 @@ $helperCertificate = Get-ApkCertificateDigest -Path $helperApk
 if ($mainCertificate -ne $helperCertificate) {
     throw 'The main and setup-helper APKs must use the same signing certificate.'
 }
+if ($ExpectedSignerSha256) {
+    $normalizedExpectedSigner = $ExpectedSignerSha256.ToLowerInvariant()
+    if ($normalizedExpectedSigner -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'ExpectedSignerSha256 must be exactly 64 lowercase or uppercase hexadecimal characters.'
+    }
+    if ($mainCertificate -cne $normalizedExpectedSigner) {
+        throw "Observed APK signer $mainCertificate does not match the authorized signer."
+    }
+}
+
+function Get-ApkIdentity {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$ExpectedPackage
+    )
+    $output = & $Aapt2Path dump badging $Path 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        throw "APK identity inspection failed for $Path`n$($output -join [Environment]::NewLine)"
+    }
+    $text = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    $package = [regex]::Match(
+        $text,
+        "(?m)^package:\s+name='([^']+)'\s+versionCode='(\d+)'\s+versionName='([^']+)'"
+    )
+    if (-not $package.Success) {
+        throw "aapt2 did not report one parseable package identity for $Path."
+    }
+    $identity = [pscustomobject]@{
+        PackageName = $package.Groups[1].Value
+        VersionCode = [int64]$package.Groups[2].Value
+        VersionName = $package.Groups[3].Value
+    }
+    if ($identity.PackageName -cne $ExpectedPackage) {
+        throw "Expected package $ExpectedPackage, got $($identity.PackageName) in $Path."
+    }
+    if ($identity.VersionName -cne $release.Version) {
+        throw "Expected versionName $($release.Version), got $($identity.VersionName) in $Path."
+    }
+    if ($identity.VersionCode -ne $release.VersionCode) {
+        throw "Expected versionCode $($release.VersionCode), got $($identity.VersionCode) in $Path."
+    }
+    return $identity
+}
+
+$expectedMainPackage = if ($release.ProductChannel -ceq 'labs') {
+    'io.github.mesmerprism.rustykiosk.labs'
+} else {
+    'io.github.mesmerprism.rustykiosk'
+}
+$expectedHelperPackage = if ($release.ProductChannel -ceq 'labs') {
+    'io.github.mesmerprism.rustykiosk.setuphelper.labs'
+} else {
+    'io.github.mesmerprism.rustykiosk.setuphelper'
+}
+$mainIdentity = Get-ApkIdentity -Path $mainApk -ExpectedPackage $expectedMainPackage
+$helperIdentity = Get-ApkIdentity -Path $helperApk -ExpectedPackage $expectedHelperPackage
 
 if (Test-Path -LiteralPath $OutputDirectory) {
     Remove-Item -LiteralPath $OutputDirectory -Recurse -Force
@@ -92,26 +166,49 @@ Copy-Item -LiteralPath $license -Destination $licenseOutput
 Set-Content -LiteralPath $sourceOutput -Encoding utf8 -Value @"
 Rusty Kiosk source: $SourceUrl
 Source revision: $SourceRevision
+Source tree: $SourceTree
 Version: $Version
+Product channel: $($release.ProductChannel)
+Maturity: $($release.Maturity)
+Distribution track: $($release.DistributionTrack)
+Tag: $($release.Tag)
 License: GNU Affero General Public License v3.0 or later (see RUSTY-KIOSK-LICENSE.txt)
 "@
 
 $manifest = [ordered]@{
-    schema = 'meta.quest.file_manager.rusty_kiosk_bundle.v1'
+    schema = 'meta.quest.file_manager.rusty_kiosk_bundle.v2'
     build_type = 'release'
-    version = $Version
+    product_channel = $release.ProductChannel
+    maturity = $release.Maturity
+    distribution_track = $release.DistributionTrack
+    prerelease = $release.IsPrerelease
+    tag = $release.Tag
+    version = $release.Version
+    version_code = $release.VersionCode
+    identity_mode = if ($release.ProductChannel -ceq 'labs') {
+        'separate-coinstallable'
+    } else {
+        'stable-single-installation'
+    }
+    exit_policy = $release.ExitPolicy
     source_url = $SourceUrl
     source_revision = $SourceRevision
+    source_tree = $SourceTree
     signer_sha256 = $mainCertificate
-    staged_at_utc = [DateTimeOffset]::UtcNow.ToString('O')
     files = @(
         [ordered]@{
             name = 'rusty-kiosk.apk'
+            package_name = $mainIdentity.PackageName
+            version_name = $mainIdentity.VersionName
+            version_code = $mainIdentity.VersionCode
             sha256 = (Get-FileHash -LiteralPath $mainOutput -Algorithm SHA256).Hash.ToLowerInvariant()
             bytes = (Get-Item -LiteralPath $mainOutput).Length
         },
         [ordered]@{
             name = 'rusty-kiosk-setup-helper.apk'
+            package_name = $helperIdentity.PackageName
+            version_name = $helperIdentity.VersionName
+            version_code = $helperIdentity.VersionCode
             sha256 = (Get-FileHash -LiteralPath $helperOutput -Algorithm SHA256).Hash.ToLowerInvariant()
             bytes = (Get-Item -LiteralPath $helperOutput).Length
         },
@@ -128,5 +225,25 @@ $manifest = [ordered]@{
     )
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'bundle-manifest.json') -Encoding utf8
+$manifestOutput = Join-Path $OutputDirectory 'bundle-manifest.json'
+if ($release.ProductChannel -ceq 'labs') {
+    $ownerMetadataOutput = Join-Path $OutputDirectory 'rusty-kiosk-labs-owner-release.json'
+    New-RustyKioskLabsOwnerMetadata `
+        -Release $release `
+        -SourceRevision $SourceRevision `
+        -SourceTree $SourceTree `
+        -PrimaryArtifactPath $mainOutput `
+        -BundleManifestPath $manifestOutput |
+        ConvertTo-Json -Depth 4 |
+        Set-Content -LiteralPath $ownerMetadataOutput -Encoding utf8
+    Assert-RustyKioskLabsOwnerMetadata `
+        -MetadataPath $ownerMetadataOutput `
+        -ExpectedTag $release.Tag `
+        -ExpectedVersion $release.Version `
+        -ExpectedSourceRevision $SourceRevision `
+        -ExpectedSourceTree $SourceTree `
+        -PrimaryArtifactPath $mainOutput `
+        -BundleManifestPath $manifestOutput
+}
 
 Get-ChildItem -LiteralPath $OutputDirectory -File | Sort-Object Name | Select-Object Name, Length, FullName

@@ -31,10 +31,24 @@ $foregroundSignalClientPath =
 $foregroundSignalDocPath = Join-Path $repoRoot 'docs\FOREGROUND_SIGNAL.md'
 $architecturePath = Join-Path $repoRoot 'docs\ARCHITECTURE.md'
 $readmePath = Join-Path $repoRoot 'README.md'
+$agentNotesPath = Join-Path $repoRoot 'AGENTS.md'
+$releaseVersionModulePath = Join-Path $repoRoot 'tools\RustyKiosk.ReleaseVersion.psm1'
+$releaseStagePath = Join-Path $repoRoot 'tools\Stage-ReleaseBundle.ps1'
+$labsOwnerMetadataModulePath = Join-Path $repoRoot 'tools\RustyKiosk.LabsOwnerMetadata.psm1'
+$labsOwnerMetadataValidatorPath = Join-Path $repoRoot 'tools\Test-KioskLabsOwnerMetadata.ps1'
+$labsReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-labs.yml'
+$stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
+$labsLauncherCandidatePath =
+  Join-Path $repoRoot 'tools\Prepare-RustyKioskLauncherLabsCandidate.ps1'
+$releaseSignerPolicyPath = Join-Path $repoRoot 'release\kiosk-release-signer-policy.v1.json'
+$appBuildPath = Join-Path $repoRoot 'app\build.gradle.kts'
+$setupHelperBuildPath = Join-Path $repoRoot 'setup-helper\build.gradle.kts'
 $foregroundSignalContractPath =
   Join-Path $repoRoot 'foreground-signal-client\src\main\java\io\github\mesmerprism\rustykiosk\foregroundsignal\ForegroundSignalContract.java'
 $foregroundSignalManifestPath =
   Join-Path $repoRoot 'foreground-signal-client\src\main\AndroidManifest.xml'
+$foregroundSignalBuildPath =
+  Join-Path $repoRoot 'foreground-signal-client\build.gradle.kts'
 $cliDebugManifestPath = Join-Path $repoRoot 'app\src\debug\AndroidManifest.xml'
 $cliActivityPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskCliActivity.kt'
 $guardCliReceiverPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskGuardCliReceiver.kt'
@@ -125,7 +139,7 @@ if ($manifest -match 'android\.app\.role\.HOME|android\.intent\.category\.HOME')
 if ($manifest -match 'android\.permission\.WRITE_SECURE_SETTINGS') {
   throw 'The main Rusty Kiosk APK must not receive broad secure-settings authority.'
 }
-if ($manifest -notmatch 'io\.github\.mesmerprism\.rustykiosk\.permission\.SETUP_CONTROL') {
+if ($manifest -notmatch '\$\{setupControlPermission\}') {
   throw 'The main app is missing its same-signer setup control permission.'
 }
 if ($manifest -match 'com\.termux|RUN_COMMAND') {
@@ -136,10 +150,10 @@ if ($manifest -match 'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
 }
 foreach ($pattern in @(
   'RustyKioskOperatorProvider',
-  'io.github.mesmerprism.rustykiosk.operator',
+  '${operatorAuthority}',
   'android:permission="android.permission.DUMP"',
   'ForegroundSignalProvider',
-  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  '${foregroundSignalAuthority}',
   'io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL',
   'tools:node="remove"'
 )) {
@@ -157,6 +171,7 @@ $architecture = Get-Content -Raw -LiteralPath $architecturePath
 $readme = Get-Content -Raw -LiteralPath $readmePath
 $foregroundSignalContract = Get-Content -Raw -LiteralPath $foregroundSignalContractPath
 $foregroundSignalManifest = Get-Content -Raw -LiteralPath $foregroundSignalManifestPath
+$foregroundSignalBuild = Get-Content -Raw -LiteralPath $foregroundSignalBuildPath
 foreach ($token in @(
   'Binder.getCallingUid()',
   'callingPackage',
@@ -234,12 +249,28 @@ if (
 }
 foreach ($token in @(
   'io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL',
-  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  '${foregroundSignalProviderAuthority}',
   'android:value="2"'
 )) {
   if (-not $foregroundSignalManifest.Contains($token, [StringComparison]::Ordinal)) {
     throw "The foreground-signal capability manifest is missing: $token"
   }
+}
+foreach ($token in @(
+  'rustyKioskProductChannel',
+  'orElse("stable")',
+  'it == "stable" || it == "labs"',
+  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  'io.github.mesmerprism.rustykiosk.labs.foreground-signal',
+  'buildConfigField("String", "PROVIDER_AUTHORITY"'
+)) {
+  if (-not $foregroundSignalBuild.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The channel-bound foreground-signal client build is missing: $token"
+  }
+}
+if (-not $foregroundSignalContract.Contains(
+    'BuildConfig.PROVIDER_AUTHORITY', [StringComparison]::Ordinal)) {
+  throw 'The foreground-signal client contract must use the build-bound provider authority.'
 }
 if (
   $foregroundSignalContract.Contains('LEGACY_PROTOCOL', [StringComparison]::Ordinal) -or
@@ -379,7 +410,7 @@ foreach ($pattern in @(
   'android.permission.WRITE_SECURE_SETTINGS',
   'android.permission.RECEIVE_BOOT_COMPLETED',
   'android:protectionLevel="signature"',
-  'android:permission="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"'
+  'android:permission="${setupControlPermission}"'
 )) {
   if ($setupManifest -notmatch [Regex]::Escape($pattern)) {
     throw "The dedicated setup helper manifest is missing: $pattern"
@@ -423,7 +454,7 @@ $launcherTrustManifest =
 $launcherTrustProvenance = Get-Content -Raw -LiteralPath $launcherTrustProvenancePath
 $launcherActivity = Get-Content -Raw -LiteralPath $launcherActivityPath
 foreach ($token in @(
-  'io.github.mesmerprism.rustykiosk',
+  '${kioskTargetPackage}',
   'com.oculus.intent.category.2D',
   'android.intent.category.LAUNCHER',
   'android.hardware.vr.headtracking',
@@ -451,6 +482,7 @@ if (@([regex]::Matches($launcherManifest, '<package\s+android:name=')).Count -ne
 }
 foreach ($token in @(
   'io.github.mesmerprism.rustykiosk.launcher',
+  'io.github.mesmerprism.rustykiosk.launcher.labs',
   'io.github.mesmerprism.rustykiosk.launcher.business',
   'RUSTY_KIOSK_LAUNCHER_DISTRIBUTION',
   'rusty-kiosk-v0.6.4-bundle-manifest.json',
@@ -524,6 +556,69 @@ foreach ($token in @(
   }
 }
 
+$agentNotes = Get-Content -Raw -LiteralPath $agentNotesPath
+$releaseVersionModule = Get-Content -Raw -LiteralPath $releaseVersionModulePath
+$releaseStage = Get-Content -Raw -LiteralPath $releaseStagePath
+$labsOwnerMetadataModule = Get-Content -Raw -LiteralPath $labsOwnerMetadataModulePath
+$labsOwnerMetadataValidator = Get-Content -Raw -LiteralPath $labsOwnerMetadataValidatorPath
+$labsReleaseWorkflow = Get-Content -Raw -LiteralPath $labsReleaseWorkflowPath
+$stableReleaseWorkflow = Get-Content -Raw -LiteralPath $stableReleaseWorkflowPath
+$labsLauncherCandidate = Get-Content -Raw -LiteralPath $labsLauncherCandidatePath
+$releaseSignerPolicy = Get-Content -Raw -LiteralPath $releaseSignerPolicyPath
+$appBuild = Get-Content -Raw -LiteralPath $appBuildPath
+$setupHelperBuild = Get-Content -Raw -LiteralPath $setupHelperBuildPath
+foreach ($contract in @(
+  @{ Text = $releaseVersionModule; Token = 'alpha N must be 1..98'; Name = 'closed alpha version resolver' },
+  @{ Text = $releaseVersionModule; Token = '$minor * 10000L'; Name = 'release version-code derivation' },
+  @{ Text = $releaseVersionModule; Token = '$patch * 100L'; Name = 'release version-code derivation' },
+  @{ Text = $releaseVersionModule; Token = 'else { 99L }'; Name = 'stable suffix reservation' },
+  @{ Text = $appBuild; Token = 'requestedReleaseVersion ?: "0.6.5"'; Name = 'app stable fallback' },
+  @{ Text = $appBuild; Token = 'rustyKioskReleaseVersion'; Name = 'app release version input' },
+  @{ Text = $setupHelperBuild; Token = 'requestedReleaseVersion ?: "0.5.0"'; Name = 'helper stable fallback' },
+  @{ Text = $setupHelperBuild; Token = 'rustyKioskReleaseVersion'; Name = 'helper release version input' },
+  @{ Text = $releaseStage; Token = "'separate-coinstallable'"; Name = 'bundle identity mode' },
+  @{ Text = $releaseStage; Token = 'Get-ApkIdentity'; Name = 'APK identity inspection' },
+  @{ Text = $releaseStage; Token = 'source_tree = $SourceTree'; Name = 'source-tree binding' },
+  @{ Text = $labsOwnerMetadataModule; Token = "'rusty.kiosk.labs_release_owner_metadata.v2'"; Name = 'Labs owner schema' },
+  @{ Text = $labsOwnerMetadataModule; Token = "role = 'complete-product'"; Name = 'explicit complete-product authority' },
+  @{ Text = $labsOwnerMetadataModule; Token = 'Assert-ExactProperties'; Name = 'closed Labs owner metadata shape' },
+  @{ Text = $labsOwnerMetadataValidator; Token = 'Assert-RustyKioskLabsOwnerMetadata'; Name = 'dedicated Labs owner validator' },
+  @{ Text = $labsReleaseWorkflow; Token = 'environment: android-labs-release'; Name = 'protected Labs environment' },
+  @{ Text = $labsReleaseWorkflow; Token = '--prerelease'; Name = 'prerelease publication' },
+  @{ Text = $labsReleaseWorkflow; Token = '--draft'; Name = 'draft-first Labs publication' },
+  @{ Text = $labsReleaseWorkflow; Token = '$draftRelease = Assert-ReleaseReadback'; Name = 'pre-promotion Labs evidence' },
+  @{ Text = $labsReleaseWorkflow; Token = '$liveRelease = Assert-ReleaseReadback'; Name = 'post-promotion Labs evidence' },
+  @{ Text = $labsReleaseWorkflow; Token = "'rusty-kiosk-labs-owner-release.json'"; Name = 'exact Labs owner asset inventory' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Get-TagSnapshot'; Name = 'bounded pre/post tag and tree readback' },
+  @{ Text = $labsReleaseWorkflow; Token = 'ReleaseId = [int64]$Release.id'; Name = 'release-ID promotion binding' },
+  @{ Text = $labsReleaseWorkflow; Token = 'preserve it for owner review'; Name = 'failed-draft evidence preservation' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Latest-release readback was malformed or selected the Labs tag.'; Name = 'not-latest readback' },
+  @{ Text = $labsReleaseWorkflow; Token = 'refs/tags/$($release.Tag)'; Name = 'exact alpha-maturity tag binding' },
+  @{ Text = $labsReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'Labs signer policy' },
+  @{ Text = $stableReleaseWorkflow; Token = "!contains(github.ref_name, '-')"; Name = 'Stable/Labs workflow isolation' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Could not positively prove'; Name = 'stable release absence proof' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Published stable asset readback failed'; Name = 'stable publication readback' },
+  @{ Text = $stableReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'stable signer policy' },
+  @{ Text = $labsLauncherCandidate; Token = "distribution_track = 'meta-store-app'"; Name = 'Labs launcher Meta Store track' },
+  @{ Text = $labsLauncherCandidate; Token = 'separate Rusty Kiosk Labs Launcher Store app'; Name = 'separate Labs Store identity' },
+  @{ Text = $releaseSignerPolicy; Token = '423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb'; Name = 'authorized signer pin' },
+  @{ Text = $releaseSignerPolicy; Token = 'e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2'; Name = 'signer-policy provenance' },
+  @{ Text = $agentNotes; Token = 'separate-coinstallable'; Name = 'agent Labs ownership' },
+  @{ Text = $readme; Token = 'uninstall-labs-without-changing-stable'; Name = 'public Labs exit semantics' }
+)) {
+  if (-not $contract.Text.Contains($contract.Token, [StringComparison]::Ordinal)) {
+    throw "The $($contract.Name) contract is missing: $($contract.Token)"
+  }
+}
+if ($labsLauncherCandidate.Contains(
+    'meta-store-separate-app', [StringComparison]::Ordinal)) {
+  throw 'The Labs launcher candidate conflates Store transport with app identity.'
+}
+if ($labsReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)' -or
+    $stableReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)') {
+  throw 'A workflow input must not authorize the production Kiosk signer.'
+}
+
 $publicFiles =
   Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
     Where-Object {
@@ -552,14 +647,14 @@ foreach ($file in $publicFiles) {
 Push-Location $repoRoot
 $priorLauncherDistribution = $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION
 try {
-  foreach ($invalidDistribution in @('store', 'business', 'Unknown', ' Store', '')) {
+  foreach ($invalidDistribution in @('store', 'labsstore', 'business', 'Unknown', ' Store', '')) {
     $selectorRejected = $false
     try {
       & .\tools\Build-RustyKioskLauncherRelease.ps1 `
         -Distribution $invalidDistribution | Out-Null
     } catch {
       $selectorRejected =
-        $_.Exception.Message -ceq 'Distribution must be exactly Store or Business.'
+        $_.Exception.Message -ceq 'Distribution must be exactly Store, LabsStore, or Business.'
     }
     if (-not $selectorRejected) {
       throw "The launcher release selector accepted '$invalidDistribution'."
@@ -623,6 +718,64 @@ try {
   if ($launcherReleaseText -match
       '<uses-permission|<service|<provider|<receiver|QUERY_ALL_PACKAGES|com\.oculus\.intent\.category\.VR"') {
     throw 'Forbidden authority leaked into the native 2D launcher release manifest.'
+  }
+  $stableKioskReleaseText = Get-Content -Raw -LiteralPath $releaseManifest.FullName
+  if ($stableKioskReleaseText -notmatch '<manifest[^>]+package="io\.github\.mesmerprism\.rustykiosk"' -or
+      $stableKioskReleaseText -notmatch 'android:authorities="io\.github\.mesmerprism\.rustykiosk\.operator"' -or
+      @([regex]::Matches(
+          $stableKioskReleaseText,
+          'android:authorities="io\.github\.mesmerprism\.rustykiosk\.foreground-signal"'
+        )).Count -lt 2 -or
+      $stableKioskReleaseText -match
+        'android:authorities="io\.github\.mesmerprism\.rustykiosk\.labs\.foreground-signal"') {
+    throw 'The default build no longer resolves the exact stable Kiosk identity.'
+  }
+
+  & .\gradlew.bat -PrustyKioskProductChannel=labs `
+    :app:processReleaseMainManifest `
+    :setup-helper:processReleaseMainManifest `
+    --rerun-tasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Labs core release-manifest gate failed with exit code $LASTEXITCODE."
+  }
+  $labsKioskReleaseText = Get-Content -Raw -LiteralPath $releaseManifest.FullName
+  $setupHelperReleaseManifest =
+    Get-ChildItem -Path .\setup-helper\build\intermediates -Recurse -Filter AndroidManifest.xml |
+      Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
+      Select-Object -First 1
+  if ($null -eq $setupHelperReleaseManifest) {
+    throw 'The Labs setup-helper release-manifest gate produced no manifest.'
+  }
+  $labsHelperReleaseText = Get-Content -Raw -LiteralPath $setupHelperReleaseManifest.FullName
+  if ($labsKioskReleaseText -notmatch '<manifest[^>]+package="io\.github\.mesmerprism\.rustykiosk\.labs"' -or
+      $labsKioskReleaseText -notmatch 'android:authorities="io\.github\.mesmerprism\.rustykiosk\.labs\.operator"' -or
+      @([regex]::Matches(
+          $labsKioskReleaseText,
+          'android:authorities="io\.github\.mesmerprism\.rustykiosk\.labs\.foreground-signal"'
+        )).Count -lt 2 -or
+      $labsKioskReleaseText -match
+        'android:authorities="io\.github\.mesmerprism\.rustykiosk\.foreground-signal"' -or
+      $labsKioskReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs\.permission\.SETUP_CONTROL' -or
+      $labsHelperReleaseText -notmatch '<manifest[^>]+package="io\.github\.mesmerprism\.rustykiosk\.setuphelper\.labs"' -or
+      $labsHelperReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs\.permission\.SETUP_CONTROL' -or
+      $labsHelperReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.setuphelper\.labs\.action\.CONTROL') {
+    throw 'The Labs core/helper identities are not isolated from stable.'
+  }
+
+  $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'LabsStore'
+  & .\gradlew.bat :launcher:processReleaseMainManifest --rerun-tasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Labs launcher release-manifest gate failed with exit code $LASTEXITCODE."
+  }
+  $launcherLabsReleaseText = Get-Content -Raw -LiteralPath $launcherReleaseManifest.FullName
+  $launcherLabsReleasePackage =
+    [regex]::Match(
+      $launcherLabsReleaseText,
+      '<manifest[^>]+\bpackage="([^"]+)"'
+    ).Groups[1].Value
+  if ($launcherLabsReleasePackage -cne 'io.github.mesmerprism.rustykiosk.launcher.labs' -or
+      $launcherLabsReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs') {
+    throw 'The Labs launcher is not fixed to the Labs core identity.'
   }
 
   $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Business'

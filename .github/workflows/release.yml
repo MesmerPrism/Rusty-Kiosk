@@ -16,12 +16,16 @@ permissions:
 
 jobs:
   release:
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: windows-2025
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: "17"
@@ -31,24 +35,47 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            $semanticVersion = '${{ inputs.version }}'
-            $tagName = "v$semanticVersion"
+          Import-Module .\tools\RustyKiosk.ReleaseVersion.psm1 -Force
+          $semanticVersion = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            '${{ inputs.version }}'
+          } else {
+            '${{ github.ref_name }}' -replace '^v', ''
           }
-          else {
-            $tagName = '${{ github.ref_name }}'
-            $semanticVersion = $tagName -replace '^v', ''
+          $release = Resolve-RustyKioskReleaseVersion `
+            -Version $semanticVersion `
+            -ExpectedChannel stable
+          $expectedRef = "refs/tags/$($release.Tag)"
+          if ('${{ github.ref }}' -cne $expectedRef) {
+            throw "Stable publication must run from exact existing tag $expectedRef."
           }
-          if ($semanticVersion -notmatch '^\d+\.\d+\.\d+$') {
-            throw "Version must look like 0.5.0, got $semanticVersion"
+          git fetch --force --tags origin
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh authoritative remote tags.' }
+          $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          $tagCommit = (git rev-parse "$($release.Tag)^{commit}").Trim().ToLowerInvariant()
+          if ($head -cne $tagCommit -or $head -cne '${{ github.sha }}'.ToLowerInvariant()) {
+            throw 'Stable tag, checkout, and workflow SHA differ.'
           }
-          $gradleText = Get-Content -Raw app/build.gradle.kts
-          $declared = [regex]::Match($gradleText, 'versionName\s*=\s*"([^"]+)"').Groups[1].Value
-          if ($declared -ne $semanticVersion) {
-            throw "Tag/input version $semanticVersion does not match app versionName $declared."
+          $tree = (git rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
+          "semantic_version=$($release.Version)" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "version_code=$($release.VersionCode)" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag_name=$($release.Tag)" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "source_revision=$head" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "source_tree=$tree" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Prove release tag is unused
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag_name }}'
+          $response = gh api -i "repos/${{ github.repository }}/releases/tags/$tag" 2>&1
+          $exitCode = $LASTEXITCODE
+          if ($exitCode -eq 0) {
+            throw "Release $tag already exists; stable assets are append-never and replace-never."
           }
-          "semantic_version=$semanticVersion" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "tag_name=$tagName" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          if (($response -join "`n") -notmatch '(?m)^HTTP/\S+\s+404\b') {
+            throw "Could not positively prove that release $tag is absent.`n$($response -join "`n")"
+          }
 
       - name: Restore Android signing identity
         shell: pwsh
@@ -78,6 +105,7 @@ jobs:
               throw 'Android signing passwords and key alias must be configured.'
             }
           }
+          $env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion = '${{ steps.version.outputs.semantic_version }}'
           .\gradlew.bat test lint :app:assembleRelease :setup-helper:assembleRelease --stacktrace
           if ($LASTEXITCODE -ne 0) { throw 'Gradle release build failed.' }
           pwsh -NoProfile -File .\tools\check_repo.ps1 -SkipAssemble
@@ -92,15 +120,23 @@ jobs:
 
           $apksigner = (Get-ChildItem "$env:ANDROID_HOME\build-tools\*\apksigner.bat" |
             Sort-Object FullName -Descending | Select-Object -First 1).FullName
-          if (-not $apksigner) { throw 'apksigner was not found in the Android SDK.' }
+          $aapt2 = (Get-ChildItem "$env:ANDROID_HOME\build-tools\*\aapt2.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if (-not $apksigner -or -not $aapt2) { throw 'Android release inspection tools were not found.' }
+          $policy = Get-Content -Raw .\release\kiosk-release-signer-policy.v1.json |
+            ConvertFrom-Json
           .\tools\Stage-ReleaseBundle.ps1 `
             -MainApkPath $mainApk `
             -SetupHelperApkPath $helperApk `
             -Version '${{ steps.version.outputs.semantic_version }}' `
-            -SourceRevision $env:GITHUB_SHA `
-            -ApkSignerPath $apksigner
+            -ExpectedChannel stable `
+            -ExpectedSignerSha256 $policy.authorized_signer_sha256 `
+            -SourceRevision '${{ steps.version.outputs.source_revision }}' `
+            -SourceTree '${{ steps.version.outputs.source_tree }}' `
+            -ApkSignerPath $apksigner `
+            -Aapt2Path $aapt2
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rusty-kiosk-${{ steps.version.outputs.semantic_version }}
           path: artifacts/release-bundle
@@ -111,16 +147,37 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tagName = '${{ steps.version.outputs.tag_name }}'
-          $assets = Get-ChildItem artifacts\release-bundle -File | ForEach-Object FullName
-          gh release view $tagName *> $null
-          if ($LASTEXITCODE -eq 0) {
-            throw "Release $tagName already exists. Publish a new version instead of replacing release assets."
-          }
-          gh release create $tagName $assets `
+          $assets = @(Get-ChildItem artifacts\release-bundle -File | Sort-Object Name)
+          gh release create $tagName @($assets.FullName) `
             --title "Rusty Kiosk $tagName" `
             --generate-notes `
             --latest `
+            --verify-tag `
             --target $env:GITHUB_SHA
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create stable release $tagName." }
+
+          $published = gh api "repos/${{ github.repository }}/releases/tags/$tagName" | ConvertFrom-Json
+          if ($published.tag_name -cne $tagName -or $published.prerelease -or $published.draft) {
+            throw 'Published stable release identity did not match the requested tuple.'
+          }
+          $expectedNames = @($assets.Name | Sort-Object)
+          $actualNames = @($published.assets.name | Sort-Object)
+          if (($expectedNames -join "`n") -cne ($actualNames -join "`n")) {
+            throw 'Published stable asset set differs from staged asset set.'
+          }
+          foreach ($asset in $assets) {
+            $remote = @($published.assets | Where-Object name -CEQ $asset.Name)
+            $digest = 'sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($remote.Count -ne 1 -or
+              $remote[0].size -ne $asset.Length -or
+              $remote[0].digest -cne $digest) {
+              throw "Published stable asset readback failed for $($asset.Name)."
+            }
+          }
+          $latestTag = gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name
+          if ($LASTEXITCODE -ne 0 -or $latestTag.Trim() -cne $tagName) {
+            throw 'Stable release did not become the repository latest release.'
+          }
 
       - name: Remove temporary signing material
         if: always()

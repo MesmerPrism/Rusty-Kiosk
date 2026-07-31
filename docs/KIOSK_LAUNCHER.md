@@ -2,7 +2,7 @@
 
 ## Decision
 
-`launcher` is one native 2D Android implementation released through two
+`launcher` is one native 2D Android implementation released through three
 separate Meta distribution identities. Its complete product job is:
 
 1. inspect the one expected Rusty Kiosk package;
@@ -18,18 +18,27 @@ authority.
 
 | Surface | Package |
 | --- | --- |
-| Store / Alpha launcher | `io.github.mesmerprism.rustykiosk.launcher` |
+| Stable Store launcher | `io.github.mesmerprism.rustykiosk.launcher` |
+| Labs Store launcher | `io.github.mesmerprism.rustykiosk.launcher.labs` |
 | Quest Private App / Business launcher | `io.github.mesmerprism.rustykiosk.launcher.business` |
-| Sideloaded Rusty Kiosk target | `io.github.mesmerprism.rustykiosk` |
+| Stable Rusty Kiosk target | `io.github.mesmerprism.rustykiosk` |
+| Labs Rusty Kiosk target | `io.github.mesmerprism.rustykiosk.labs` |
+
+The Stable Store launcher is already public at
+<https://www.meta.com/en-gb/experiences/rusty-kiosk-launcher/1241943475671333/>.
+Labs is intentionally a second Store app rather than a release-channel upload
+to that listing, so both launchers can coexist and each remains pinned to its
+matching Kiosk product channel. Registration and Store publication of the Labs
+app remain an attended Meta-console step.
 
 The launcher manifest declares one exact `<queries><package ... /></queries>`
 entry. It does not use `QUERY_ALL_PACKAGES`.
 
 Meta does not permit a Quest Private App to reuse a package identity that is
-already registered to a Store app. The two launcher packages can therefore be
-installed side by side, while sharing the same source, release signer, target,
-trust pin, version policy, and behavior. Neither build gains authority from its
-distribution channel.
+already registered to a Store app. The three launcher packages can therefore be
+installed side by side while sharing source and release signer. Stable Store and
+Business target the stable core; Labs Store targets only the co-installable Labs
+core. No launcher gains Kiosk runtime authority from its distribution track.
 
 ## Trust and launch flow
 
@@ -91,16 +100,16 @@ candidate:
 
 ```powershell
 . .\local-artifacts\signing\rusty-kiosk-launcher\Load-RustyKioskLauncherReleaseSigning.ps1
-pwsh -NoProfile -File .\tools\Prepare-RustyKioskLauncherAlphaCandidate.ps1
+pwsh -NoProfile -File .\tools\Prepare-RustyKioskLauncherLabsCandidate.ps1
 pwsh -NoProfile -File .\tools\Prepare-RustyKioskLauncherBusinessCandidate.ps1
 ```
 
-The release builder accepts only the case-exact `Store` and `Business`
+The release builder accepts only the case-exact `Store`, `LabsStore`, and `Business`
 identities and maps them internally to the package table above. An upload
 candidate must come from a clean exact commit, retain its exact release and
 target identities, contain no permissions or background components, pass the
-2D Meta manifest checks, and have a verified signature. Store Alpha does not
-authorize Production or public Store submission. The Business candidate is
+2D Meta manifest checks, and have a verified signature. LabsStore is a
+separate public-facing Store app that opens only the Labs core. The Business candidate is
 only for a Quest Private App's `Q4B_MAIN` channel and must not be uploaded to a
 Store release channel.
 
@@ -135,7 +144,7 @@ The first two states can use purpose-built debug variants without uninstalling
 or replacing an existing Rusty Kiosk installation. Meta-installed proof remains
 separate from sideloaded debug proof. Every run pulls the installed launcher
 APK and records its hash, signer, version, and Android install-source fields.
-After Meta Alpha or managed Business installation, repeat the trusted-target
+After Meta Labs or managed Business installation, repeat the trusted-target
 case with `-SkipInstall`, the candidate values supplied through
 `-ExpectedLauncherApkSha256` and `-ExpectedLauncherSignerSha256`, and
 `-RequireNonShellInstallSource`. Pass

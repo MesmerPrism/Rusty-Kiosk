@@ -80,7 +80,53 @@ pwsh -NoProfile -File .\tools\Test-ReleasePipeline.ps1
 
 The test generates a one-day local key under ignored `artifacts/`, builds both
 release APKs with that key, verifies their certificate digests match, stages the
-five-file public bundle contract, and removes the temporary key and bundle.
+six-file public Labs release inventory, and removes the temporary key and
+bundle. The sixth asset, `rusty-kiosk-labs-owner-release.json`, has the exact
+`rusty.kiosk.labs_release_owner_metadata.v2` schema and explicitly identifies
+`rusty-kiosk.apk` as the `complete-product` primary artifact. It hash-binds the
+exact closed-shape bundle manifest and its co-installable identity mode, package,
+signer, version name/code, and isolated uninstall exit policy. Its strict validator
+rejects every wrong or missing authority field and all expanded nested shapes,
+then cross-checks the APK hash/bytes and manifest evidence. It also verifies
+the closed stable/Labs product channels and alpha-maturity tag grammar, alpha
+ordinal and version-code boundaries, unchanged legacy build defaults, exact
+APK package/version identities, wrong-channel/version/signer rejection, and
+byte-identical manifest restaging. It then builds and inspects a numeric stable
+candidate, including suffix 99, unchanged package identities, common signer,
+stable product-channel metadata, and consumer-compatible filenames. This is synthetic
+pipeline evidence, not production-signer or GitHub-publication evidence.
+
+## Stable and Labs publication gates
+
+Stable publication accepts only an existing exact `vX.Y.Z` tag. Initial Labs
+publication accepts only an existing exact `vX.Y.Z-alpha.N` tag with `N` from
+1 through 98, publishes it as a prerelease, and verifies that it did not become
+the repository's latest release. Both routes bind the checked-out commit and
+tree, inspect the two APK package/version/code identities, compare their common
+signer to the public Kiosk signer trust anchor, create a previously absent
+release, and read back the closed asset set, byte sizes, and GitHub SHA-256
+digests. Labs uses a draft-first boundary: the exact six assets and release
+identity are read back before promotion, then the same evidence is read back
+again from the live prerelease. Release ID, asset IDs, the bounded tag peel,
+source commit, and source tree must remain unchanged across promotion. Any
+failed draft or live release is preserved for explicit owner incident handling;
+the workflow never deletes or replaces same-tag evidence. The Labs route
+accepts only an authoritative no-latest 404 or a different canonical stable
+latest tag.
+
+Both workflows read the authorized signer only from
+`release/kiosk-release-signer-policy.v1.json`. The checked-in v0.6.4 release
+manifest URL and digest establish that policy's provenance. A signer change is
+a separately reviewed policy revision, never a tag, dispatch, APK, or staging
+input. Manual dispatch is a recovery path for an existing exact tag:
+`gh workflow run <workflow> --ref <tag> -f version=<version>`. A default-branch
+dispatch is expected to fail.
+
+Labs uses distinct core, helper, permission/action, provider-authority, and
+Store-launcher identities. A device gate must prove stable and Labs can be
+installed together, each launcher opens only its matching core, wrong signers
+fail closed, and uninstalling Labs leaves stable unchanged. Alpha ordinals are
+maturity/version-code evidence only; they do not define the product channel.
 
 The standard host gate runs the interactive browser model and verifies that
 the production native panel, shared geometry/control contract, browser

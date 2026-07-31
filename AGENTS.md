@@ -40,6 +40,9 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   drives Triple-Home, or disables the Accessibility fallback.
 - Keep `foreground-signal-client` engine-neutral: no Spatial SDK, OpenXR,
   game-engine, Accessibility, service, or launch dependency.
+- Keep its provider query build-bound to the exact `stable` or `labs` product
+  channel. Stable is the default; never admit an arbitrary provider authority
+  or runtime endpoint override.
 - Wi-Fi ADB and Accessibility are separate, visible opt-ins. Rusty Kiosk must
   show their effective status and keep both reversible.
 - The main Rusty Kiosk APK never declares `WRITE_SECURE_SETTINGS`. Only the
@@ -102,9 +105,9 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   transition; it must never be described as physical Meta-button or visible
   Android HOME parity.
 - `launcher` is one conventional native 2D Android implementation, not a
-  Spatial SDK app. It has two closed release identities: the Store package and
-  the distinct Quest Private App Business package required by Meta
-  distribution rules. Both builds have one Activity, one exact package query,
+  Spatial SDK app. It has three closed release identities: stable Store, Labs
+  Store, and the distinct Quest Private App Business package required by Meta
+  distribution rules. All builds have one Activity, one exact package query,
   no declared permissions, and no service, provider, receiver, installer,
   Accessibility, updater, analytics, account, or background authority.
 - The launcher obtains its pinned Rusty Kiosk signing certificate from the
@@ -115,11 +118,38 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - The launcher accepts no package, component, certificate, URL, or command
   from intents or remote input. Its target identity and official install links
   are compile-time release inputs.
-- Both launcher release identities use the same launcher signing identity and
+- All launcher release identities use the same launcher signing identity and
   must remain behaviorally identical. They and Rusty Kiosk remain separately
   installed packages with distinct signing identities. Meta Store and Business
-  release channels own their respective launcher distribution; Rusty Kiosk
+  products/tracks own their respective launcher distribution; Rusty Kiosk
   owns all kiosk, setup, install, and update behavior.
+- Stable Kiosk releases use canonical `vX.Y.Z` tags. Initial Labs candidates use
+  only canonical `vX.Y.Z-alpha.N` tags with `N` from 1 through 98, publish as
+  GitHub prereleases, never become `latest`, and keep exact-tag assets
+  append-never and replace-never.
+- Kiosk Labs is a `separate-coinstallable` product under main package
+  `io.github.mesmerprism.rustykiosk.labs`, helper package
+  `io.github.mesmerprism.rustykiosk.setuphelper.labs`, and launcher package
+  `io.github.mesmerprism.rustykiosk.launcher.labs`. Uninstalling Labs must not
+  change stable. Release version codes are derived from the
+  tag as `major*1,000,000 + minor*10,000 + patch*100 + suffix`, where alpha
+  uses its 1..98 ordinal and the later same-semantic stable release reserves
+  suffix 99. Labs exits via `uninstall-labs-without-changing-stable`.
+- Release manifests must bind product channel, maturity, distribution track,
+  exact tag, source commit and tree,
+  signer, package/version identity, and every asset hash. Local fixture signing
+  proves the pipeline only; it must never be described as production signing.
+- Each Labs release must carry the closed
+  `rusty-kiosk-labs-owner-release.json` contract. It names
+  `rusty-kiosk.apk` as the `complete-product`, hash-binds the exact legacy
+  bundle manifest, and preserves the co-installable signer/version/exit lineage
+  needed by strict catalog readback. The legacy manifest's file order is never
+  primary-artifact authority.
+- `release/kiosk-release-signer-policy.v1.json` is the stable and Labs
+  production-signer authority. Its v0.6.4 source manifest is provenance, not a
+  caller override. A signer rotation requires a separately reviewed policy
+  revision; tags, workflow inputs, built APKs, and staging arguments cannot
+  self-authorize a new signer.
 
 Use `$meta-quest-workflow` before any headset, ADB, APK install/launch, logcat,
 screenshot, or physical-button validation. Keep raw device evidence private.
@@ -127,8 +157,9 @@ screenshot, or physical-button validation. Keep raw device evidence private.
 ## Checks
 
 The complete repository gate is required on every pull request and push to
-`main`. Tagged releases rerun it against the signed release pair and must create
-new versioned assets rather than overwrite an existing release.
+`main`. Tagged stable and Labs releases rerun it against the signed release
+pair and must create new versioned assets rather than overwrite an existing
+release.
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1
