@@ -133,6 +133,12 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - Release manifests must bind channel, exact tag, source commit and tree,
   signer, package/version identity, and every asset hash. Local fixture signing
   proves the pipeline only; it must never be described as production signing.
+- Each alpha release must carry the closed
+  `rusty-kiosk-alpha-owner-release.json` contract. It names
+  `rusty-kiosk.apk` as the `complete-product`, hash-binds the exact legacy
+  bundle manifest, and preserves the same-package signer/version/exit lineage
+  needed by strict catalog readback. The legacy manifest's file order is never
+  primary-artifact authority.
 - `release/kiosk-release-signer-policy.v1.json` is the stable and alpha
   production-signer authority. Its v0.6.4 source manifest is provenance, not a
   caller override. A signer rotation requires a separately reviewed policy

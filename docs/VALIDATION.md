@@ -80,8 +80,15 @@ pwsh -NoProfile -File .\tools\Test-ReleasePipeline.ps1
 
 The test generates a one-day local key under ignored `artifacts/`, builds both
 release APKs with that key, verifies their certificate digests match, stages the
-five-file public alpha bundle contract, and removes the temporary key and
-bundle. It also verifies the closed stable/alpha version grammar, alpha
+six-file public alpha release inventory, and removes the temporary key and
+bundle. The sixth asset, `rusty-kiosk-alpha-owner-release.json`, has the exact
+`rusty.kiosk.alpha_release_owner_metadata.v1` schema and explicitly identifies
+`rusty-kiosk.apk` as the `complete-product` primary artifact. It hash-binds the
+exact closed-shape bundle manifest and its same-package identity mode, package,
+signer, version name/code, and forward-only exit policy. Its strict validator
+rejects every wrong or missing authority field and all expanded nested shapes,
+then cross-checks the APK hash/bytes and manifest evidence. It also verifies
+the closed stable/alpha version grammar, alpha
 ordinal and version-code boundaries, unchanged legacy build defaults, exact
 APK package/version identities, wrong-channel/version/signer rejection, and
 byte-identical manifest restaging. It then builds and inspects a numeric stable
@@ -98,7 +105,14 @@ the repository's latest release. Both routes bind the checked-out commit and
 tree, inspect the two APK package/version/code identities, compare their common
 signer to the public Kiosk signer trust anchor, create a previously absent
 release, and read back the closed asset set, byte sizes, and GitHub SHA-256
-digests.
+digests. Alpha uses a draft-first boundary: the exact six assets and release
+identity are read back before promotion, then the same evidence is read back
+again from the live prerelease. Release ID, asset IDs, the bounded tag peel,
+source commit, and source tree must remain unchanged across promotion. Any
+failed draft or live release is preserved for explicit owner incident handling;
+the workflow never deletes or replaces same-tag evidence. The alpha route
+accepts only an authoritative no-latest 404 or a different canonical stable
+latest tag.
 
 Both workflows read the authorized signer only from
 `release/kiosk-release-signer-policy.v1.json`. The checked-in v0.6.4 release

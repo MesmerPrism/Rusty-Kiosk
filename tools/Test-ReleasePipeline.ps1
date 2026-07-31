@@ -4,6 +4,7 @@ param()
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.ReleaseVersion.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.AlphaOwnerMetadata.psm1') -Force
 $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 New-Item -ItemType Directory -Path $artifactsRoot -Force | Out-Null
 $runDirectory = [IO.Path]::GetFullPath(
@@ -27,6 +28,8 @@ $v2LabelProxy = Join-Path $runDirectory 'apksigner-v2-label-proxy.cmd'
 $stableBundle = Join-Path $runDirectory 'stable-bundle'
 $mainApk = Join-Path $repoRoot 'app\build\outputs\apk\release\app-release.apk'
 $helperApk = Join-Path $repoRoot 'setup-helper\build\outputs\apk\release\setup-helper-release.apk'
+$testSourceRevision = '1111111111111111111111111111111111111111'
+$testSourceTree = '2222222222222222222222222222222222222222'
 
 try {
     $alpha = Resolve-RustyKioskReleaseVersion -Version '0.6.6-alpha.1' -ExpectedChannel alpha
@@ -112,8 +115,8 @@ try {
         -SetupHelperApkPath $helperApk `
         -Version '0.6.6-alpha.1' `
         -ExpectedChannel alpha `
-        -SourceRevision 'local-release-pipeline-test' `
-        -SourceTree 'local-release-pipeline-tree' `
+        -SourceRevision $testSourceRevision `
+        -SourceTree $testSourceTree `
         -OutputDirectory $bundle
     if ($LASTEXITCODE -ne 0) {
         throw 'The alpha release bundle staging test failed.'
@@ -130,7 +133,8 @@ try {
         $manifest.version -cne '0.6.6-alpha.1' -or
         $manifest.version_code -ne 60601 -or
         $manifest.identity_mode -cne 'same-package-in-place' -or
-        $manifest.source_tree -cne 'local-release-pipeline-tree' -or
+        $manifest.source_revision -cne $testSourceRevision -or
+        $manifest.source_tree -cne $testSourceTree -or
         [string]::IsNullOrWhiteSpace($manifest.signer_sha256) -or
         @($manifest.files).Count -ne 4) {
         throw 'The staged release manifest did not record the expected alpha identity and complete file set.'
@@ -158,13 +162,166 @@ try {
         }
     }
 
+    $ownerMetadataPath = Join-Path $bundle 'rusty-kiosk-alpha-owner-release.json'
+    $ownerValidationArguments = @{
+        MetadataPath = $ownerMetadataPath
+        ExpectedTag = 'v0.6.6-alpha.1'
+        ExpectedVersion = '0.6.6-alpha.1'
+        ExpectedSourceRevision = $testSourceRevision
+        ExpectedSourceTree = $testSourceTree
+        PrimaryArtifactPath = Join-Path $bundle 'rusty-kiosk.apk'
+        BundleManifestPath = Join-Path $bundle 'bundle-manifest.json'
+    }
+    & (Join-Path $PSScriptRoot 'Test-KioskAlphaOwnerMetadata.ps1') @ownerValidationArguments | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The owner-generated alpha metadata did not pass its dedicated validator.'
+    }
+    $ownerMetadata = Get-Content -Raw -LiteralPath $ownerMetadataPath | ConvertFrom-Json
+    $ownerExpected = @{
+        schema = 'rusty.kiosk.alpha_release_owner_metadata.v1'
+        repository = 'MesmerPrism/Rusty-Kiosk'
+        product = 'rusty-kiosk'
+        channel = 'alpha'
+        prerelease = $true
+        tag = 'v0.6.6-alpha.1'
+        version = '0.6.6-alpha.1'
+        source_revision = $testSourceRevision
+        source_tree = $testSourceTree
+        installation_identity = 'io.github.mesmerprism.rustykiosk'
+    }
+    foreach ($entry in $ownerExpected.GetEnumerator()) {
+        if ($ownerMetadata.($entry.Key) -cne $entry.Value) {
+            throw "Alpha owner metadata has the wrong $($entry.Key)."
+        }
+    }
+    if ($ownerMetadata.primary_artifact.role -cne 'complete-product' -or
+        $ownerMetadata.primary_artifact.name -cne 'rusty-kiosk.apk' -or
+        $ownerMetadata.primary_artifact.sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [int64]$ownerMetadata.primary_artifact.bytes -le 0) {
+        throw 'Alpha owner metadata did not explicitly bind the complete-product APK.'
+    }
+    $bundleManifestPath = Join-Path $bundle 'bundle-manifest.json'
+    $bundleManifestFile = Get-Item -LiteralPath $bundleManifestPath
+    $bundleManifestHash = (
+        Get-FileHash -LiteralPath $bundleManifestPath -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+    if ($ownerMetadata.same_package_lineage.identity_mode -cne
+            'same-package-in-place' -or
+        $ownerMetadata.same_package_lineage.package_name -cne
+            'io.github.mesmerprism.rustykiosk' -or
+        $ownerMetadata.same_package_lineage.signer_sha256 -cne
+            $manifest.signer_sha256 -or
+        $ownerMetadata.same_package_lineage.version_name -cne
+            '0.6.6-alpha.1' -or
+        $ownerMetadata.same_package_lineage.version_code -ne 60601 -or
+        $ownerMetadata.same_package_lineage.exit_policy -cne
+            'in-place; install a later same-signer stable build with a higher versionCode' -or
+        $ownerMetadata.bundle_manifest.schema -cne
+            'meta.quest.file_manager.rusty_kiosk_bundle.v1' -or
+        $ownerMetadata.bundle_manifest.name -cne 'bundle-manifest.json' -or
+        $ownerMetadata.bundle_manifest.sha256 -cne $bundleManifestHash -or
+        [int64]$ownerMetadata.bundle_manifest.bytes -ne $bundleManifestFile.Length) {
+        throw 'Alpha owner metadata did not bind the manifest and exact same-package lineage.'
+    }
+
+    $damageDirectory = Join-Path $runDirectory 'owner-metadata-damage'
+    New-Item -ItemType Directory -Path $damageDirectory | Out-Null
+    $wrongCases = @(
+        @{ Path = 'schema'; Value = 'foreign.schema.v1' },
+        @{ Path = 'repository'; Value = 'Other/Repository' },
+        @{ Path = 'product'; Value = 'Other Product' },
+        @{ Path = 'channel'; Value = 'stable' },
+        @{ Path = 'prerelease'; Value = $false },
+        @{ Path = 'tag'; Value = 'v0.6.6-alpha.2' },
+        @{ Path = 'version'; Value = '0.6.6-alpha.2' },
+        @{ Path = 'source_revision'; Value = ('3' * 40) },
+        @{ Path = 'source_tree'; Value = ('4' * 40) },
+        @{ Path = 'installation_identity'; Value = 'io.example.other' },
+        @{ Path = 'same_package_lineage.identity_mode'; Value = 'side-by-side' },
+        @{ Path = 'same_package_lineage.package_name'; Value = 'io.example.other' },
+        @{ Path = 'same_package_lineage.signer_sha256'; Value = ('A' * 64) },
+        @{ Path = 'same_package_lineage.version_name'; Value = '0.6.6-alpha.2' },
+        @{ Path = 'same_package_lineage.version_code'; Value = 60602 },
+        @{ Path = 'same_package_lineage.exit_policy'; Value = 'downgrade' },
+        @{ Path = 'bundle_manifest.schema'; Value = 'foreign.bundle.v1' },
+        @{ Path = 'bundle_manifest.name'; Value = 'foreign.json' },
+        @{ Path = 'bundle_manifest.sha256'; Value = ('A' * 64) },
+        @{ Path = 'bundle_manifest.bytes'; Value = 0 },
+        @{ Path = 'primary_artifact.role'; Value = 'setup-helper' },
+        @{ Path = 'primary_artifact.name'; Value = 'rusty-kiosk-setup-helper.apk' },
+        @{ Path = 'primary_artifact.sha256'; Value = ('A' * 64) },
+        @{ Path = 'primary_artifact.bytes'; Value = 0 }
+    )
+    $allPaths = @($wrongCases.Path)
+    $damageCases = @()
+    foreach ($case in $wrongCases) {
+        $damageCases += @{ Kind = 'wrong'; Path = $case.Path; Value = $case.Value }
+    }
+    foreach ($path in $allPaths) {
+        $damageCases += @{ Kind = 'missing'; Path = $path }
+    }
+    foreach ($path in @(
+        'same_package_lineage',
+        'bundle_manifest',
+        'primary_artifact'
+    )) {
+        $damageCases += @{ Kind = 'missing'; Path = $path }
+    }
+    $damageCases += @{ Kind = 'expanded'; Path = 'unexpected_owner_field'; Value = 'damage' }
+    $damageCases += @{
+        Kind = 'expanded'
+        Path = 'same_package_lineage.unexpected_lineage_field'
+        Value = 'damage'
+    }
+    $damageCases += @{
+        Kind = 'expanded'
+        Path = 'bundle_manifest.unexpected_manifest_field'
+        Value = 'damage'
+    }
+    $damageCases += @{ Kind = 'expanded'; Path = 'primary_artifact.unexpected_artifact_field'; Value = 'damage' }
+    $damageIndex = 0
+    foreach ($damage in $damageCases) {
+        $damaged = Get-Content -Raw -LiteralPath $ownerMetadataPath | ConvertFrom-Json
+        $segments = @($damage.Path -split '\.')
+        $target = $damaged
+        for ($i = 0; $i -lt $segments.Count - 1; $i++) {
+            $target = $target.($segments[$i])
+        }
+        $leaf = $segments[-1]
+        if ($damage.Kind -ceq 'missing') {
+            $target.PSObject.Properties.Remove($leaf)
+        } elseif ($damage.Kind -ceq 'expanded') {
+            $target | Add-Member -NotePropertyName $leaf -NotePropertyValue $damage.Value
+        } else {
+            $target.($leaf) = $damage.Value
+        }
+        $damagePath = Join-Path $damageDirectory ("damage-{0:D2}.json" -f $damageIndex++)
+        $damaged | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $damagePath -Encoding utf8
+        $rejected = $false
+        try {
+            Assert-RustyKioskAlphaOwnerMetadata `
+                -MetadataPath $damagePath `
+                -ExpectedTag $ownerValidationArguments.ExpectedTag `
+                -ExpectedVersion $ownerValidationArguments.ExpectedVersion `
+                -ExpectedSourceRevision $ownerValidationArguments.ExpectedSourceRevision `
+                -ExpectedSourceTree $ownerValidationArguments.ExpectedSourceTree `
+                -PrimaryArtifactPath $ownerValidationArguments.PrimaryArtifactPath `
+                -BundleManifestPath $ownerValidationArguments.BundleManifestPath
+        } catch {
+            $rejected = $true
+        }
+        if (-not $rejected) {
+            throw "Alpha owner metadata validator accepted $($damage.Kind) damage at $($damage.Path)."
+        }
+    }
+
     & (Join-Path $PSScriptRoot 'Stage-ReleaseBundle.ps1') `
         -MainApkPath $mainApk `
         -SetupHelperApkPath $helperApk `
         -Version '0.6.6-alpha.1' `
         -ExpectedChannel alpha `
-        -SourceRevision 'local-release-pipeline-test' `
-        -SourceTree 'local-release-pipeline-tree' `
+        -SourceRevision $testSourceRevision `
+        -SourceTree $testSourceTree `
         -OutputDirectory $repeatBundle
     $manifestHash =
         (Get-FileHash -LiteralPath (Join-Path $bundle 'bundle-manifest.json') -Algorithm SHA256).Hash
@@ -221,8 +378,8 @@ try {
         -SetupHelperApkPath $helperApk `
         -Version '0.6.6-alpha.1' `
         -ExpectedChannel alpha `
-        -SourceRevision 'native-output-regression-test' `
-        -SourceTree 'native-output-regression-tree' `
+        -SourceRevision ('3' * 40) `
+        -SourceTree ('4' * 40) `
         -ApkSignerPath $nativeOutputProxy `
         -OutputDirectory $nativeOutputBundle
     if ($LASTEXITCODE -ne 0) {
@@ -245,8 +402,8 @@ try {
         -SetupHelperApkPath $helperApk `
         -Version '0.6.6-alpha.1' `
         -ExpectedChannel alpha `
-        -SourceRevision 'v2-label-regression-test' `
-        -SourceTree 'v2-label-regression-tree' `
+        -SourceRevision ('5' * 40) `
+        -SourceTree ('6' * 40) `
         -ApkSignerPath $v2LabelProxy `
         -OutputDirectory $v2LabelBundle
     if ($LASTEXITCODE -ne 0) {

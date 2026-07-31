@@ -35,6 +35,9 @@ jobs:
         id: version
         shell: pwsh
         run: |
+          if ('${{ github.repository }}' -cne 'MesmerPrism/Rusty-Kiosk') {
+            throw 'Alpha owner publication is authorized only for MesmerPrism/Rusty-Kiosk.'
+          }
           Import-Module .\tools\RustyKiosk.ReleaseVersion.psm1 -Force
           $semanticVersion = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
             '${{ inputs.version }}'
@@ -147,60 +150,190 @@ jobs:
             -SourceTree '${{ steps.version.outputs.source_tree }}' `
             -ApkSignerPath $apksigner `
             -Aapt2Path $aapt2
+          .\tools\Test-KioskAlphaOwnerMetadata.ps1 `
+            -MetadataPath .\artifacts\release-bundle\rusty-kiosk-alpha-owner-release.json `
+            -ExpectedTag '${{ steps.version.outputs.tag_name }}' `
+            -ExpectedVersion '${{ steps.version.outputs.semantic_version }}' `
+            -ExpectedSourceRevision '${{ steps.version.outputs.source_revision }}' `
+            -ExpectedSourceTree '${{ steps.version.outputs.source_tree }}' `
+            -PrimaryArtifactPath .\artifacts\release-bundle\rusty-kiosk.apk `
+            -BundleManifestPath .\artifacts\release-bundle\bundle-manifest.json
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rusty-kiosk-alpha-${{ steps.version.outputs.semantic_version }}
           path: artifacts/release-bundle
 
-      - name: Publish immutable GitHub prerelease
+      - name: Publish immutable GitHub prerelease draft, verify, and promote
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = '${{ steps.version.outputs.tag_name }}'
           $assets = @(Get-ChildItem artifacts\release-bundle -File | Sort-Object Name)
+          $expectedNames = @(
+            'RUSTY-KIOSK-LICENSE.txt',
+            'RUSTY-KIOSK-SOURCE.txt',
+            'bundle-manifest.json',
+            'rusty-kiosk-alpha-owner-release.json',
+            'rusty-kiosk-setup-helper.apk',
+            'rusty-kiosk.apk'
+          ) | Sort-Object
+          if ((@($assets.Name | Sort-Object) -join "`n") -cne ($expectedNames -join "`n")) {
+            throw 'Staged alpha asset inventory is not the exact owner-authorized six-file set.'
+          }
+
+          function Assert-ReleaseReadback {
+            param(
+              [Parameter(Mandatory = $true)]$Release,
+              [Parameter(Mandatory = $true)][bool]$ExpectedDraft,
+              [Parameter(Mandatory = $true)][string]$Phase
+            )
+            if ([int64]$Release.id -le 0 -or
+              $Release.tag_name -cne $tag -or
+              -not $Release.prerelease -or
+              $Release.draft -ne $ExpectedDraft) {
+              throw "$Phase alpha release identity did not match the immutable owner tuple."
+            }
+            $actualNames = @($Release.assets.name | Sort-Object)
+            if (($expectedNames -join "`n") -cne ($actualNames -join "`n")) {
+              throw "$Phase alpha asset set differs from the exact owner inventory."
+            }
+            $assetSnapshot = @()
+            $assetIds = [Collections.Generic.HashSet[long]]::new()
+            foreach ($asset in $assets) {
+              $remote = @($Release.assets | Where-Object name -CEQ $asset.Name)
+              $digest = 'sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($remote.Count -ne 1 -or
+                [int64]$remote[0].id -le 0 -or
+                -not $assetIds.Add([int64]$remote[0].id) -or
+                $remote[0].state -cne 'uploaded' -or
+                $remote[0].size -ne $asset.Length -or
+                $remote[0].digest -cne $digest -or
+                $remote[0].browser_download_url -cne
+                  "https://github.com/${{ github.repository }}/releases/download/$tag/$($asset.Name)") {
+                throw "$Phase alpha asset digest/byte readback failed for $($asset.Name)."
+              }
+              $assetSnapshot +=
+                "$($remote[0].id)|$($asset.Name)|$($remote[0].size)|$($remote[0].digest)"
+            }
+            return [pscustomobject]@{
+              ReleaseId = [int64]$Release.id
+              Assets = @($assetSnapshot | Sort-Object)
+            }
+          }
+
+          function Get-TagSnapshot {
+            param([Parameter(Mandatory = $true)][string]$Phase)
+            $gitRef = gh api "repos/${{ github.repository }}/git/ref/tags/$tag" |
+              ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or $null -eq $gitRef.object) {
+              throw "$Phase tag ref readback failed."
+            }
+            $gitObject = $gitRef.object
+            $seen = [Collections.Generic.HashSet[string]]::new(
+              [StringComparer]::Ordinal)
+            $chain = @()
+            for ($depth = 0; $depth -lt 6; $depth++) {
+              $type = $gitObject.type
+              $sha = $gitObject.sha
+              if ($type -cnotin @('tag', 'commit') -or
+                $sha -cnotmatch '^[0-9a-fA-F]{40}$') {
+                throw "$Phase tag peel contains a malformed object."
+              }
+              $sha = $sha.ToLowerInvariant()
+              if (-not $seen.Add($sha)) {
+                throw "$Phase tag peel contains a cycle."
+              }
+              $chain += "$type`:$sha"
+              if ($type -ceq 'commit') {
+                break
+              }
+              $tagObject = gh api "repos/${{ github.repository }}/git/tags/$sha" |
+                ConvertFrom-Json
+              if ($LASTEXITCODE -ne 0 -or $null -eq $tagObject.object) {
+                throw "$Phase annotated tag readback failed."
+              }
+              $gitObject = $tagObject.object
+            }
+            if ($gitObject.type -cne 'commit' -or
+              $gitObject.sha.ToLowerInvariant() -cne
+                '${{ steps.version.outputs.source_revision }}') {
+              throw "$Phase tag did not peel to the exact source commit."
+            }
+            $commit = gh api (
+              "repos/${{ github.repository }}/git/commits/" +
+              '${{ steps.version.outputs.source_revision }}') | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0 -or
+              $commit.tree.sha -cnotmatch '^[0-9a-fA-F]{40}$' -or
+              $commit.tree.sha.ToLowerInvariant() -cne
+                '${{ steps.version.outputs.source_tree }}') {
+              throw "$Phase source-tree readback failed."
+            }
+            return [pscustomobject]@{
+              Chain = @($chain)
+              Commit = $gitObject.sha.ToLowerInvariant()
+              Tree = $commit.tree.sha.ToLowerInvariant()
+            }
+          }
+
           gh release create $tag @($assets.FullName) `
             --title "Rusty Kiosk $tag" `
             --generate-notes `
             --prerelease `
+            --draft `
             --verify-tag `
             --target '${{ steps.version.outputs.source_revision }}'
-          if ($LASTEXITCODE -ne 0) { throw "Failed to create alpha release $tag." }
+          if ($LASTEXITCODE -ne 0) { throw "Failed to create alpha draft $tag." }
 
-          $published = gh api "repos/${{ github.repository }}/releases/tags/$tag" | ConvertFrom-Json
-          if ($published.tag_name -cne $tag -or
-            -not $published.prerelease -or
-            $published.draft) {
-            throw 'Published alpha release identity did not match the requested immutable tuple.'
+          $draft = gh api "repos/${{ github.repository }}/releases/tags/$tag" |
+            ConvertFrom-Json
+          $draftRelease = Assert-ReleaseReadback `
+            -Release $draft `
+            -ExpectedDraft $true `
+            -Phase 'Pre-promotion draft'
+          $draftTag = Get-TagSnapshot -Phase 'Pre-promotion draft'
+
+          gh release edit $tag --draft=false --prerelease
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to promote verified alpha draft $tag; preserve it for owner review."
           }
-          $gitRef = gh api "repos/${{ github.repository }}/git/ref/tags/$tag" | ConvertFrom-Json
-          $gitObject = $gitRef.object
-          while ($gitObject.type -ceq 'tag') {
-            $gitObject = (gh api "repos/${{ github.repository }}/git/tags/$($gitObject.sha)" |
-              ConvertFrom-Json).object
+
+          $published = gh api "repos/${{ github.repository }}/releases/tags/$tag" |
+            ConvertFrom-Json
+          $liveRelease = Assert-ReleaseReadback `
+            -Release $published `
+            -ExpectedDraft $false `
+            -Phase 'Post-promotion live'
+          $liveTag = Get-TagSnapshot -Phase 'Post-promotion live'
+          if ($draftRelease.ReleaseId -ne $liveRelease.ReleaseId -or
+            ($draftRelease.Assets -join "`n") -cne
+              ($liveRelease.Assets -join "`n") -or
+            ($draftTag.Chain -join "`n") -cne ($liveTag.Chain -join "`n") -or
+            $draftTag.Commit -cne $liveTag.Commit -or
+            $draftTag.Tree -cne $liveTag.Tree) {
+            throw 'Alpha release or Git source identity drifted across promotion.'
           }
-          if ($gitObject.type -cne 'commit' -or
-            $gitObject.sha.ToLowerInvariant() -cne '${{ steps.version.outputs.source_revision }}') {
-            throw 'Published alpha tag did not peel to the source commit.'
-          }
-          $expectedNames = @($assets.Name | Sort-Object)
-          $actualNames = @($published.assets.name | Sort-Object)
-          if (($expectedNames -join "`n") -cne ($actualNames -join "`n")) {
-            throw "Published asset set differs from staged asset set."
-          }
-          foreach ($asset in $assets) {
-            $remote = @($published.assets | Where-Object name -CEQ $asset.Name)
-            $digest = 'sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($remote.Count -ne 1 -or
-              $remote[0].size -ne $asset.Length -or
-              $remote[0].digest -cne $digest) {
-              throw "Published asset readback failed for $($asset.Name)."
+
+          $latestResponse = @(
+            gh api -i "repos/${{ github.repository }}/releases/latest" `
+              --jq .tag_name 2>&1
+          )
+          $latestExit = $LASTEXITCODE
+          $latestText = $latestResponse -join "`n"
+          if ($latestExit -ne 0) {
+            if ($latestText -notmatch '(?m)^HTTP/\S+\s+404\b') {
+              throw "Latest-release readback failed without authoritative 404.`n$latestText"
             }
-          }
-          $latestTag = gh api "repos/${{ github.repository }}/releases/latest" --jq .tag_name
-          if ($LASTEXITCODE -ne 0 -or $latestTag.Trim() -ceq $tag) {
-            throw 'Alpha release became the repository latest release.'
+          } else {
+            $latestTag = @(
+              $latestResponse | Where-Object {
+                $_.ToString().Trim() -match '^v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$'
+              }
+            )
+            if ($latestTag.Count -ne 1 -or $latestTag[0].ToString().Trim() -ceq $tag) {
+              throw 'Latest-release readback was malformed or selected the alpha tag.'
+            }
           }
 
       - name: Remove temporary signing material

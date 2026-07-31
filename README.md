@@ -108,6 +108,15 @@ Historical stable builds keep their historical codes. The release manifest
 binds channel, exact tag, source commit/tree, signer, APK package/version
 identity, and asset hashes. The local release-pipeline test uses a temporary
 fixture signer and is not production-signing evidence.
+Every alpha release also carries `rusty-kiosk-alpha-owner-release.json`, a
+Kiosk-owned closed-shape contract for strict live-readback consumers. It names
+`rusty-kiosk.apk` directly as the `complete-product` primary artifact and binds
+its lowercase SHA-256 and byte count to the exact repository, product, alpha
+tag/version, source commit/tree, and installation package. It also hash-binds
+the exact `bundle-manifest.json` bytes and directly records the in-place package,
+signer, version name/code, and forward-only exit policy. The legacy manifest
+remains multi-file bundle evidence; its array order is never primary-artifact
+authority.
 The reviewed `release/kiosk-release-signer-policy.v1.json` file is the
 production signer authority for both channels; a release candidate cannot
 authorize its own signer.

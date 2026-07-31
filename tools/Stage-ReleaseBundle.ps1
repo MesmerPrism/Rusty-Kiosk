@@ -23,6 +23,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.ReleaseVersion.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'RustyKiosk.AlphaOwnerMetadata.psm1') -Force
 $release = Resolve-RustyKioskReleaseVersion -Version $Version -ExpectedChannel $ExpectedChannel
 $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
@@ -207,5 +208,25 @@ $manifest = [ordered]@{
     )
 }
 $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'bundle-manifest.json') -Encoding utf8
+$manifestOutput = Join-Path $OutputDirectory 'bundle-manifest.json'
+if ($release.Channel -ceq 'alpha') {
+    $ownerMetadataOutput = Join-Path $OutputDirectory 'rusty-kiosk-alpha-owner-release.json'
+    New-RustyKioskAlphaOwnerMetadata `
+        -Release $release `
+        -SourceRevision $SourceRevision `
+        -SourceTree $SourceTree `
+        -PrimaryArtifactPath $mainOutput `
+        -BundleManifestPath $manifestOutput |
+        ConvertTo-Json -Depth 4 |
+        Set-Content -LiteralPath $ownerMetadataOutput -Encoding utf8
+    Assert-RustyKioskAlphaOwnerMetadata `
+        -MetadataPath $ownerMetadataOutput `
+        -ExpectedTag $release.Tag `
+        -ExpectedVersion $release.Version `
+        -ExpectedSourceRevision $SourceRevision `
+        -ExpectedSourceTree $SourceTree `
+        -PrimaryArtifactPath $mainOutput `
+        -BundleManifestPath $manifestOutput
+}
 
 Get-ChildItem -LiteralPath $OutputDirectory -File | Sort-Object Name | Select-Object Name, Length, FullName

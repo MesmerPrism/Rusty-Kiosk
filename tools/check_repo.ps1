@@ -34,6 +34,8 @@ $readmePath = Join-Path $repoRoot 'README.md'
 $agentNotesPath = Join-Path $repoRoot 'AGENTS.md'
 $releaseVersionModulePath = Join-Path $repoRoot 'tools\RustyKiosk.ReleaseVersion.psm1'
 $releaseStagePath = Join-Path $repoRoot 'tools\Stage-ReleaseBundle.ps1'
+$alphaOwnerMetadataModulePath = Join-Path $repoRoot 'tools\RustyKiosk.AlphaOwnerMetadata.psm1'
+$alphaOwnerMetadataValidatorPath = Join-Path $repoRoot 'tools\Test-KioskAlphaOwnerMetadata.ps1'
 $alphaReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-alpha.yml'
 $stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
 $releaseSignerPolicyPath = Join-Path $repoRoot 'release\kiosk-release-signer-policy.v1.json'
@@ -535,6 +537,8 @@ foreach ($token in @(
 $agentNotes = Get-Content -Raw -LiteralPath $agentNotesPath
 $releaseVersionModule = Get-Content -Raw -LiteralPath $releaseVersionModulePath
 $releaseStage = Get-Content -Raw -LiteralPath $releaseStagePath
+$alphaOwnerMetadataModule = Get-Content -Raw -LiteralPath $alphaOwnerMetadataModulePath
+$alphaOwnerMetadataValidator = Get-Content -Raw -LiteralPath $alphaOwnerMetadataValidatorPath
 $alphaReleaseWorkflow = Get-Content -Raw -LiteralPath $alphaReleaseWorkflowPath
 $stableReleaseWorkflow = Get-Content -Raw -LiteralPath $stableReleaseWorkflowPath
 $releaseSignerPolicy = Get-Content -Raw -LiteralPath $releaseSignerPolicyPath
@@ -552,9 +556,20 @@ foreach ($contract in @(
   @{ Text = $releaseStage; Token = "identity_mode = 'same-package-in-place'"; Name = 'bundle identity mode' },
   @{ Text = $releaseStage; Token = 'Get-ApkIdentity'; Name = 'APK identity inspection' },
   @{ Text = $releaseStage; Token = 'source_tree = $SourceTree'; Name = 'source-tree binding' },
+  @{ Text = $alphaOwnerMetadataModule; Token = "'rusty.kiosk.alpha_release_owner_metadata.v1'"; Name = 'alpha owner schema' },
+  @{ Text = $alphaOwnerMetadataModule; Token = "role = 'complete-product'"; Name = 'explicit complete-product authority' },
+  @{ Text = $alphaOwnerMetadataModule; Token = 'Assert-ExactProperties'; Name = 'closed alpha owner metadata shape' },
+  @{ Text = $alphaOwnerMetadataValidator; Token = 'Assert-RustyKioskAlphaOwnerMetadata'; Name = 'dedicated alpha owner validator' },
   @{ Text = $alphaReleaseWorkflow; Token = 'environment: android-alpha-release'; Name = 'protected alpha environment' },
   @{ Text = $alphaReleaseWorkflow; Token = '--prerelease'; Name = 'prerelease publication' },
-  @{ Text = $alphaReleaseWorkflow; Token = 'Alpha release became the repository latest release.'; Name = 'not-latest readback' },
+  @{ Text = $alphaReleaseWorkflow; Token = '--draft'; Name = 'draft-first alpha publication' },
+  @{ Text = $alphaReleaseWorkflow; Token = '$draftRelease = Assert-ReleaseReadback'; Name = 'pre-promotion alpha evidence' },
+  @{ Text = $alphaReleaseWorkflow; Token = '$liveRelease = Assert-ReleaseReadback'; Name = 'post-promotion alpha evidence' },
+  @{ Text = $alphaReleaseWorkflow; Token = "'rusty-kiosk-alpha-owner-release.json'"; Name = 'exact alpha owner asset inventory' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'Get-TagSnapshot'; Name = 'bounded pre/post tag and tree readback' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'ReleaseId = [int64]$Release.id'; Name = 'release-ID promotion binding' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'preserve it for owner review'; Name = 'failed-draft evidence preservation' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'Latest-release readback was malformed or selected the alpha tag.'; Name = 'not-latest readback' },
   @{ Text = $alphaReleaseWorkflow; Token = 'refs/tags/$($release.Tag)'; Name = 'exact alpha tag binding' },
   @{ Text = $alphaReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'alpha signer policy' },
   @{ Text = $stableReleaseWorkflow; Token = "!contains(github.ref_name, '-')"; Name = 'stable/alpha workflow isolation' },
