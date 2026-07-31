@@ -31,6 +31,14 @@ $foregroundSignalClientPath =
 $foregroundSignalDocPath = Join-Path $repoRoot 'docs\FOREGROUND_SIGNAL.md'
 $architecturePath = Join-Path $repoRoot 'docs\ARCHITECTURE.md'
 $readmePath = Join-Path $repoRoot 'README.md'
+$agentNotesPath = Join-Path $repoRoot 'AGENTS.md'
+$releaseVersionModulePath = Join-Path $repoRoot 'tools\RustyKiosk.ReleaseVersion.psm1'
+$releaseStagePath = Join-Path $repoRoot 'tools\Stage-ReleaseBundle.ps1'
+$alphaReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-alpha.yml'
+$stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
+$releaseSignerPolicyPath = Join-Path $repoRoot 'release\kiosk-release-signer-policy.v1.json'
+$appBuildPath = Join-Path $repoRoot 'app\build.gradle.kts'
+$setupHelperBuildPath = Join-Path $repoRoot 'setup-helper\build.gradle.kts'
 $foregroundSignalContractPath =
   Join-Path $repoRoot 'foreground-signal-client\src\main\java\io\github\mesmerprism\rustykiosk\foregroundsignal\ForegroundSignalContract.java'
 $foregroundSignalManifestPath =
@@ -522,6 +530,49 @@ foreach ($token in @(
   if ($launcherActivity.Contains($token, [StringComparison]::Ordinal)) {
     throw "The native 2D launcher Activity contains forbidden authority: $token"
   }
+}
+
+$agentNotes = Get-Content -Raw -LiteralPath $agentNotesPath
+$releaseVersionModule = Get-Content -Raw -LiteralPath $releaseVersionModulePath
+$releaseStage = Get-Content -Raw -LiteralPath $releaseStagePath
+$alphaReleaseWorkflow = Get-Content -Raw -LiteralPath $alphaReleaseWorkflowPath
+$stableReleaseWorkflow = Get-Content -Raw -LiteralPath $stableReleaseWorkflowPath
+$releaseSignerPolicy = Get-Content -Raw -LiteralPath $releaseSignerPolicyPath
+$appBuild = Get-Content -Raw -LiteralPath $appBuildPath
+$setupHelperBuild = Get-Content -Raw -LiteralPath $setupHelperBuildPath
+foreach ($contract in @(
+  @{ Text = $releaseVersionModule; Token = 'alpha N must be 1..98'; Name = 'closed alpha version resolver' },
+  @{ Text = $releaseVersionModule; Token = '$minor * 10000L'; Name = 'release version-code derivation' },
+  @{ Text = $releaseVersionModule; Token = '$patch * 100L'; Name = 'release version-code derivation' },
+  @{ Text = $releaseVersionModule; Token = 'else { 99L }'; Name = 'stable suffix reservation' },
+  @{ Text = $appBuild; Token = 'requestedReleaseVersion ?: "0.6.5"'; Name = 'app stable fallback' },
+  @{ Text = $appBuild; Token = 'rustyKioskReleaseVersion'; Name = 'app release version input' },
+  @{ Text = $setupHelperBuild; Token = 'requestedReleaseVersion ?: "0.5.0"'; Name = 'helper stable fallback' },
+  @{ Text = $setupHelperBuild; Token = 'rustyKioskReleaseVersion'; Name = 'helper release version input' },
+  @{ Text = $releaseStage; Token = "identity_mode = 'same-package-in-place'"; Name = 'bundle identity mode' },
+  @{ Text = $releaseStage; Token = 'Get-ApkIdentity'; Name = 'APK identity inspection' },
+  @{ Text = $releaseStage; Token = 'source_tree = $SourceTree'; Name = 'source-tree binding' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'environment: android-alpha-release'; Name = 'protected alpha environment' },
+  @{ Text = $alphaReleaseWorkflow; Token = '--prerelease'; Name = 'prerelease publication' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'Alpha release became the repository latest release.'; Name = 'not-latest readback' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'refs/tags/$($release.Tag)'; Name = 'exact alpha tag binding' },
+  @{ Text = $alphaReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'alpha signer policy' },
+  @{ Text = $stableReleaseWorkflow; Token = "!contains(github.ref_name, '-')"; Name = 'stable/alpha workflow isolation' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Could not positively prove'; Name = 'stable release absence proof' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Published stable asset readback failed'; Name = 'stable publication readback' },
+  @{ Text = $stableReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'stable signer policy' },
+  @{ Text = $releaseSignerPolicy; Token = '423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb'; Name = 'authorized signer pin' },
+  @{ Text = $releaseSignerPolicy; Token = 'e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2'; Name = 'signer-policy provenance' },
+  @{ Text = $agentNotes; Token = 'in-place opt-in track'; Name = 'agent release ownership' },
+  @{ Text = $readme; Token = 'do not co-install'; Name = 'public in-place alpha semantics' }
+)) {
+  if (-not $contract.Text.Contains($contract.Token, [StringComparison]::Ordinal)) {
+    throw "The $($contract.Name) contract is missing: $($contract.Token)"
+  }
+}
+if ($alphaReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)' -or
+    $stableReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)') {
+  throw 'A workflow input must not authorize the production Kiosk signer.'
 }
 
 $publicFiles =

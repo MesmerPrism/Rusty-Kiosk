@@ -80,7 +80,39 @@ pwsh -NoProfile -File .\tools\Test-ReleasePipeline.ps1
 
 The test generates a one-day local key under ignored `artifacts/`, builds both
 release APKs with that key, verifies their certificate digests match, stages the
-five-file public bundle contract, and removes the temporary key and bundle.
+five-file public alpha bundle contract, and removes the temporary key and
+bundle. It also verifies the closed stable/alpha version grammar, alpha
+ordinal and version-code boundaries, unchanged legacy build defaults, exact
+APK package/version identities, wrong-channel/version/signer rejection, and
+byte-identical manifest restaging. It then builds and inspects a numeric stable
+candidate, including suffix 99, unchanged package identities, common signer,
+stable channel metadata, and consumer-compatible filenames. This is synthetic
+pipeline evidence, not production-signer or GitHub-publication evidence.
+
+## Stable and alpha publication gates
+
+Stable publication accepts only an existing exact `vX.Y.Z` tag. Alpha
+publication accepts only an existing exact `vX.Y.Z-alpha.N` tag with `N` from
+1 through 98, publishes it as a prerelease, and verifies that it did not become
+the repository's latest release. Both routes bind the checked-out commit and
+tree, inspect the two APK package/version/code identities, compare their common
+signer to the public Kiosk signer trust anchor, create a previously absent
+release, and read back the closed asset set, byte sizes, and GitHub SHA-256
+digests.
+
+Both workflows read the authorized signer only from
+`release/kiosk-release-signer-policy.v1.json`. The checked-in v0.6.4 release
+manifest URL and digest establish that policy's provenance. A signer change is
+a separately reviewed policy revision, never a tag, dispatch, APK, or staging
+input. Manual dispatch is a recovery path for an existing exact tag:
+`gh workflow run <workflow> --ref <tag> -f version=<version>`. A default-branch
+dispatch is expected to fail.
+
+Alpha is a same-package, same-signer in-place track. A device gate must keep
+the following cases separate: historical stable to higher alpha, alpha N to
+alpha N+1, wrong signer rejection, and alpha to the later same-semantic stable
+whose version-code suffix is 99. Side-by-side stable/alpha installation and
+downgrade to an older stable release are not supported or claimed.
 
 The standard host gate runs the interactive browser model and verifies that
 the production native panel, shared geometry/control contract, browser

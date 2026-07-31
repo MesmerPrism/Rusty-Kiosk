@@ -120,6 +120,24 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   installed packages with distinct signing identities. Meta Store and Business
   release channels own their respective launcher distribution; Rusty Kiosk
   owns all kiosk, setup, install, and update behavior.
+- Stable Kiosk releases use canonical `vX.Y.Z` tags. Alpha Kiosk releases use
+  only canonical `vX.Y.Z-alpha.N` tags with `N` from 1 through 98, publish as
+  GitHub prereleases, never become `latest`, and keep exact-tag assets
+  append-never and replace-never.
+- Kiosk alpha is deliberately an in-place opt-in track under the same main and
+  setup-helper package identities and production signer as stable. It does not
+  claim side-by-side installation. Release version codes are derived from the
+  tag as `major*1,000,000 + minor*10,000 + patch*100 + suffix`, where alpha
+  uses its 1..98 ordinal and the later same-semantic stable release reserves
+  suffix 99. Returning to an older stable build is not an alpha exit path.
+- Release manifests must bind channel, exact tag, source commit and tree,
+  signer, package/version identity, and every asset hash. Local fixture signing
+  proves the pipeline only; it must never be described as production signing.
+- `release/kiosk-release-signer-policy.v1.json` is the stable and alpha
+  production-signer authority. Its v0.6.4 source manifest is provenance, not a
+  caller override. A signer rotation requires a separately reviewed policy
+  revision; tags, workflow inputs, built APKs, and staging arguments cannot
+  self-authorize a new signer.
 
 Use `$meta-quest-workflow` before any headset, ADB, APK install/launch, logcat,
 screenshot, or physical-button validation. Keep raw device evidence private.
@@ -127,8 +145,9 @@ screenshot, or physical-button validation. Keep raw device evidence private.
 ## Checks
 
 The complete repository gate is required on every pull request and push to
-`main`. Tagged releases rerun it against the signed release pair and must create
-new versioned assets rather than overwrite an existing release.
+`main`. Tagged stable and alpha releases rerun it against the signed release
+pair and must create new versioned assets rather than overwrite an existing
+release.
 
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1

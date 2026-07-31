@@ -92,6 +92,25 @@ the two APKs, their hashes/source manifest, the AGPL license, and source pointer
 using the stable filenames consumed by QuestIonAble File Manager. Release signing
 material stays in GitHub Actions secrets and is never committed. Release assets
 are versioned and are never overwritten; publish a new version for any change.
+The optional alpha channel uses exact `vX.Y.Z-alpha.N` tags, GitHub
+prereleases, and those same immutable asset names inside the exact tag. Alpha
+contains the complete current product rather than a reduced feature build.
+It keeps the stable Kiosk and setup-helper package identities and production
+signer, so opting in replaces the installed stable pair in place; stable and
+alpha do not co-install. An alpha can advance to a later same-signer alpha or
+to the later same-semantic stable build. Returning to an older stable version
+is an Android downgrade and is intentionally unsupported.
+
+Release version codes make that exit route explicit:
+`major*1,000,000 + minor*10,000 + patch*100 + alphaN`, with alpha ordinals
+limited to 1 through 98 and suffix 99 reserved for the later stable release.
+Historical stable builds keep their historical codes. The release manifest
+binds channel, exact tag, source commit/tree, signer, APK package/version
+identity, and asset hashes. The local release-pipeline test uses a temporary
+fixture signer and is not production-signing evidence.
+The reviewed `release/kiosk-release-signer-policy.v1.json` file is the
+production signer authority for both channels; a release candidate cannot
+authorize its own signer.
 The recommended installation route remains
 [QuestIonAble File Manager](https://mesmerprism.com/QuestIonAble-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
@@ -100,6 +119,9 @@ The current published bundle is version `0.6.5`; version `0.6.4` remains the
 watchdog-recovery reliability release and `0.6.3` the first published bundle.
 The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are retained as
 pre-publication workflow-failure checkpoints and have no release assets.
+Manual release dispatch is intentionally an exact-tag recovery path. Invoke it
+with `gh workflow run <workflow> --ref <tag> -f version=<version>`; dispatching
+from the default branch fails closed.
 
 ## Typed debug CLI
 
