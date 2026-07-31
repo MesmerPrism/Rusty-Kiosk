@@ -29,33 +29,41 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Resolve immutable Labs candidate source
         id: version
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          EVENT_REF_NAME: ${{ github.ref_name }}
+          EVENT_REPOSITORY: ${{ github.repository }}
+          INPUT_VERSION: ${{ inputs.version }}
+          WORKFLOW_SHA: ${{ github.sha }}
         run: |
-          if ('${{ github.repository }}' -cne 'MesmerPrism/Rusty-Kiosk') {
+          if ($env:EVENT_REPOSITORY -cne 'MesmerPrism/Rusty-Kiosk') {
             throw 'Labs owner publication is authorized only for MesmerPrism/Rusty-Kiosk.'
           }
           Import-Module .\tools\RustyKiosk.ReleaseVersion.psm1 -Force
-          $semanticVersion = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            '${{ inputs.version }}'
+          $semanticVersion = if ($env:EVENT_NAME -ceq 'workflow_dispatch') {
+            $env:INPUT_VERSION
           } else {
-            '${{ github.ref_name }}' -replace '^v', ''
+            $env:EVENT_REF_NAME -replace '^v', ''
           }
           $release = Resolve-RustyKioskReleaseVersion `
             -Version $semanticVersion `
             -ExpectedChannel labs
           $expectedRef = "refs/tags/$($release.Tag)"
-          if ('${{ github.ref }}' -cne $expectedRef) {
+          if ($env:EVENT_REF -cne $expectedRef) {
             throw "Labs publication must run from exact existing tag $expectedRef."
           }
           git fetch --force --tags origin
           if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh authoritative remote tags.' }
+          git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+          if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh authoritative remote main.' }
           $head = (git rev-parse HEAD).Trim().ToLowerInvariant()
           $tagCommit = (git rev-parse "$($release.Tag)^{commit}").Trim().ToLowerInvariant()
-          $workflowSha = '${{ github.sha }}'.ToLowerInvariant()
+          $workflowSha = $env:WORKFLOW_SHA.ToLowerInvariant()
           if ($head -cne $tagCommit -or $head -cne $workflowSha) {
             throw "Tag, checkout, and workflow SHA differ: tag=$tagCommit head=$head workflow=$workflowSha"
           }
@@ -69,8 +77,12 @@ jobs:
           if ($remoteCommits -notcontains $head) {
             throw "Remote tag $($release.Tag) does not peel to checked-out commit $head."
           }
-          if (git status --porcelain --untracked-files=no) {
-            throw 'The release checkout must have no tracked modifications.'
+          git merge-base --is-ancestor $head refs/remotes/origin/main
+          if ($LASTEXITCODE -ne 0) {
+            throw "Labs tag commit $head is not reachable from authoritative remote main."
+          }
+          if (git status --porcelain --untracked-files=all) {
+            throw 'The Labs release checkout must be clean.'
           }
           $tree = (git rev-parse 'HEAD^{tree}').Trim().ToLowerInvariant()
           "semantic_version=$($release.Version)" | Out-File $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -83,20 +95,36 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag_name }}
         run: |
           # A missing release is the expected success condition here. GitHub's
           # PowerShell runner promotes non-zero native exits to terminating
           # errors unless this compatibility switch is disabled, which would
           # prevent us from inspecting the authoritative HTTP 404 below.
           $PSNativeCommandUseErrorActionPreference = $false
-          $tag = '${{ steps.version.outputs.tag_name }}'
-          $response = @(gh api -i "repos/${{ github.repository }}/releases/tags/$tag" 2>&1)
+          $tag = $env:RELEASE_TAG
+          $response = @(gh api -i "repos/$($env:RELEASE_REPOSITORY)/releases/tags/$tag" 2>&1)
           $exitCode = $LASTEXITCODE
           if ($exitCode -eq 0) {
             throw "Release $tag already exists; Labs assets are append-never and replace-never."
           }
           if (($response -join "`n") -notmatch '(?m)^HTTP/\S+\s+404\b') {
             throw "Could not positively prove that release $tag is absent.`n$($response -join "`n")"
+          }
+          $authenticatedReleases = gh api --paginate --slurp `
+            "repos/$($env:RELEASE_REPOSITORY)/releases?per_page=100" |
+            ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Could not enumerate authenticated releases and drafts.'
+          }
+          $sameTagReleases = @(
+            $authenticatedReleases | ForEach-Object { $_ } | Where-Object {
+              $_.tag_name -ceq $tag
+            }
+          )
+          if ($sameTagReleases.Count -ne 0) {
+            throw "Release or draft $tag already exists; evidence is append-never and replace-never."
           }
           # GitHub Actions uses the final native exit code as the step result even
           # when PowerShell intentionally handled that expected 404 above.
@@ -121,6 +149,7 @@ jobs:
           RUSTY_KIOSK_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEYSTORE_PASSWORD }}
           RUSTY_KIOSK_KEY_ALIAS: ${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}
           RUSTY_KIOSK_KEY_PASSWORD: ${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}
+          RUSTY_KIOSK_RELEASE_VERSION: ${{ steps.version.outputs.semantic_version }}
         run: |
           foreach ($value in @(
             $env:RUSTY_KIOSK_KEYSTORE_PASSWORD,
@@ -130,7 +159,11 @@ jobs:
               throw 'Android signing passwords and key alias must be configured.'
             }
           }
-          $env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion = '${{ steps.version.outputs.semantic_version }}'
+          if (git status --porcelain --untracked-files=all) {
+            throw 'The release checkout became dirty before the signing build.'
+          }
+          $env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion =
+            $env:RUSTY_KIOSK_RELEASE_VERSION
           $env:ORG_GRADLE_PROJECT_rustyKioskProductChannel = 'labs'
           .\gradlew.bat test lint :app:assembleRelease :setup-helper:assembleRelease --stacktrace
           if ($LASTEXITCODE -ne 0) { throw 'Gradle Labs release build failed.' }
@@ -143,7 +176,15 @@ jobs:
 
       - name: Verify identity and stage immutable Labs bundle
         shell: pwsh
+        env:
+          RELEASE_SOURCE_REVISION: ${{ steps.version.outputs.source_revision }}
+          RELEASE_SOURCE_TREE: ${{ steps.version.outputs.source_tree }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag_name }}
+          RELEASE_VERSION: ${{ steps.version.outputs.semantic_version }}
         run: |
+          if (git status --porcelain --untracked-files=all) {
+            throw 'The release checkout became dirty before identity verification and staging.'
+          }
           $mainApk = (Get-ChildItem app\build\outputs\apk\release\*.apk | Select-Object -First 1).FullName
           $helperApk = (Get-ChildItem setup-helper\build\outputs\apk\release\*.apk | Select-Object -First 1).FullName
           if (-not $mainApk -or -not $helperApk) { throw 'Expected release APK outputs were not found.' }
@@ -156,19 +197,19 @@ jobs:
           .\tools\Stage-ReleaseBundle.ps1 `
             -MainApkPath $mainApk `
             -SetupHelperApkPath $helperApk `
-            -Version '${{ steps.version.outputs.semantic_version }}' `
+            -Version $env:RELEASE_VERSION `
             -ExpectedChannel labs `
             -ExpectedSignerSha256 $policy.authorized_signer_sha256 `
-            -SourceRevision '${{ steps.version.outputs.source_revision }}' `
-            -SourceTree '${{ steps.version.outputs.source_tree }}' `
+            -SourceRevision $env:RELEASE_SOURCE_REVISION `
+            -SourceTree $env:RELEASE_SOURCE_TREE `
             -ApkSignerPath $apksigner `
             -Aapt2Path $aapt2
           .\tools\Test-KioskLabsOwnerMetadata.ps1 `
             -MetadataPath .\artifacts\release-bundle\rusty-kiosk-labs-owner-release.json `
-            -ExpectedTag '${{ steps.version.outputs.tag_name }}' `
-            -ExpectedVersion '${{ steps.version.outputs.semantic_version }}' `
-            -ExpectedSourceRevision '${{ steps.version.outputs.source_revision }}' `
-            -ExpectedSourceTree '${{ steps.version.outputs.source_tree }}' `
+            -ExpectedTag $env:RELEASE_TAG `
+            -ExpectedVersion $env:RELEASE_VERSION `
+            -ExpectedSourceRevision $env:RELEASE_SOURCE_REVISION `
+            -ExpectedSourceTree $env:RELEASE_SOURCE_TREE `
             -PrimaryArtifactPath .\artifacts\release-bundle\rusty-kiosk.apk `
             -BundleManifestPath .\artifacts\release-bundle\bundle-manifest.json
 
@@ -181,8 +222,12 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_SOURCE_REVISION: ${{ steps.version.outputs.source_revision }}
+          RELEASE_SOURCE_TREE: ${{ steps.version.outputs.source_tree }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag_name }}
         run: |
-          $tag = '${{ steps.version.outputs.tag_name }}'
+          $tag = $env:RELEASE_TAG
           $assets = @(Get-ChildItem artifacts\release-bundle -File | Sort-Object Name)
           $expectedNames = @(
             'RUSTY-KIOSK-LICENSE.txt',
@@ -196,49 +241,11 @@ jobs:
             throw 'Staged Labs asset inventory is not the exact owner-authorized six-file set.'
           }
 
-          function Assert-ReleaseReadback {
-            param(
-              [Parameter(Mandatory = $true)]$Release,
-              [Parameter(Mandatory = $true)][bool]$ExpectedDraft,
-              [Parameter(Mandatory = $true)][string]$Phase
-            )
-            if ([int64]$Release.id -le 0 -or
-              $Release.tag_name -cne $tag -or
-              -not $Release.prerelease -or
-              $Release.draft -ne $ExpectedDraft) {
-              throw "$Phase Labs release identity did not match the immutable owner tuple."
-            }
-            $actualNames = @($Release.assets.name | Sort-Object)
-            if (($expectedNames -join "`n") -cne ($actualNames -join "`n")) {
-              throw "$Phase Labs asset set differs from the exact owner inventory."
-            }
-            $assetSnapshot = @()
-            $assetIds = [Collections.Generic.HashSet[long]]::new()
-            foreach ($asset in $assets) {
-              $remote = @($Release.assets | Where-Object name -CEQ $asset.Name)
-              $digest = 'sha256:' + (Get-FileHash $asset.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-              if ($remote.Count -ne 1 -or
-                [int64]$remote[0].id -le 0 -or
-                -not $assetIds.Add([int64]$remote[0].id) -or
-                $remote[0].state -cne 'uploaded' -or
-                $remote[0].size -ne $asset.Length -or
-                $remote[0].digest -cne $digest -or
-                $remote[0].browser_download_url -cne
-                  "https://github.com/${{ github.repository }}/releases/download/$tag/$($asset.Name)") {
-                throw "$Phase Labs asset digest/byte readback failed for $($asset.Name)."
-              }
-              $assetSnapshot +=
-                "$($remote[0].id)|$($asset.Name)|$($remote[0].size)|$($remote[0].digest)"
-            }
-            return [pscustomobject]@{
-              ReleaseId = [int64]$Release.id
-              Assets = @($assetSnapshot | Sort-Object)
-            }
-          }
+          Import-Module .\tools\RustyKiosk.LabsReleaseReadback.psm1 -Force
 
           function Get-TagSnapshot {
             param([Parameter(Mandatory = $true)][string]$Phase)
-            $gitRef = gh api "repos/${{ github.repository }}/git/ref/tags/$tag" |
+            $gitRef = gh api "repos/$($env:RELEASE_REPOSITORY)/git/ref/tags/$tag" |
               ConvertFrom-Json
             if ($LASTEXITCODE -ne 0 -or $null -eq $gitRef.object) {
               throw "$Phase tag ref readback failed."
@@ -262,7 +269,7 @@ jobs:
               if ($type -ceq 'commit') {
                 break
               }
-              $tagObject = gh api "repos/${{ github.repository }}/git/tags/$sha" |
+              $tagObject = gh api "repos/$($env:RELEASE_REPOSITORY)/git/tags/$sha" |
                 ConvertFrom-Json
               if ($LASTEXITCODE -ne 0 -or $null -eq $tagObject.object) {
                 throw "$Phase annotated tag readback failed."
@@ -271,16 +278,16 @@ jobs:
             }
             if ($gitObject.type -cne 'commit' -or
               $gitObject.sha.ToLowerInvariant() -cne
-                '${{ steps.version.outputs.source_revision }}') {
+                $env:RELEASE_SOURCE_REVISION) {
               throw "$Phase tag did not peel to the exact source commit."
             }
             $commit = gh api (
-              "repos/${{ github.repository }}/git/commits/" +
-              '${{ steps.version.outputs.source_revision }}') | ConvertFrom-Json
+              "repos/$($env:RELEASE_REPOSITORY)/git/commits/" +
+              $env:RELEASE_SOURCE_REVISION) | ConvertFrom-Json
             if ($LASTEXITCODE -ne 0 -or
               $commit.tree.sha -cnotmatch '^[0-9a-fA-F]{40}$' -or
               $commit.tree.sha.ToLowerInvariant() -cne
-                '${{ steps.version.outputs.source_tree }}') {
+                $env:RELEASE_SOURCE_TREE) {
               throw "$Phase source-tree readback failed."
             }
             return [pscustomobject]@{
@@ -296,11 +303,11 @@ jobs:
             --prerelease `
             --draft `
             --verify-tag `
-            --target '${{ steps.version.outputs.source_revision }}'
+            --target $env:RELEASE_SOURCE_REVISION
           if ($LASTEXITCODE -ne 0) { throw "Failed to create Labs draft $tag." }
 
           $draftPages = gh api --paginate --slurp `
-            "repos/${{ github.repository }}/releases?per_page=100" |
+            "repos/$($env:RELEASE_REPOSITORY)/releases?per_page=100" |
             ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to enumerate the authenticated Labs draft."
@@ -314,28 +321,30 @@ jobs:
             throw "Expected exactly one authenticated Labs draft for $tag."
           }
           $draft = $draftMatches[0]
-          $draftRelease = Assert-ReleaseReadback `
-            -Release $draft `
-            -ExpectedDraft $true `
-            -Phase 'Pre-promotion draft'
+          $draftRelease = Assert-RustyKioskLabsReleaseReadback `
+            -Release $draft -Assets $assets -ExpectedNames $expectedNames `
+            -Repository $env:RELEASE_REPOSITORY -Tag $tag `
+            -SourceRevision $env:RELEASE_SOURCE_REVISION `
+            -ExpectedDraft $true -Phase 'Pre-promotion draft'
           $draftTag = Get-TagSnapshot -Phase 'Pre-promotion draft'
 
           gh api --method PATCH `
-            "repos/${{ github.repository }}/releases/$($draftRelease.ReleaseId)" `
+            "repos/$($env:RELEASE_REPOSITORY)/releases/$($draftRelease.ReleaseId)" `
             -F draft=false -F prerelease=true -f make_latest=false | Out-Null
           if ($LASTEXITCODE -ne 0) {
             throw "Failed to promote verified Labs draft $tag; preserve it for owner review."
           }
 
           $published = gh api `
-            "repos/${{ github.repository }}/releases/$($draftRelease.ReleaseId)" |
+            "repos/$($env:RELEASE_REPOSITORY)/releases/$($draftRelease.ReleaseId)" |
             ConvertFrom-Json
-          $liveRelease = Assert-ReleaseReadback `
-            -Release $published `
-            -ExpectedDraft $false `
-            -Phase 'Post-promotion live'
+          $liveRelease = Assert-RustyKioskLabsReleaseReadback `
+            -Release $published -Assets $assets -ExpectedNames $expectedNames `
+            -Repository $env:RELEASE_REPOSITORY -Tag $tag `
+            -SourceRevision $env:RELEASE_SOURCE_REVISION `
+            -ExpectedDraft $false -Phase 'Post-promotion live'
           $publishedByTag = gh api `
-            "repos/${{ github.repository }}/releases/tags/$tag" |
+            "repos/$($env:RELEASE_REPOSITORY)/releases/tags/$tag" |
             ConvertFrom-Json
           if ($LASTEXITCODE -ne 0 -or
             [int64]$publishedByTag.id -ne $liveRelease.ReleaseId) {
@@ -353,7 +362,7 @@ jobs:
 
           $PSNativeCommandUseErrorActionPreference = $false
           $latestResponse = @(
-            gh api -i "repos/${{ github.repository }}/releases/latest" `
+            gh api -i "repos/$($env:RELEASE_REPOSITORY)/releases/latest" `
               --jq .tag_name 2>&1
           )
           $latestExit = $LASTEXITCODE

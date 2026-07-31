@@ -36,6 +36,12 @@ $releaseVersionModulePath = Join-Path $repoRoot 'tools\RustyKiosk.ReleaseVersion
 $releaseStagePath = Join-Path $repoRoot 'tools\Stage-ReleaseBundle.ps1'
 $labsOwnerMetadataModulePath = Join-Path $repoRoot 'tools\RustyKiosk.LabsOwnerMetadata.psm1'
 $labsOwnerMetadataValidatorPath = Join-Path $repoRoot 'tools\Test-KioskLabsOwnerMetadata.ps1'
+$labsReleaseReadbackModulePath =
+  Join-Path $repoRoot 'tools\RustyKiosk.LabsReleaseReadback.psm1'
+$labsReleaseReadbackTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-LabsReleaseReadback.ps1'
+$releaseWorkflowStructureTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-ReleaseWorkflowStructure.ps1'
 $labsReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-labs.yml'
 $stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
 $labsLauncherCandidatePath =
@@ -561,6 +567,7 @@ $releaseVersionModule = Get-Content -Raw -LiteralPath $releaseVersionModulePath
 $releaseStage = Get-Content -Raw -LiteralPath $releaseStagePath
 $labsOwnerMetadataModule = Get-Content -Raw -LiteralPath $labsOwnerMetadataModulePath
 $labsOwnerMetadataValidator = Get-Content -Raw -LiteralPath $labsOwnerMetadataValidatorPath
+$labsReleaseReadbackModule = Get-Content -Raw -LiteralPath $labsReleaseReadbackModulePath
 $labsReleaseWorkflow = Get-Content -Raw -LiteralPath $labsReleaseWorkflowPath
 $stableReleaseWorkflow = Get-Content -Raw -LiteralPath $stableReleaseWorkflowPath
 $labsLauncherCandidate = Get-Content -Raw -LiteralPath $labsLauncherCandidatePath
@@ -586,14 +593,21 @@ foreach ($contract in @(
   @{ Text = $labsReleaseWorkflow; Token = 'environment: android-labs-release'; Name = 'protected Labs environment' },
   @{ Text = $labsReleaseWorkflow; Token = '--prerelease'; Name = 'prerelease publication' },
   @{ Text = $labsReleaseWorkflow; Token = '--draft'; Name = 'draft-first Labs publication' },
-  @{ Text = $labsReleaseWorkflow; Token = '$draftRelease = Assert-ReleaseReadback'; Name = 'pre-promotion Labs evidence' },
-  @{ Text = $labsReleaseWorkflow; Token = '$liveRelease = Assert-ReleaseReadback'; Name = 'post-promotion Labs evidence' },
+  @{ Text = $labsReleaseWorkflow; Token = '$draftRelease = Assert-RustyKioskLabsReleaseReadback'; Name = 'pre-promotion Labs evidence' },
+  @{ Text = $labsReleaseWorkflow; Token = '$liveRelease = Assert-RustyKioskLabsReleaseReadback'; Name = 'post-promotion Labs evidence' },
   @{ Text = $labsReleaseWorkflow; Token = "'rusty-kiosk-labs-owner-release.json'"; Name = 'exact Labs owner asset inventory' },
   @{ Text = $labsReleaseWorkflow; Token = 'Get-TagSnapshot'; Name = 'bounded pre/post tag and tree readback' },
-  @{ Text = $labsReleaseWorkflow; Token = 'ReleaseId = [int64]$Release.id'; Name = 'release-ID promotion binding' },
+  @{ Text = $labsReleaseReadbackModule; Token = 'ReleaseId = [int64]$Release.id'; Name = 'release-ID promotion binding' },
   @{ Text = $labsReleaseWorkflow; Token = 'gh api --paginate --slurp'; Name = 'authenticated draft enumeration' },
   @{ Text = $labsReleaseWorkflow; Token = 'releases/$($draftRelease.ReleaseId)'; Name = 'release-ID promotion route' },
   @{ Text = $labsReleaseWorkflow; Token = 'Published Labs tag route differs from the promoted release ID.'; Name = 'post-promotion tag-to-ID readback' },
+  @{ Text = $labsReleaseReadbackModule; Token = 'untagged-[0-9a-f]{20}'; Name = 'GitHub draft download-route shape' },
+  @{ Text = $labsReleaseReadbackModule; Token = '$Release.target_commitish -cne $SourceRevision'; Name = 'release target source binding' },
+  @{ Text = $labsReleaseReadbackModule; Token = '$Release.html_url'; Name = 'release route owner binding' },
+  @{ Text = $labsReleaseWorkflow; Token = '$env:INPUT_VERSION'; Name = 'untrusted dispatch input data binding' },
+  @{ Text = $labsReleaseWorkflow; Token = '--untracked-files=all'; Name = 'signing checkout dirt closure' },
+  @{ Text = $labsReleaseWorkflow; Token = 'refs/remotes/origin/main'; Name = 'release tag protected-main ancestry' },
+  @{ Text = $labsReleaseWorkflow; Token = 'authenticated releases and drafts'; Name = 'same-tag draft absence closure' },
   @{ Text = $labsReleaseWorkflow; Token = 'preserve it for owner review'; Name = 'failed-draft evidence preservation' },
   @{ Text = $labsReleaseWorkflow; Token = 'Latest-release readback was malformed or selected the Labs tag.'; Name = 'not-latest readback' },
   @{ Text = $labsReleaseWorkflow; Token = '$PSNativeCommandUseErrorActionPreference = $false'; Name = 'Labs expected-404 native exit handling' },
@@ -603,10 +617,21 @@ foreach ($contract in @(
   @{ Text = $labsReleaseWorkflow; Token = 'refs/tags/$($release.Tag)'; Name = 'exact alpha-maturity tag binding' },
   @{ Text = $labsReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'Labs signer policy' },
   @{ Text = $stableReleaseWorkflow; Token = "!contains(github.ref_name, '-')"; Name = 'Stable/Labs workflow isolation' },
+  @{ Text = $stableReleaseWorkflow; Token = 'environment: android-stable-release'; Name = 'protected stable environment' },
+  @{ Text = $stableReleaseWorkflow; Token = '$env:INPUT_VERSION'; Name = 'stable untrusted dispatch input data binding' },
+  @{ Text = $stableReleaseWorkflow; Token = '--untracked-files=all'; Name = 'stable signing checkout dirt closure' },
+  @{ Text = $stableReleaseWorkflow; Token = 'refs/remotes/origin/main'; Name = 'stable tag protected-main ancestry' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Remote stable tag'; Name = 'stable authoritative remote tag peel' },
   @{ Text = $stableReleaseWorkflow; Token = 'Could not positively prove'; Name = 'stable release absence proof' },
+  @{ Text = $stableReleaseWorkflow; Token = 'authenticated stable releases and drafts'; Name = 'stable same-tag draft absence closure' },
+  @{ Text = $stableReleaseWorkflow; Token = '$prePublicationTag = Get-TagSnapshot'; Name = 'stable pre-publication tag readback' },
+  @{ Text = $stableReleaseWorkflow; Token = '$postPublicationTag = Get-TagSnapshot'; Name = 'stable post-publication tag readback' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Stable Git source identity drifted across publication.'; Name = 'stable tag and tree drift rejection' },
   @{ Text = $stableReleaseWorkflow; Token = '$PSNativeCommandUseErrorActionPreference = $false'; Name = 'stable expected-404 native exit handling' },
   @{ Text = $stableReleaseWorkflow; Token = '$global:LASTEXITCODE = 0'; Name = 'stable expected-404 step result reset' },
   @{ Text = $stableReleaseWorkflow; Token = 'Published stable asset readback failed'; Name = 'stable publication readback' },
+  @{ Text = $stableReleaseWorkflow; Token = '$published.target_commitish -cne $env:RELEASE_SOURCE_REVISION'; Name = 'stable release source binding' },
+  @{ Text = $stableReleaseWorkflow; Token = '$remote[0].browser_download_url -cne'; Name = 'stable exact asset download route' },
   @{ Text = $stableReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'stable signer policy' },
   @{ Text = $labsLauncherCandidate; Token = "distribution_track = 'meta-store-app'"; Name = 'Labs launcher Meta Store track' },
   @{ Text = $labsLauncherCandidate; Token = 'separate Rusty Kiosk Labs Launcher Store app'; Name = 'separate Labs Store identity' },
@@ -619,6 +644,8 @@ foreach ($contract in @(
     throw "The $($contract.Name) contract is missing: $($contract.Token)"
   }
 }
+& $labsReleaseReadbackTestPath
+& $releaseWorkflowStructureTestPath
 if ($labsLauncherCandidate.Contains(
     'meta-store-separate-app', [StringComparison]::Ordinal)) {
   throw 'The Labs launcher candidate conflates Store transport with app identity.'
@@ -626,6 +653,14 @@ if ($labsLauncherCandidate.Contains(
 if ($labsReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)' -or
     $stableReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)') {
   throw 'A workflow input must not authorize the production Kiosk signer.'
+}
+if ($labsReleaseWorkflow -match "'\$\{\{\s*(inputs\.version|github\.(ref|ref_name))\s*\}\}'" -or
+    $stableReleaseWorkflow -match "'\$\{\{\s*(inputs\.version|github\.(ref|ref_name))\s*\}\}'") {
+  throw 'Untrusted release trigger text must enter PowerShell only through step environment data.'
+}
+if ($labsReleaseWorkflow -match '(?m)^\s*cache:\s*gradle\s*$' -or
+    $stableReleaseWorkflow -match '(?m)^\s*cache:\s*gradle\s*$') {
+  throw 'Signing workflows must not restore a mutable shared Gradle cache.'
 }
 
 $publicFiles =

@@ -105,10 +105,20 @@ the repository's latest release. Both routes bind the checked-out commit and
 tree, inspect the two APK package/version/code identities, compare their common
 signer to the public Kiosk signer trust anchor, create a previously absent
 release, and read back the closed asset set, byte sizes, and GitHub SHA-256
-digests. Labs uses a draft-first boundary: the exact six assets and release
-identity are read back before promotion, then the same evidence is read back
-again from the live prerelease. Release ID, asset IDs, the bounded tag peel,
-source commit, and source tree must remain unchanged across promotion. Any
+digests. Both workflows accept trigger values only through environment data,
+require the exact tag commit to be reachable from freshly fetched `main`,
+reject tracked or untracked checkout dirt before signing and staging, avoid
+shared Gradle caches, and enter their distinct protected release environments.
+Both enumerate authenticated drafts before creation so a prior failed same-tag
+attempt cannot be duplicated. Stable reads the exact remote tag peel, commit,
+and tree immediately before and after publication. Labs uses a draft-first boundary: the
+exact six assets and release
+identity are read back before promotion, and all six draft URLs must share one
+bounded `untagged-<20 lowercase hex>` GitHub route derived from the release's
+exact HTML route. The same evidence is then
+read back from the live prerelease with exact final tag URLs. Release ID, asset
+IDs, target commit, the bounded tag peel, source commit, and source tree must
+remain unchanged across promotion. Any
 failed draft or live release is preserved for explicit owner incident handling;
 the workflow never deletes or replaces same-tag evidence. The Labs route
 accepts only an authoritative no-latest 404 or a different canonical stable
