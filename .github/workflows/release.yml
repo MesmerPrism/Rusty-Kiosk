@@ -67,8 +67,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # A missing release is the expected success condition here. GitHub's
+          # PowerShell runner promotes non-zero native exits to terminating
+          # errors unless this compatibility switch is disabled, which would
+          # prevent us from inspecting the authoritative HTTP 404 below.
+          $PSNativeCommandUseErrorActionPreference = $false
           $tag = '${{ steps.version.outputs.tag_name }}'
-          $response = gh api -i "repos/${{ github.repository }}/releases/tags/$tag" 2>&1
+          $response = @(gh api -i "repos/${{ github.repository }}/releases/tags/$tag" 2>&1)
           $exitCode = $LASTEXITCODE
           if ($exitCode -eq 0) {
             throw "Release $tag already exists; stable assets are append-never and replace-never."
