@@ -44,6 +44,7 @@ $releaseWorkflowStructureTestPath =
   Join-Path $repoRoot 'tools\checks\Test-ReleaseWorkflowStructure.ps1'
 $labsReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-labs.yml'
 $stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
+$ciWorkflowPath = Join-Path $repoRoot '.github\workflows\ci.yml'
 $labsLauncherCandidatePath =
   Join-Path $repoRoot 'tools\Prepare-RustyKioskLauncherLabsCandidate.ps1'
 $releaseSignerPolicyPath = Join-Path $repoRoot 'release\kiosk-release-signer-policy.v1.json'
@@ -570,6 +571,7 @@ $labsOwnerMetadataValidator = Get-Content -Raw -LiteralPath $labsOwnerMetadataVa
 $labsReleaseReadbackModule = Get-Content -Raw -LiteralPath $labsReleaseReadbackModulePath
 $labsReleaseWorkflow = Get-Content -Raw -LiteralPath $labsReleaseWorkflowPath
 $stableReleaseWorkflow = Get-Content -Raw -LiteralPath $stableReleaseWorkflowPath
+$ciWorkflow = Get-Content -Raw -LiteralPath $ciWorkflowPath
 $labsLauncherCandidate = Get-Content -Raw -LiteralPath $labsLauncherCandidatePath
 $releaseSignerPolicy = Get-Content -Raw -LiteralPath $releaseSignerPolicyPath
 $appBuild = Get-Content -Raw -LiteralPath $appBuildPath
@@ -633,6 +635,11 @@ foreach ($contract in @(
   @{ Text = $stableReleaseWorkflow; Token = '$published.target_commitish -cne $env:RELEASE_SOURCE_REVISION'; Name = 'stable release source binding' },
   @{ Text = $stableReleaseWorkflow; Token = '$remote[0].browser_download_url -cne'; Name = 'stable exact asset download route' },
   @{ Text = $stableReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'stable signer policy' },
+  @{ Text = $ciWorkflow; Token = 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'; Name = 'pinned CI checkout action' },
+  @{ Text = $ciWorkflow; Token = 'actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95'; Name = 'pinned CI Java action' },
+  @{ Text = $ciWorkflow; Token = 'persist-credentials: false'; Name = 'credential-free CI checkout' },
+  @{ Text = $ciWorkflow; Token = 'runs-on: windows-2025'; Name = 'bounded CI runner generation' },
+  @{ Text = $ciWorkflow; Token = 'timeout-minutes: 45'; Name = 'bounded CI runtime' },
   @{ Text = $labsLauncherCandidate; Token = "distribution_track = 'meta-store-app'"; Name = 'Labs launcher Meta Store track' },
   @{ Text = $labsLauncherCandidate; Token = 'separate Rusty Kiosk Labs Launcher Store app'; Name = 'separate Labs Store identity' },
   @{ Text = $releaseSignerPolicy; Token = '423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb'; Name = 'authorized signer pin' },
