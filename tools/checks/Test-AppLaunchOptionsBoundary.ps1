@@ -92,10 +92,13 @@ if ([regex]::Matches($preview, 'id: "rusty-kiosk-launch-option-launch"').Count -
   throw 'Browser projection must expose one non-duplicated launch-option control id.'
 }
 
-foreach ($privateToken in @('1785693950514', 'CLI E2E Updated', 'Rusty-Symmetric-Morphovision')) {
-  $match = & git -C $repoRoot grep -n --fixed-strings -- $privateToken 2>$null
+foreach ($privatePattern in @(
+  'playlist\.playlist-[0-9]{10,}',
+  '(?i)[A-Z]:\\Work\\repos\\(?:active|planning)\\'
+)) {
+  $match = & git -C $repoRoot grep -n -I --perl-regexp -- $privatePattern 2>$null
   if ($LASTEXITCODE -eq 0 -and $match) {
-    throw "Public Kiosk source contains private validation identity: $privateToken"
+    throw "Public Kiosk source contains a run-specific or machine-private validation identity."
   }
 }
 
