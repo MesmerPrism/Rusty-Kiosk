@@ -58,6 +58,9 @@ Unit tests cover:
   non-secret cleanup ownership, lost-response STOP recovery, immutable direct
   install byte commitments, abandonment failure/absence readback and cleanup-only
   retry states, and the checked Kiosk/QFM bootstrap wire fixture;
+- exact stored replay-array types, fresh-only initialization, strict private
+  install-receipt schema/damage admission, ordered cleanup commitment binding,
+  canonical digest tamper rejection, and concurrent single-winner admission;
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
   decisions;
 - deterministic lowercase SHA-256 certificate digest formatting.

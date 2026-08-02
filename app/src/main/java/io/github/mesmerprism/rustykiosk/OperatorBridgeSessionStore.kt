@@ -187,6 +187,20 @@ internal object OperatorBridgeOperationLedgerPolicy {
   }
 }
 
+internal object OperatorBridgeStateShapePolicy {
+  fun requireSchema(fresh: Boolean, schemaPresent: Boolean, schemaMatches: Boolean) {
+    require((fresh && !schemaPresent) || (!fresh && schemaPresent && schemaMatches)) {
+      "Stored bootstrap state has a missing or invalid schema."
+    }
+  }
+
+  fun requireArray(fresh: Boolean, fieldPresent: Boolean, fieldIsArray: Boolean) {
+    require((fresh && !fieldPresent) || (!fresh && fieldPresent && fieldIsArray)) {
+      "Stored bootstrap state has a missing, null, or wrong-type array."
+    }
+  }
+}
+
 /**
  * App-private ephemeral bootstrap sessions. The secret is issued once through the DUMP provider,
  * is scoped only to direct-operator HMAC, and is never included in status or audit projection.
@@ -501,28 +515,50 @@ internal class OperatorBridgeSessionStore(
     return root
       .put(KEY_SESSIONS, retained)
       .put(KEY_CLEANUP_OWNERSHIPS, encodeCleanupOwnerships(retainedCleanupOwnerships))
-      .put(KEY_RECENT_ISSUES, root.optJSONArray(KEY_RECENT_ISSUES) ?: JSONArray())
-      .put(KEY_ISSUED_OPERATIONS, root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray())
+      .put(KEY_RECENT_ISSUES, root.getJSONArray(KEY_RECENT_ISSUES))
+      .put(KEY_ISSUED_OPERATIONS, root.getJSONArray(KEY_ISSUED_OPERATIONS))
       .put(KEY_LAST_OBSERVED_WALL_MS, now)
   }
 
   private fun loadState(): JSONObject {
     val stored = preferences.getString(KEY_STATE, null)
-    val root = if (stored == null) JSONObject() else JSONObject(stored)
+    val fresh = stored == null
+    val root = if (fresh) JSONObject() else JSONObject(requireNotNull(stored))
+    OperatorBridgeStateShapePolicy.requireSchema(
+      fresh,
+      root.has(KEY_STATE_SCHEMA),
+      root.opt(KEY_STATE_SCHEMA) == STATE_SCHEMA,
+    )
+    REQUIRED_ARRAY_KEYS.forEach { key ->
+      OperatorBridgeStateShapePolicy.requireArray(
+        fresh,
+        root.has(key),
+        root.opt(key) is JSONArray,
+      )
+    }
+    if (fresh) {
+      root.put(KEY_STATE_SCHEMA, STATE_SCHEMA)
+      REQUIRED_ARRAY_KEYS.forEach { key -> root.put(key, JSONArray()) }
+    }
+    val storedEpoch = if (fresh) {
+      null
+    } else {
+      val value = root.get(KEY_PROVIDER_EPOCH)
+      require(value is String && value.isNotBlank()) {
+        "Stored bootstrap state has a missing or invalid issuance epoch."
+      }
+      value
+    }
     val epoch = OperatorBridgeOperationLedgerPolicy.requireEpoch(
-      root.optString(KEY_PROVIDER_EPOCH).takeIf(String::isNotBlank),
+      storedEpoch,
       providerEpochLocked(),
     )
-    val operations = root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()
+    val operations = root.getJSONArray(KEY_ISSUED_OPERATIONS)
     OperatorBridgeOperationLedgerPolicy.normalize(
       (0 until operations.length()).map { operations.getString(it) }
     )
     return root
       .put(KEY_PROVIDER_EPOCH, epoch)
-      .put(KEY_SESSIONS, root.optJSONArray(KEY_SESSIONS) ?: JSONArray())
-      .put(KEY_RECENT_ISSUES, root.optJSONArray(KEY_RECENT_ISSUES) ?: JSONArray())
-      .put(KEY_ISSUED_OPERATIONS, root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray())
-      .put(KEY_CLEANUP_OWNERSHIPS, root.optJSONArray(KEY_CLEANUP_OWNERSHIPS) ?: JSONArray())
   }
 
   private fun providerEpochLocked(): String {
@@ -539,14 +575,14 @@ internal class OperatorBridgeSessionStore(
   }
 
   private fun issuedOperations(root: JSONObject): List<String> {
-    val source = root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()
+    val source = root.getJSONArray(KEY_ISSUED_OPERATIONS)
     return OperatorBridgeOperationLedgerPolicy.normalize(
       (0 until source.length()).map { source.getString(it) }
     )
   }
 
   private fun cleanupOwnerships(root: JSONObject): List<OperatorBridgeCleanupOwnership> {
-    val source = root.optJSONArray(KEY_CLEANUP_OWNERSHIPS) ?: JSONArray()
+    val source = root.getJSONArray(KEY_CLEANUP_OWNERSHIPS)
     return buildList {
       for (index in 0 until source.length()) {
         val item = source.optJSONObject(index) ?: continue
@@ -611,6 +647,8 @@ internal class OperatorBridgeSessionStore(
     const val MAX_OPERATION_IDS_PER_EPOCH = 4096
     private const val PREFERENCES = "rusty_kiosk_operator_sessions"
     private const val KEY_STATE = "state_json"
+    private const val KEY_STATE_SCHEMA = "schema"
+    private const val STATE_SCHEMA = "rusty.kiosk.operator_session_state.v1"
     private const val KEY_SESSIONS = "sessions"
     private const val KEY_RECENT_ISSUES = "recent_issues"
     private const val KEY_ISSUED_OPERATIONS = "issued_operations"
@@ -618,6 +656,12 @@ internal class OperatorBridgeSessionStore(
     private const val KEY_LAST_OBSERVED_WALL_MS = "last_observed_wall_ms"
     private const val KEY_PROVIDER_EPOCH = "provider_epoch"
     private const val KEY_PROVIDER_EPOCH_ANCHOR = "provider_epoch_anchor"
+    private val REQUIRED_ARRAY_KEYS = listOf(
+      KEY_SESSIONS,
+      KEY_RECENT_ISSUES,
+      KEY_ISSUED_OPERATIONS,
+      KEY_CLEANUP_OWNERSHIPS,
+    )
     private val SESSION_ID = Regex("[A-Za-z0-9_-]{16,64}")
     private val LOCK = Any()
   }

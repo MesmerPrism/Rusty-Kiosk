@@ -151,6 +151,9 @@ Operation-ID replay authority is a fixed 4096-entry, non-evicting ledger bound
 to a durable app-private bootstrap-issuance epoch. Bridge-generation changes never
 clear it. Saturation, malformed state, or epoch mismatch rejects issuance; only
 the app-data reset that creates a new bootstrap-issuance epoch resets this scope.
+The private session-state schema initializes its replay arrays only when no state
+exists. Once stored, a missing, null, or wrong-type array is integrity damage and
+cannot be replaced with an empty ledger.
 
 The network secret and cleanup authority have separate lifetimes. A bounded
 non-secret tombstone records the originating operation/session/generation,
@@ -165,7 +168,10 @@ If session abandonment throws, Kiosk treats either a successful abandon return
 or PackageInstaller absence readback as cleanup confirmation. Present or
 unreadable session state remains `cleanup-required` and incomplete; repeating
 the same install body may retry cleanup but cannot start another install under
-that request ID.
+that request ID. A private v2 receipt stores the exact ordered commitments and a
+canonical digest while the public receipt shape remains v1. Cleanup compares both
+before touching PackageInstaller. Receipt inspection distinguishes absent, valid,
+and damaged bytes; only absent permits a new session, including under concurrency.
 
 Returning to Rusty Kiosk starts a fresh MAIN task after a short teardown delay
 so a stale Spatial panel runtime is not reused.

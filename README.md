@@ -290,7 +290,9 @@ one-time in a fixed non-evicting bootstrap-issuance-epoch ledger; saturation or 
 state fails closed instead of making old IDs reusable. If Android cannot confirm
 cleanup of a failed installer session, its receipt stays `cleanup-required` and
 incomplete until the same install body retries cleanup with a fresh authenticated
-transport request ID.
+transport request ID. That retry must match the stored ordered APK commitments and
+canonical digest exactly. Existing malformed receipt or replay-ledger state is
+damage, never absence, and cannot admit another session.
 
 ## Tag file
 

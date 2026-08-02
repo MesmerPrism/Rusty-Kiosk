@@ -106,6 +106,39 @@ class OperatorBridgeSessionPolicyTest {
   }
 
   @Test
+  fun storedReplayArraysInitializeOnlyForFreshStateAndRejectWrongTypes() {
+    OperatorBridgeStateShapePolicy.requireSchema(
+      fresh = true,
+      schemaPresent = false,
+      schemaMatches = false,
+    )
+    OperatorBridgeStateShapePolicy.requireArray(
+      fresh = true,
+      fieldPresent = false,
+      fieldIsArray = false,
+    )
+    OperatorBridgeStateShapePolicy.requireSchema(
+      fresh = false,
+      schemaPresent = true,
+      schemaMatches = true,
+    )
+    OperatorBridgeStateShapePolicy.requireArray(
+      fresh = false,
+      fieldPresent = true,
+      fieldIsArray = true,
+    )
+    listOf(
+      { OperatorBridgeStateShapePolicy.requireSchema(false, false, false) },
+      { OperatorBridgeStateShapePolicy.requireSchema(false, true, false) },
+      { OperatorBridgeStateShapePolicy.requireArray(false, false, false) },
+      { OperatorBridgeStateShapePolicy.requireArray(true, true, true) },
+      { OperatorBridgeStateShapePolicy.requireArray(false, true, false) },
+    ).forEach { damaged ->
+      assertThrows(IllegalArgumentException::class.java, damaged)
+    }
+  }
+
+  @Test
   fun sessionUseFailsOnExpiryClockRollbackAndGenerationSubstitution() {
     assertTrue(OperatorBridgeSessionPolicy.isUsable(1_500L, 1_000L, 2_000L, 7L, 7L))
     assertFalse(OperatorBridgeSessionPolicy.isUsable(2_000L, 1_000L, 2_000L, 7L, 7L))

@@ -1,8 +1,11 @@
 package io.github.mesmerprism.rustykiosk
 
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 
 internal data class RustyKioskInstallPartCommitment(
@@ -64,4 +67,81 @@ internal object RustyKioskInstallPartCommitmentPolicy {
   }
 
   private val POSITIVE_INTEGER = Regex("[1-9][0-9]*")
+}
+
+internal object RustyKioskInstallCommitmentManifestPolicy {
+  fun validate(
+    commitments: List<RustyKioskInstallPartCommitment>,
+  ): List<RustyKioskInstallPartCommitment> {
+    require(commitments.size in 1..RustyKioskInstaller.MAX_APK_PARTS) {
+      "The ordered install commitment set is empty or too large."
+    }
+    require(commitments.map { it.name }.distinct().size == commitments.size) {
+      "The ordered install commitment set contains duplicate names."
+    }
+    commitments.forEach { commitment ->
+      require(SAFE_APK_NAME.matches(commitment.name) &&
+        commitment.name.substringAfterLast('.', "").equals("apk", ignoreCase = true)
+      ) { "The ordered install commitment contains an invalid APK name." }
+      require(commitment.bytes in 1..RustyKioskInstaller.MAX_APK_BYTES) {
+        "The ordered install commitment contains an invalid byte count."
+      }
+      require(RustyKioskInstallPartCommitmentPolicy.SHA256.matches(commitment.sha256)) {
+        "The ordered install commitment contains an invalid SHA-256."
+      }
+    }
+    return commitments
+  }
+
+  fun canonicalSha256(commitments: List<RustyKioskInstallPartCommitment>): String {
+    val ordered = validate(commitments)
+    val digest = MessageDigest.getInstance("SHA-256")
+    digest.update(CANONICAL_PREFIX)
+    digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(ordered.size).array())
+    ordered.forEach { commitment ->
+      val name = commitment.name.toByteArray(StandardCharsets.UTF_8)
+      digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(name.size).array())
+      digest.update(name)
+      digest.update(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(commitment.bytes).array())
+      digest.update(commitment.sha256.toByteArray(StandardCharsets.US_ASCII))
+    }
+    return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
+  }
+
+  fun toJson(commitments: List<RustyKioskInstallPartCommitment>): JSONArray =
+    JSONArray().also { array ->
+      validate(commitments).forEach { commitment ->
+        array.put(
+          JSONObject()
+            .put("name", commitment.name)
+            .put("bytes", commitment.bytes)
+            .put("sha256", commitment.sha256)
+        )
+      }
+    }
+
+  fun parse(array: JSONArray): List<RustyKioskInstallPartCommitment> =
+    validate(
+      (0 until array.length()).map { index ->
+        RustyKioskInstallPartCommitmentPolicy.parse(array.getJSONObject(index))
+      }
+    )
+
+  fun matchesBoundManifest(
+    storedCommitments: List<RustyKioskInstallPartCommitment>,
+    storedSha256: String,
+    incomingCommitments: List<RustyKioskInstallPartCommitment>,
+  ): Boolean =
+    runCatching {
+      validate(storedCommitments)
+      validate(incomingCommitments)
+      RustyKioskInstallPartCommitmentPolicy.SHA256.matches(storedSha256) &&
+        storedCommitments == incomingCommitments &&
+        storedSha256 == canonicalSha256(storedCommitments) &&
+        storedSha256 == canonicalSha256(incomingCommitments)
+    }.getOrDefault(false)
+
+  private val CANONICAL_PREFIX =
+    "rusty.kiosk.install_commitments.v1\u0000".toByteArray(StandardCharsets.US_ASCII)
+  private val SAFE_APK_NAME = Regex("[A-Za-z0-9][A-Za-z0-9._ ()+@-]{0,159}")
 }

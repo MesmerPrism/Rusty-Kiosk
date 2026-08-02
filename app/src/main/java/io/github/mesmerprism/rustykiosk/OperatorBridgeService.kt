@@ -460,7 +460,7 @@ private class OperatorBridgeHttpServer(
     require(commitments.map { it.name }.distinct().size == commitments.size) {
       "Install part names must be unique."
     }
-    RustyKioskInstaller(context).retryCleanupIfRequired(requestId)?.let { receipt ->
+    RustyKioskInstaller(context).retryCleanupIfRequired(requestId, commitments)?.let { receipt ->
       return receipt.toJson()
     }
     val parts = commitments.map { commitment ->
@@ -485,11 +485,16 @@ private class OperatorBridgeHttpServer(
 
   private fun installResult(requestId: String): JSONObject {
     require(RustyKioskInstallStore.REQUEST_ID.matches(requestId)) { "A valid install request id is required." }
-    return installStore.read(requestId)?.toJson()
-      ?: success("No matching Android install receipt is available yet.")
-        .put("request_id", requestId)
-        .put("completed", false)
-        .put("state", "pending")
+    return when (val read = installStore.inspect(requestId)) {
+      is RustyKioskInstallReceiptRead.Available -> read.receipt.toJson()
+      RustyKioskInstallReceiptRead.Absent ->
+        success("No matching Android install receipt is available yet.")
+          .put("request_id", requestId)
+          .put("completed", false)
+          .put("state", "pending")
+      is RustyKioskInstallReceiptRead.Damaged ->
+        throw IllegalStateException("Existing install state is damaged; readback fails closed: ${read.message}")
+    }
   }
 
   private fun withJsonBody(

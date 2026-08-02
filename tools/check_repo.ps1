@@ -363,9 +363,15 @@ if ($directBootstrapContract.schema -ne 'rusty.kiosk.direct_usb_bootstrap_contra
     $directBootstrapContract.operation_replay.eviction -ne 'none' -or
     $directBootstrapContract.operation_replay.saturation -ne 'fail-closed-until-new-bootstrap-issuance-epoch' -or
     $directBootstrapContract.operation_replay.bridge_generation_change_clears_ids -ne $false -or
+    $directBootstrapContract.operation_replay.stored_state_schema -ne 'rusty.kiosk.operator_session_state.v1' -or
+    $directBootstrapContract.operation_replay.array_initialization -ne 'fresh-state-only' -or
     $directBootstrapContract.direct_install.copy_rule -ne 'same-opened-handle-count-and-digest-verified-before-packageinstaller-commit' -or
     $directBootstrapContract.direct_install.abandon_failure_present_or_unknown -ne 'cleanup-required-incomplete' -or
     $directBootstrapContract.direct_install.cleanup_retry_starts_second_install -ne $false -or
+    $directBootstrapContract.direct_install.cleanup_retry_binding -ne 'exact-ordered-name-bytes-sha256-and-canonical-sha256' -or
+    $directBootstrapContract.direct_install.stored_receipt_schema -ne 'rusty.kiosk.local_install_state.v2' -or
+    $directBootstrapContract.direct_install.damaged_existing_receipt -ne 'fail-closed-without-new-session' -or
+    $directBootstrapContract.direct_install.stored_binding_exported_in_public_receipt -ne $false -or
     $directBootstrapContract.status_returns_secret -ne $false -or
     $directBootstrapContract.persistent_pairing_code_exported -ne $false) {
   throw 'The Kiosk/QFM Direct USB bootstrap fixture does not match the fixed v2 wire contract.'
@@ -403,7 +409,9 @@ foreach ($token in @(
   'OperatorBridgeOperationLedgerPolicy',
   'requireEpoch',
   'return current + operationId',
-  'if (stored == null) JSONObject() else JSONObject(stored)',
+  'OperatorBridgeStateShapePolicy',
+  'STATE_SCHEMA = "rusty.kiosk.operator_session_state.v1"',
+  'root.getJSONArray(KEY_ISSUED_OPERATIONS)',
   'The bootstrap session and operation ledger could not be persisted.',
   'bridge_generation',
   'issued_operations',
@@ -417,11 +425,17 @@ foreach ($token in @(
     throw "The bounded ephemeral direct-session policy is missing: $token"
   }
 }
+if ($operatorSessionStore.Contains('root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()', [StringComparison]::Ordinal)) {
+  throw 'The durable operation replay ledger must not reset a present wrong-type field to empty.'
+}
 foreach ($token in @(
   'copyVerified',
   'MessageDigest.getInstance("SHA-256")',
   'commitment.bytes',
-  'commitment.sha256'
+  'commitment.sha256',
+  'RustyKioskInstallCommitmentManifestPolicy',
+  'canonicalSha256',
+  'matchesBoundManifest'
 )) {
   if (-not $installCommitment.Contains($token, [StringComparison]::Ordinal)) {
     throw "The immutable direct-install commitment boundary is missing: $token"
@@ -434,7 +448,13 @@ foreach ($token in @(
   'cleanup-required',
   'retryCleanupIfRequired',
   'installer.mySessions',
-  'cleanupConfirmed'
+  'cleanupConfirmed',
+  'RustyKioskInstallReceiptRead.Damaged',
+  'rusty.kiosk.local_install_state.v2',
+  'commitment_sha256',
+  'toStoredJson',
+  'An interrupted temporary install receipt exists.',
+  'incomingCommitments'
 )) {
   if (-not $installer.Contains($token, [StringComparison]::Ordinal)) {
     throw "The fail-closed PackageInstaller cleanup boundary is missing: $token"

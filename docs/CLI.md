@@ -86,7 +86,10 @@ install receipts. Install admission supplies an ordered strict
 bytes from the same opened handle copied into PackageInstaller. A failed copy is
 terminal only after Android accepts abandonment or confirms that the session is
 absent. Otherwise `cleanup-required` remains incomplete, and resending the same
-install body with a new authenticated transport request ID retries cleanup only.
+install body with a new authenticated transport request ID retries cleanup only
+after its ordered name/bytes/SHA-256 commitments and canonical digest match the
+private receipt. Malformed, schema-invalid, oversized, or interrupted existing
+receipt state fails closed and is never treated as an unused install ID.
 This is a separate authenticated network transport, not an
 expansion of the `DUMP` provider.
 

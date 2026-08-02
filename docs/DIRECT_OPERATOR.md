@@ -60,6 +60,9 @@ Operation IDs are one-time within a durable app-private bootstrap-issuance epoch
 fixed 4096-entry exact ledger never evicts on bridge-generation change. When it
 is full, malformed, or bound to a mismatched epoch, new issuance fails closed;
 clearing app data creates the next bootstrap-issuance epoch and is the only reset path.
+The stored state has an exact private schema. Replay arrays initialize only when
+the entire state is absent; a present missing, null, or wrong-type
+`issued_operations` field rejects instead of becoming an empty ledger.
 
 The host owns exact-serial ADB evidence. Raw `content call` stdout must feed a
 redacted in-memory parser and must not be echoed, logged, or placed in generic
@@ -120,7 +123,11 @@ PackageInstaller readback proving that the session is absent permits terminal
 `failed`; present or unavailable readback records incomplete
 `cleanup-required`. The operator retries that cleanup by resending the same
 install body with a fresh authenticated transport request ID. This retry cannot
-stage or commit a second session under the original install request ID.
+stage or commit a second session under the original install request ID. The
+private receipt stores the exact ordered commitment list and its canonical
+SHA-256. Cleanup requires exact equality to the incoming body. The public v1
+receipt remains unchanged. Existing private receipt bytes are classified as
+absent, valid, or damaged; only absent can admit a new PackageInstaller session.
 
 QuestIonAble File Manager therefore presents authorized PC ADB installation as
 the default unattended and batch route. Direct PackageInstaller is the explicit

@@ -3,7 +3,9 @@ package io.github.mesmerprism.rustykiosk
 import org.json.JSONObject
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -74,6 +76,42 @@ class RustyKioskInstallCommitmentTest {
         commitment,
       )
     }
+  }
+
+  @Test
+  fun canonicalManifestBindsOrderAndEveryCommittedField() {
+    val base = RustyKioskInstallPartCommitment("base.apk", 12L, "01".repeat(32))
+    val split = RustyKioskInstallPartCommitment("split_config.apk", 23L, "ab".repeat(32))
+    val ordered = listOf(base, split)
+    val digest = RustyKioskInstallCommitmentManifestPolicy.canonicalSha256(ordered)
+    assertTrue(
+      RustyKioskInstallCommitmentManifestPolicy.matchesBoundManifest(
+        ordered,
+        digest,
+        ordered,
+      )
+    )
+    listOf(
+      ordered.reversed(),
+      listOf(base.copy(bytes = base.bytes + 1L), split),
+      listOf(base.copy(sha256 = "02".repeat(32)), split),
+      listOf(base.copy(name = "other.apk"), split),
+    ).forEach { changed ->
+      assertFalse(
+        RustyKioskInstallCommitmentManifestPolicy.matchesBoundManifest(
+          ordered,
+          digest,
+          changed,
+        )
+      )
+    }
+    assertFalse(
+      RustyKioskInstallCommitmentManifestPolicy.matchesBoundManifest(
+        ordered,
+        "ff".repeat(32),
+        ordered,
+      )
+    )
   }
 
   private fun sha256(bytes: ByteArray): String =
