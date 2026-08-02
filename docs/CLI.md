@@ -34,7 +34,7 @@ than the debug activity.
 
 ## Release host operator
 
-Release builds expose host schema `rusty.kiosk.host_operator.v2` through a
+Release builds expose host schema `rusty.kiosk.host_operator.v4` through a
 separate `ContentProvider.call()` adapter for an already authorized ADB shell. Android
 requires the caller to hold `android.permission.DUMP`; ordinary headset apps do
 not. The provider admits one bounded request into the same app-private queue and
@@ -44,6 +44,33 @@ write is capped at 256 KiB, SHA-256 checked, schema validated, and atomically
 activated before acknowledgement. It supports no query, insert, update, delete,
 shell, component, intent, host-supplied path, endpoint, or free-form setup route.
 
+Provider v4 adds read-only `request-status`, exact queued-request `cancel`, and
+explicit `direct-status`, `direct-enable`, and generation-bound
+`direct-disable`, plus cleanup-only `direct-recover-disable`. Status never enqueues a command. Requests expire after two
+minutes, retain durable pending/claimed identity across process restart, and
+end in a bounded exact-ID receipt. Claimed and terminal requests cannot be
+cancelled. Lifecycle states are `pending`, `pending_wearer_action`,
+`confirmed`, `rejected`, `expired`, `cancelled`, and `unknown`.
+
+`direct-enable` requires a unique operation ID and returns channel, package,
+endpoint, bridge generation, session ID, expiry, `enabled_by_request`, and one
+standard-Base64 32-byte session secret. It never returns the persistent pairing
+code. The exact ADB serial belongs to the desktop wrapper; raw `content call`
+output must go directly into a redacted in-memory parser and must never be
+echoed, logged, or included in a diagnostic `CommandResult`. `direct-disable`
+requires the originating operation/session IDs and expected generation and
+fails closed after a generation change.
+Enable and disable are asynchronous foreground-service transitions;
+`completed` is truthful readback, and the host polls no-argument
+`direct-status` until the expected enabled/running pair converges.
+
+The five-minute HMAC secret is purged independently of a bounded 24-hour,
+non-secret cleanup tombstone. Disable requires `enabled_by_request=true` and an
+atomic current-generation recheck. If output was lost, the DUMP-only recovery
+method accepts only the original operation ID; it returns no session or pairing
+credential and can only disable or re-dispatch STOP for that owned generation.
+Current-generation stopped readback consumes the retry record.
+
 The host sequence is deliberately two-stage: call `invoke`, start the fixed
 `.RustyKioskActivity` with the admitted request id, then poll `result`. This
 keeps visible action execution in the same Activity handlers as the panel and
@@ -51,16 +78,28 @@ avoids granting the provider hidden foreground or business-logic authority.
 The public QuestIonAble File Manager implements this contract for its optional
 Rusty Kiosk tab.
 
-QuestIonAble File Manager also implements `rusty.kiosk.direct_operator.v1` for
+QuestIonAble File Manager also implements `rusty.kiosk.direct_operator.v2` for
 post-bootstrap operation without ADB. Its `kiosk-direct` CLI family covers
 status, typed commands, tag import/export, app-owned staging, and attended APK
-install receipts. This is a separate authenticated network transport, not an
+install receipts. Install admission supplies an ordered strict
+`{name, bytes, sha256}` entry for every APK and Kiosk verifies those committed
+bytes from the same opened handle copied into PackageInstaller. A failed copy is
+terminal only after Android accepts abandonment or confirms that the session is
+absent. Otherwise `cleanup-required` remains incomplete, and resending the same
+install body with a new authenticated transport request ID retries cleanup only
+after its ordered name/bytes/SHA-256 commitments and canonical digest match the
+private receipt. Malformed, schema-invalid, oversized, or interrupted existing
+receipt state fails closed and is never treated as an unused install ID.
+This is a separate authenticated network transport, not an
 expansion of the `DUMP` provider.
 
 The CLI never accepts a shell command, executable path, Android component,
 intent action, package to launch, device path, Accessibility gesture, or
 free-form setup operation. App selection is restricted to the current visible
-catalogue, and launch commands operate only on that selection.
+catalogue, and launch commands operate only on that selection. `launch-option`
+accepts only one opaque option ID from the selected app's already discovered,
+bounded, read-only capability; the package, provider, signer, UID, owner Activity,
+intent shape, and single fixed extra key are all app-owned or Kiosk-owned.
 
 ## Usage
 
@@ -85,6 +124,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
   -Serial <quest-serial> `
   -Command select `
   -Value Browser
+
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\Invoke-RustyKioskCli.ps1 `
+  -Serial <quest-serial> `
+  -Command launch-option `
+  -Value option.demo-loop
 ```
 
 ## Command vocabulary
@@ -100,7 +145,10 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | `select` | visible key, exact package, or exact label | Select a visible catalogue row |
 | `filter-tag` | optional tag | Select a tag chip; blank selects **All apps** |
 | `add-tag` / `remove-tag` | tag | Use the selected app's tag action |
+| `set-launch-requirement` | `any`, `wifi-on`, or `wifi-off` | Change the selected app's dedicated launch requirement |
+| `cancel-pending-launch` | none | Cancel the current unmet-requirement launch |
 | `launch-normal` / `launch-kiosk` | none | Use the corresponding launch button |
+| `launch-option` | opaque option ID, maximum 160 characters | Revalidate and normally launch the selected app's fixed front door with its one declared option; the soft guard remains disarmed |
 | `check-setup-helper` | none | Refresh the fixed helper's installed/provisioned status |
 | `request-wifi-adb` / `disable-wifi-adb` | none | Use the corresponding visible fixed-operation control |
 | `enable-wifi-adb-after-boot` / `disable-wifi-adb-after-boot` | none | Turn the visible restart-request preference on or off |
@@ -113,6 +161,12 @@ as the visible search field, tag chips, and app rows. Their values survive the
 fresh Spatial task created by a triple-Home return; blank filter values
 explicitly clear that state, and an app outside the current results is never
 retained in the details area.
+
+Searchable tags and launch requirements are independent. A passive tag named
+`wifi-on` has no effect. Both launch commands preflight ordinary Wi-Fi before
+target or guard mutation; unmet state opens fixed Android Wi-Fi settings and
+returns `pending_wearer_action`. Return revalidates the exact bound app before
+launch.
 
 Fixed helper commands write their result only after the helper answers and the
 main app performs effective-state readback. A Wi-Fi ADB request can complete as

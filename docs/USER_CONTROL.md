@@ -6,6 +6,12 @@ separate capabilities.
 Each setting has an effective-state readback, requires an explicit action before
 it changes, and has a visible off route.
 
+The app catalogue also has one explicit per-app launch requirement: **Any**,
+**Wi-Fi on**, or **Wi-Fi off**. It is not a passive tag and applies equally to
+Normal and Kiosk launch. Rusty Kiosk only reads ordinary Wi-Fi. When unmet it
+opens Android Wi-Fi settings, never toggles Wi-Fi or Wi-Fi ADB, and shows a
+cancel route while the bounded launch is pending.
+
 ## Components
 
 - The main Spatial APK is unprivileged and never declares
@@ -68,6 +74,9 @@ Horizon still decides whether and how to present approval.
   readback for Rusty Kiosk's exact service.
 - **Direct link Off / Starting / Ready / Error** combines the wearer's persisted
   opt-in with the local listener's effective state and address.
+- The persistent pairing code is masked whenever the panel is created or the
+  code changes. **Show pairing code** reveals it locally until **Hide** or the
+  next panel/code transition; typed host status never exports it.
 - **Local APK installer needs permission / wearer allowed** is Android
   `canRequestPackageInstalls()` readback, not an install-success claim.
 - **Meta Home Available** reflects the normal Home path and explicit exit.
@@ -97,6 +106,13 @@ component while preserving all other enabled services.
   credential; rotation also disables the link until re-enabled.
 - Revoke Rusty Kiosk's per-app installer permission in Android settings to stop
   future local install sessions.
+- An authorized USB bootstrap may disable the link only when its exact
+  operation ID, ephemeral session ID, and bridge generation still match and it
+  originally enabled the listener. A pre-existing wearer-enabled listener is
+  not cleanup-owned by that host run. Cleanup ownership is non-secret and
+  outlives the five-minute network credential for at most 24 hours. If the
+  original response was lost, the DUMP-only recovery route uses only that
+  operation ID to disable or re-dispatch STOP and returns no credentials.
 - Uninstall the setup helper to remove the in-headset settings route. Browsing,
   tagging, normal launch, and an already running main app remain ordinary app
   behavior.

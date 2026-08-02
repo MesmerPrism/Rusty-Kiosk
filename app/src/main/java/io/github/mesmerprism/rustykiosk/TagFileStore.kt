@@ -26,37 +26,31 @@ internal class TagFileStore(context: Context) {
   }
 
   fun load(): List<TagRecord> {
+    return loadDocument().records
+  }
+
+  fun loadDocument(): TagFileDocument {
     ensureExists()
-    return TagFileCodec.parse(tagFile.readText(StandardCharsets.UTF_8))
+    require(tagFile.length() <= TagFileCodec.MAX_BYTES) {
+      "Tag file exceeds ${TagFileCodec.MAX_BYTES} bytes."
+    }
+    return TagFileCodec.parseDocument(tagFile.readText(StandardCharsets.UTF_8))
   }
 
   fun setTags(entry: CatalogEntry, tags: Set<String>) {
-    val normalizedTags = tags.map(::normalizeTag).filter(String::isNotEmpty).toSet()
-    val records = load().toMutableList()
-    val matchIndex =
-      records.indexOfFirst { record ->
-        if (entry.packageName != null) {
-          record.packageName == entry.packageName
-        } else {
-          record.packageName == null && normalizeLookup(record.name) == normalizeLookup(entry.label)
-        }
-      }
-    if (normalizedTags.isEmpty()) {
-      if (matchIndex >= 0) records.removeAt(matchIndex)
-    } else {
-      val replacement =
-        TagRecord(
-          name = entry.label,
-          packageName = entry.packageName,
-          tags = normalizedTags,
-        )
-      if (matchIndex >= 0) records[matchIndex] = replacement else records.add(replacement)
-    }
-    writeAtomically(TagFileCodec.encode(records))
+    val current = loadDocument()
+    writeAtomically(TagFileCodec.encode(TagDocumentEditor.setTags(current, entry, tags)))
+  }
+
+  fun setLaunchRequirement(entry: CatalogEntry, requirement: AppLaunchRequirement) {
+    val current = loadDocument()
+    writeAtomically(
+      TagFileCodec.encode(TagDocumentEditor.setLaunchRequirement(current, entry, requirement))
+    )
   }
 
   fun replaceJson(json: String) {
-    TagFileCodec.parse(json)
+    TagFileCodec.parseDocument(json)
     writeAtomically(json)
   }
 

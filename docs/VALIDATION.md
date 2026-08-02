@@ -44,6 +44,23 @@ Unit tests cover:
 - preservation of other enabled Accessibility services;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
+- strict legacy/v2 launch-requirement migration; passive-tag independence;
+  conflict/unknown rejection; both-mode Wi-Fi preflight; cancellation, expiry,
+  settings-return debounce, process-restart cancellation, app disappearance,
+  and point-of-use target/install/document revalidation;
+- provider-v4 process-wide transition locking, original-expiry transfer,
+  first-terminal tombstones, concurrent enqueue, cancel/consume, and
+  expiry/record races;
+- Direct USB session entropy, bootstrap-issuance-epoch-scoped non-evicting one-time
+  operation IDs, ledger saturation/malformed/epoch mismatch rejection, issuance rate/concurrency
+  bounds, monotonic-wall-clock issuance, capability/generation/expiry/revocation
+  rules, raw-byte HMAC, generation-bound crossed START/STOP rejection, long-run
+  non-secret cleanup ownership, lost-response STOP recovery, immutable direct
+  install byte commitments, abandonment failure/absence readback and cleanup-only
+  retry states, and the checked Kiosk/QFM bootstrap wire fixture;
+- exact stored replay-array types, fresh-only initialization, strict private
+  install-receipt schema/damage admission, ordered cleanup commitment binding,
+  canonical digest tamper rejection, and concurrent single-winner admission;
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
   decisions;
 - deterministic lowercase SHA-256 certificate digest formatting.
@@ -51,6 +68,11 @@ Unit tests cover:
 The static guard checks additionally require Rusty Kiosk to disarm itself when
 its own package becomes foreground and prohibit Accessibility UI-tree access,
 global actions, gestures, and Android HOME-role declarations.
+They hold app-provided launch options to the derived provider authority,
+exclusive package UID, signer/install identity, existing catalogue front door,
+full pre/post-query binding equality, bounded timeout fuse, strict cursor shape,
+option-digest continuity, one fixed extra, normal task flags, disarmed guard,
+dispatch-only receipt naming, and non-duplicated browser control identity.
 They require the exported foreground provider to remain call-only, v2-only,
 and bound to the armed package, exclusive UID, protocol metadata, launch-time
 signing lineage, installation/update identity, and current readback. The client
@@ -228,6 +250,19 @@ run should prove:
 17. after restart or a later manual request, Meta approval remains visible and
     attended; the panel reports only effective setting state;
 18. **Exit to Meta Home** disarms pending guard state and opens Meta Home.
+19. set each selected-app requirement through both visible and typed controls;
+    prove a passive `wifi-on` tag alone has no effect;
+20. for both Normal and Kiosk modes, prove matching ordinary Wi-Fi launches,
+    mismatch opens fixed Android Wi-Fi settings without target/guard mutation,
+    unchanged return waits without reopening, changed return launches once, and
+    cancel/expiry/app update prevents launch;
+21. bootstrap Direct Link through the exact-serial provider-v4 host route,
+    retain the secret only in memory, poll pending startup, confirm exact session
+    ID + bridge generation through authenticated status, exercise status/result/
+    exact cancel, then disable only when `enabled_by_request=true` and exact
+    ownership still matches. Also exercise operation-ID-only lost-response
+    recovery after the five-minute secret expiry, require stopped readback, and
+    prove a staged APK replacement cannot satisfy its committed size/SHA-256.
 
 Run app actions through `tools/Invoke-RustyKioskCli.ps1`; display-coordinate
 touch injection is not accepted. `focus-search` and `focus-tag-editor` must

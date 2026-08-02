@@ -20,6 +20,15 @@ $setupManifestPath = Join-Path $repoRoot 'setup-helper\src\main\AndroidManifest.
 $setupSourcePath = Join-Path $repoRoot 'setup-helper\src\main\java\io\github\mesmerprism\rustykiosk\setuphelper\SetupOperations.kt'
 $cliContractPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskCliContract.kt'
 $operatorProviderPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskOperatorProvider.kt'
+$operatorBridgeServicePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeService.kt'
+$operatorBridgeSettingsPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeSettings.kt'
+$operatorBridgeAuthPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeAuth.kt'
+$operatorSessionStorePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeSessionStore.kt'
+$installCommitmentPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskInstallCommitment.kt'
+$installerPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskInstaller.kt'
+$activeRequirementPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ActiveLaunchRequirement.kt'
+$activeRequirementAndroidPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ActiveLaunchRequirementAndroid.kt'
+$directBootstrapContractPath = Join-Path $repoRoot 'references\rusty-kiosk-direct-usb-bootstrap-contract.v2.json'
 $foregroundSignalProviderPath =
   Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ForegroundSignalProvider.kt'
 $foregroundSignalAdmissionPath =
@@ -42,6 +51,8 @@ $labsReleaseReadbackTestPath =
   Join-Path $repoRoot 'tools\checks\Test-LabsReleaseReadback.ps1'
 $releaseWorkflowStructureTestPath =
   Join-Path $repoRoot 'tools\checks\Test-ReleaseWorkflowStructure.ps1'
+$appLaunchOptionsBoundaryTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-AppLaunchOptionsBoundary.ps1'
 $labsReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-labs.yml'
 $stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
 $ciWorkflowPath = Join-Path $repoRoot '.github\workflows\ci.yml'
@@ -304,6 +315,16 @@ $cliActivity = Get-Content -Raw -LiteralPath $cliActivityPath
 $guardCliReceiver = Get-Content -Raw -LiteralPath $guardCliReceiverPath
 $cliContract = Get-Content -Raw -LiteralPath $cliContractPath
 $operatorProvider = Get-Content -Raw -LiteralPath $operatorProviderPath
+$operatorBridgeService = Get-Content -Raw -LiteralPath $operatorBridgeServicePath
+$operatorBridgeSettings = Get-Content -Raw -LiteralPath $operatorBridgeSettingsPath
+$operatorBridgeAuth = Get-Content -Raw -LiteralPath $operatorBridgeAuthPath
+$operatorSessionStore = Get-Content -Raw -LiteralPath $operatorSessionStorePath
+$installCommitment = Get-Content -Raw -LiteralPath $installCommitmentPath
+$installer = Get-Content -Raw -LiteralPath $installerPath
+$activeRequirement = Get-Content -Raw -LiteralPath $activeRequirementPath
+$activeRequirementSurface = $activeRequirement + (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\CatalogModels.kt'))
+$activeRequirementAndroid = Get-Content -Raw -LiteralPath $activeRequirementAndroidPath
+$directBootstrapContract = Get-Content -Raw -LiteralPath $directBootstrapContractPath | ConvertFrom-Json
 $cliScript = Get-Content -Raw -LiteralPath $cliScriptPath
 foreach ($token in @('RustyKioskCliProtocol.parse', 'RustyKioskCliStore(this).enqueue')) {
   if (-not $cliActivity.Contains($token, [StringComparison]::Ordinal)) {
@@ -311,7 +332,7 @@ foreach ($token in @('RustyKioskCliProtocol.parse', 'RustyKioskCliStore(this).en
   }
 }
 foreach ($token in @(
-  'rusty.kiosk.host_operator.v2',
+  'rusty.kiosk.host_operator.v4',
   'METHOD_TAG_READ',
   'METHOD_TAG_WRITE_BEGIN',
   'METHOD_TAG_WRITE_CHUNK',
@@ -322,6 +343,169 @@ foreach ($token in @(
 )) {
   if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
     throw "The bounded host tag-transfer contract is missing: $token"
+  }
+}
+if ($directBootstrapContract.schema -ne 'rusty.kiosk.direct_usb_bootstrap_contract.v2' -or
+    $directBootstrapContract.host_provider_schema -ne 'rusty.kiosk.host_operator.v4' -or
+    $directBootstrapContract.bootstrap_result_schema -ne 'rusty.kiosk.direct_usb_bootstrap.v2' -or
+    $directBootstrapContract.direct_operator_schema -ne 'rusty.kiosk.direct_operator.v2' -or
+    $directBootstrapContract.enable.operation_id_transport -ne 'content-provider-arg' -or
+    $directBootstrapContract.disable.operation_id_transport -ne 'content-provider-arg' -or
+    $directBootstrapContract.disable.extras.expected_bridge_generation -ne 'long' -or
+    $directBootstrapContract.disable.extras.session_id -ne 'string' -or
+    $directBootstrapContract.authenticated_status_confirmation.required_fields.bridge_generation -ne 'exact-bootstrap-long' -or
+    $directBootstrapContract.authenticated_status_confirmation.required_fields.session_id -ne 'exact-bootstrap-session-id' -or
+    $directBootstrapContract.recover_disable.operation_id_transport -ne 'content-provider-arg' -or
+    $directBootstrapContract.recover_disable.returns_session_secret -ne $false -or
+    $directBootstrapContract.recover_disable.returns_pairing_code -ne $false -or
+    $directBootstrapContract.cleanup_ownership.secret_retained -ne $false -or
+    $directBootstrapContract.cleanup_ownership.successful_cleanup_consumes_after_stopped_readback -ne $true -or
+    $directBootstrapContract.operation_replay.scope -ne 'app-private-bootstrap-issuance-epoch' -or
+    $directBootstrapContract.operation_replay.max_operation_ids -ne 4096 -or
+    $directBootstrapContract.operation_replay.eviction -ne 'none' -or
+    $directBootstrapContract.operation_replay.saturation -ne 'fail-closed-until-new-bootstrap-issuance-epoch' -or
+    $directBootstrapContract.operation_replay.bridge_generation_change_clears_ids -ne $false -or
+    $directBootstrapContract.operation_replay.stored_state_schema -ne 'rusty.kiosk.operator_session_state.v1' -or
+    $directBootstrapContract.operation_replay.array_initialization -ne 'fresh-state-only' -or
+    $directBootstrapContract.direct_install.copy_rule -ne 'same-opened-handle-count-and-digest-verified-before-packageinstaller-commit' -or
+    $directBootstrapContract.direct_install.abandon_failure_present_or_unknown -ne 'cleanup-required-incomplete' -or
+    $directBootstrapContract.direct_install.cleanup_retry_starts_second_install -ne $false -or
+    $directBootstrapContract.direct_install.cleanup_retry_binding -ne 'exact-ordered-name-bytes-sha256-and-canonical-sha256' -or
+    $directBootstrapContract.direct_install.stored_receipt_schema -ne 'rusty.kiosk.local_install_state.v2' -or
+    $directBootstrapContract.direct_install.damaged_existing_receipt -ne 'fail-closed-without-new-session' -or
+    $directBootstrapContract.direct_install.stored_binding_exported_in_public_receipt -ne $false -or
+    $directBootstrapContract.status_returns_secret -ne $false -or
+    $directBootstrapContract.persistent_pairing_code_exported -ne $false) {
+  throw 'The Kiosk/QFM Direct USB bootstrap fixture does not match the fixed v2 wire contract.'
+}
+foreach ($token in @('DIRECT_BOOTSTRAP_SCHEMA', 'operationIdArg', 'EXTRA_SESSION_ID', 'EXTRA_EXPECTED_BRIDGE_GENERATION')) {
+  if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The provider implementation does not match the checked Direct USB fixture: $token"
+  }
+}
+foreach ($token in @('.put("bridge_generation", snapshot.bridgeGeneration)', '.put("session_id", auth.sessionId')) {
+  if (-not $operatorBridgeService.Contains($token, [StringComparison]::Ordinal)) {
+    throw "Authenticated Direct status cannot confirm the bootstrap binding: $token"
+  }
+}
+foreach ($token in @(
+  'METHOD_REQUEST_STATUS',
+  'METHOD_CANCEL',
+  'METHOD_DIRECT_STATUS',
+  'METHOD_DIRECT_ENABLE',
+  'METHOD_DIRECT_DISABLE',
+  'METHOD_DIRECT_RECOVER_DISABLE',
+  'session_secret_base64',
+  'enabled_by_request',
+  'expected_bridge_generation'
+)) {
+  if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The v4 host operator lifecycle/bootstrap contract is missing: $token"
+  }
+}
+foreach ($token in @(
+  'SESSION_SECRET_BYTES = 32',
+  'MAX_CONCURRENT_SESSIONS',
+  'MAX_ISSUES_PER_WINDOW',
+  'MAX_OPERATION_IDS_PER_EPOCH = 4096',
+  'OperatorBridgeOperationLedgerPolicy',
+  'requireEpoch',
+  'return current + operationId',
+  'OperatorBridgeStateShapePolicy',
+  'STATE_SCHEMA = "rusty.kiosk.operator_session_state.v1"',
+  'root.getJSONArray(KEY_ISSUED_OPERATIONS)',
+  'The bootstrap session and operation ledger could not be persisted.',
+  'bridge_generation',
+  'issued_operations',
+  'first_used_at_ms',
+  'last_revoked_at_ms',
+  'last_observed_wall_ms',
+  'cleanup_ownerships',
+  'enabled_by_request'
+)) {
+  if (-not $operatorSessionStore.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The bounded ephemeral direct-session policy is missing: $token"
+  }
+}
+if ($operatorSessionStore.Contains('root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()', [StringComparison]::Ordinal)) {
+  throw 'The durable operation replay ledger must not reset a present wrong-type field to empty.'
+}
+foreach ($token in @(
+  'copyVerified',
+  'MessageDigest.getInstance("SHA-256")',
+  'commitment.bytes',
+  'commitment.sha256',
+  'RustyKioskInstallCommitmentManifestPolicy',
+  'canonicalSha256',
+  'matchesBoundManifest'
+)) {
+  if (-not $installCommitment.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The immutable direct-install commitment boundary is missing: $token"
+  }
+}
+if (-not $installer.Contains('RustyKioskInstallProcessLock.monitor', [StringComparison]::Ordinal)) {
+  throw 'The process-wide direct-install request-id boundary is missing.'
+}
+foreach ($token in @(
+  'cleanup-required',
+  'retryCleanupIfRequired',
+  'installer.mySessions',
+  'cleanupConfirmed',
+  'RustyKioskInstallReceiptRead.Damaged',
+  'rusty.kiosk.local_install_state.v2',
+  'commitment_sha256',
+  'toStoredJson',
+  'An interrupted temporary install receipt exists.',
+  'incomingCommitments'
+)) {
+  if (-not $installer.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fail-closed PackageInstaller cleanup boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'OperatorRequestProcessLock.monitor',
+  '.putLong(KEY_ACTIVE_EXPIRES_AT_MS, expiresAt)',
+  'canClaim(now, activeEnqueued, activeExpiry)'
+)) {
+  if (-not $cliContract.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The process-wide request lifecycle/expiry boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'running_generation',
+  'OperatorBridgeActionPolicy.isTransitionConverged',
+  'EXTRA_EXPECTED_GENERATION'
+)) {
+  if (-not $operatorBridgeSettings.Contains($token, [StringComparison]::Ordinal) -and
+      -not $operatorBridgeService.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The generation-bound Direct Link service boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'HEADER_SESSION_ID',
+  'recordAuthenticatedSessionUse',
+  'PATH_KIOSK_REQUEST_STATUS',
+  'PATH_KIOSK_CANCEL'
+)) {
+  if (-not $operatorBridgeService.Contains($token, [StringComparison]::Ordinal) -and
+      -not $cliContract.Contains($token, [StringComparison]::Ordinal) -and
+      -not $operatorBridgeAuth.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The authenticated Direct Link lifecycle projection is missing: $token"
+  }
+}
+foreach ($token in @('ANY("any"', 'WIFI_ON("wifi-on"', 'WIFI_OFF("wifi-off"', 'PendingRequirementLaunch')) {
+  if (-not $activeRequirementSurface.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The dedicated three-state launch requirement is missing: $token"
+  }
+}
+foreach ($token in @('WifiManager::class.java', 'isWifiEnabled', 'Settings.ACTION_WIFI_SETTINGS')) {
+  if (-not $activeRequirementAndroid.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fixed ordinary-Wi-Fi preflight/remediation boundary is missing: $token"
+  }
+}
+foreach ($forbidden in @('setWifiEnabled', 'adb_wifi_enabled', 'ACTION_WIFI_ADD_NETWORKS')) {
+  if ($activeRequirementAndroid.Contains($forbidden, [StringComparison]::Ordinal)) {
+    throw "Active app requirements must not mutate or confuse ordinary Wi-Fi with Wi-Fi ADB: $forbidden"
   }
 }
 foreach ($token in @('EXTRA_VALUE_BASE64', 'Base64.decode')) {
@@ -725,6 +909,10 @@ try {
   }
 
   $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
+  & pwsh -NoProfile -ExecutionPolicy Bypass -File $appLaunchOptionsBoundaryTestPath
+  if ($LASTEXITCODE -ne 0) {
+    throw "App launch-options boundary gate failed with exit code $LASTEXITCODE."
+  }
   & pwsh -NoProfile -ExecutionPolicy Bypass `
     -File .\tools\Test-RustyKioskPanelPreview.ps1
   if ($LASTEXITCODE -ne 0) {

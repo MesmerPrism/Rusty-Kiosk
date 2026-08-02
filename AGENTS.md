@@ -60,6 +60,20 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   Rusty Kiosk both disarm pending guard state.
 - A name-only tag-file entry that does not match an installed launchable app
   remains visible and is labeled not installed.
+- Per-app launch requirements are a dedicated three-state field (`any`,
+  `wifi-on`, `wifi-off`), never inferred from ordinary searchable tags. Both
+  Normal and Kiosk launch use the same read-only ordinary-Wi-Fi preflight.
+  An unmet requirement opens Android's fixed Wi-Fi settings surface without
+  launching, arming the guard, changing Wi-Fi, or touching Wi-Fi ADB. Return
+  revalidates the exact app, activity, installed identity, document, mode, and
+  requirement; stale, expired, cancelled, unknown, or conflicting state fails
+  closed.
+- App-provided launch options are read-only and selected-app scoped. Bind the
+  exact package, exclusive UID, signer/install identity, derived provider, and
+  existing catalogue front door; re-query the exact bounded row at dispatch.
+  Only the fixed option-ID extra is allowed. Never accept a caller/provider
+  component, action, URI, path, flag, arbitrary extra, or Kiosk-guarded option
+  launch that would defeat the owning app's Meta Home escape boundary.
 - A fresh Rusty Kiosk task restores the last search text, active tag filter,
   and selected visible app. The wearer clears the filters through the empty
   search field or **All apps**; a tag removed entirely by a tag-file reload
@@ -91,11 +105,37 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   authorized ADB shell through `RustyKioskOperatorProvider`. The provider is
   protected by caller-held `android.permission.DUMP`, supports `call()` only,
   admits one app-private request at a time, and returns only the matching
-  Base64-encoded structured receipt. Provider v2 may additionally transfer only
+  Base64-encoded structured receipt. Provider v4 additionally exposes read-only
+  exact-ID lifecycle status, exact queued-request cancellation, and an explicit
+  Direct Link bootstrap for authorized USB. Bootstrap returns only one
+  short-lived, high-entropy, generation-bound session secret; it never exports
+  the durable on-headset pairing code. Provider v4 may additionally transfer only
   the fixed tag document as ordered, bounded Base64 chunks with total-size,
   SHA-256, schema, and atomic-activation checks. It never accepts shell commands,
   Android components, intent actions, endpoints, device paths, or new setup
   operations.
+- Direct bootstrap cleanup keeps no secret after the five-minute network session expires. A
+  bounded non-secret ownership tombstone retains only the exact operation/session/generation,
+  whether bootstrap enabled the link, its cleanup state, and its deadline. Only bootstrap-owned
+  enables may be disabled. A DUMP-only operation-ID recovery route may re-dispatch STOP after a
+  lost response; stopped readback consumes it, and it never returns a secret or pairing code.
+- Bootstrap operation IDs are one-time for the durable app-private bootstrap-issuance epoch. Their fixed
+  4096-entry ledger never evicts on bridge-generation changes and fails closed when full,
+  malformed, or bound to a different epoch; clearing app data is the epoch-reset boundary. Stored
+  session state has an exact private schema; only a genuinely absent state may initialize arrays,
+  while missing, null, or wrong-type replay fields reject.
+- Direct attended install requests bind every staged APK name to an exact byte count and lowercase
+  SHA-256. PackageInstaller receives bytes from the same opened source handle while count and
+  digest are verified; replacement, drift, duplicate names, and expanded payloads fail closed.
+  An unconfirmed session-abandon attempt remains `cleanup-required` and incomplete. Repeating the
+  same install body with a fresh authenticated transport request may retry cleanup only and never
+  starts a second install under that install request ID. The private receipt binds the exact ordered
+  names, byte counts, SHA-256 values, and their canonical digest. Absent, valid, and damaged receipt
+  states are distinct; an unreadable or schema-invalid existing receipt can never mean unused.
+- Typed requests carry a durable provider epoch, fixed expiry, exact terminal
+  tombstone, and per-request receipt. Status never enqueues, restart
+  reconciliation never replays a claimed request, and cancellation loses safely
+  to application or terminal completion.
 - Desktop operator tools must admit a request through that provider, launch the
   fixed Rusty Kiosk activity, then poll the matching receipt. They must not
   reconstruct guard state, catalogue matching, tag semantics, or setup-helper

@@ -44,8 +44,11 @@ internal class RustyKioskNativePanel(
   private val onRefresh: () -> Unit,
   private val onAddTag: (String) -> Unit,
   private val onRemoveTag: (String) -> Unit,
+  private val onLaunchRequirementSelected: (AppLaunchRequirement) -> Unit,
+  private val onCancelPendingRequirementLaunch: () -> Unit,
   private val onNormalLaunch: () -> Unit,
   private val onKioskLaunch: () -> Unit,
+  private val onLaunchOption: (String) -> Unit,
   private val onOpenUserControls: () -> Unit,
   private val onCloseUserControls: () -> Unit,
   private val onCheckSetupHelper: () -> Unit,
@@ -83,6 +86,13 @@ internal class RustyKioskNativePanel(
   private lateinit var tagField: EditText
   private lateinit var addTagButton: Button
   private lateinit var selectedTags: LinearLayout
+  private lateinit var requirementStatus: TextView
+  private lateinit var requirementAnyButton: Button
+  private lateinit var requirementWifiOnButton: Button
+  private lateinit var requirementWifiOffButton: Button
+  private lateinit var cancelPendingLaunchButton: Button
+  private lateinit var launchOptionsStatus: TextView
+  private lateinit var launchOptionsRow: LinearLayout
   private lateinit var normalLaunchButton: Button
   private lateinit var kioskLaunchButton: Button
   private lateinit var launchGuidance: TextView
@@ -106,7 +116,10 @@ internal class RustyKioskNativePanel(
   private lateinit var installerStatus: TextView
   private lateinit var operatorBridgeButton: Button
   private lateinit var rotateOperatorBridgeButton: Button
+  private lateinit var pairingCodeVisibilityButton: Button
   private lateinit var installerPermissionButton: Button
+  private var pairingCodeVisible = false
+  private var renderedPairingCode = ""
 
   fun registration(): PanelRegistration =
     LayoutXMLPanelRegistration(
@@ -227,6 +240,9 @@ internal class RustyKioskNativePanel(
 
     val details = column().apply {
       setPadding(dp(14), dp(12), dp(14), dp(12))
+    }
+    val detailsScroller = ScrollView(context).apply {
+      isFillViewport = true
       background = rounded(COLOR_SURFACE, COLOR_BORDER, 1, 8)
       tag = RustyKioskPanelControls.APP_DETAILS
     }
@@ -257,6 +273,33 @@ internal class RustyKioskNativePanel(
     selectedTagScroller.addView(selectedTags, FrameLayout.LayoutParams(WRAP, MATCH))
     details.addView(selectedTagScroller, LinearLayout.LayoutParams(MATCH, dp(44)))
 
+    requirementStatus = text("Launch requirement", 13f, COLOR_MUTED)
+    details.addView(requirementStatus, margin(top = 4))
+    val requirementRow = row().apply {
+      gravity = Gravity.CENTER_VERTICAL
+      tag = RustyKioskPanelControls.LAUNCH_REQUIREMENT
+    }
+    requirementAnyButton = button("Any", { onLaunchRequirementSelected(AppLaunchRequirement.ANY) })
+    requirementWifiOnButton = button("Wi-Fi on", { onLaunchRequirementSelected(AppLaunchRequirement.WIFI_ON) })
+    requirementWifiOffButton = button("Wi-Fi off", { onLaunchRequirementSelected(AppLaunchRequirement.WIFI_OFF) })
+    requirementRow.addView(requirementAnyButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { rightMargin = dp(5) })
+    requirementRow.addView(requirementWifiOnButton, LinearLayout.LayoutParams(0, dp(42), 1f).apply { rightMargin = dp(5) })
+    requirementRow.addView(requirementWifiOffButton, LinearLayout.LayoutParams(0, dp(42), 1f))
+    details.addView(requirementRow, margin(top = 3, height = 42))
+    cancelPendingLaunchButton = button("Cancel pending launch", onCancelPendingRequirementLaunch)
+    details.addView(cancelPendingLaunchButton, margin(top = 5, height = 42))
+
+    launchOptionsStatus = text("", 13f, COLOR_MUTED).apply {
+      tag = RustyKioskPanelControls.LAUNCH_OPTIONS
+    }
+    details.addView(launchOptionsStatus, margin(top = 5))
+    val launchOptionsScroller = HorizontalScrollView(context).apply {
+      isHorizontalScrollBarEnabled = false
+    }
+    launchOptionsRow = row()
+    launchOptionsScroller.addView(launchOptionsRow, FrameLayout.LayoutParams(WRAP, MATCH))
+    details.addView(launchOptionsScroller, margin(top = 3, height = 58))
+
     normalLaunchButton = button("Normal launch", onNormalLaunch).apply {
       tag = RustyKioskPanelControls.NORMAL_LAUNCH
     }
@@ -279,7 +322,8 @@ internal class RustyKioskNativePanel(
       ),
       margin(top = 8),
     )
-    body.addView(details, LinearLayout.LayoutParams(0, MATCH, 0.54f))
+    detailsScroller.addView(details, FrameLayout.LayoutParams(MATCH, WRAP))
+    body.addView(detailsScroller, LinearLayout.LayoutParams(0, MATCH, 0.54f))
     parent.addView(body, LinearLayout.LayoutParams(MATCH, 0, 1f).apply { topMargin = dp(8) })
   }
 
@@ -350,8 +394,13 @@ internal class RustyKioskNativePanel(
         addView(installerStatus, margin(top = 3))
         operatorBridgeButton = button("", onToggleOperatorBridge)
         rotateOperatorBridgeButton = button("Rotate pairing code", onRotateOperatorBridgeCode)
+        pairingCodeVisibilityButton = button("Show pairing code", action = {
+          pairingCodeVisible = !pairingCodeVisible
+          renderControls()
+        })
         installerPermissionButton = button("Allow local APK installs", onRequestInstallerPermission)
         addView(operatorBridgeButton, margin(top = 7, height = 46))
+        addView(pairingCodeVisibilityButton, margin(top = 7, height = 46))
         addView(rotateOperatorBridgeButton, margin(top = 7, height = 46))
         addView(installerPermissionButton, margin(top = 7, height = 46))
       },
@@ -457,18 +506,50 @@ internal class RustyKioskNativePanel(
     addTagButton.isEnabled = enabled && tagField.text.isNotBlank()
     normalLaunchButton.isEnabled = entry?.launchable == true
     kioskLaunchButton.isEnabled = entry?.launchable == true && state.guardEnabled
+    val requirement = entry?.launchRequirement ?: AppLaunchRequirement.ANY
+    requirementStatus.text = "Launch requirement: ${requirement.wireName}"
+    requirementAnyButton.isEnabled = enabled && requirement != AppLaunchRequirement.ANY
+    requirementWifiOnButton.isEnabled = enabled && requirement != AppLaunchRequirement.WIFI_ON
+    requirementWifiOffButton.isEnabled = enabled && requirement != AppLaunchRequirement.WIFI_OFF
+    cancelPendingLaunchButton.visibility =
+      if (state.pendingRequirementLaunchId == null) View.GONE else View.VISIBLE
+
+    val launchOptions = state.selectedLaunchOptions
+    launchOptionsStatus.text = launchOptions.message
+    launchOptionsStatus.setTextColor(
+      if (launchOptions.status == AppLaunchOptionsStatus.REJECTED) COLOR_WARNING else COLOR_MUTED
+    )
+    launchOptionsRow.removeAllViews()
+    launchOptions.options.forEach { option ->
+      val description = option.description.takeIf(String::isNotBlank)
+      val label = listOfNotNull(option.displayLabel, description).joinToString(" · ")
+      val optionButton = button(label, { onLaunchOption(option.optionId) }, primary = true).apply {
+        tag = RustyKioskPanelControls.LAUNCH_OPTION_LAUNCH
+        contentDescription = "${option.displayLabel}. ${option.description}".trim()
+        isAllCaps = false
+        maxLines = 2
+      }
+      launchOptionsRow.addView(
+        optionButton,
+        LinearLayout.LayoutParams(WRAP, dp(54)).apply { rightMargin = dp(6) },
+      )
+    }
 
     selectedTags.removeAllViews()
     entry?.tags?.sorted()?.forEach { tag ->
       selectedTags.addView(chip("$tag ×", false) { onRemoveTag(tag) }, chipParams())
     }
     launchGuidance.text =
-      if (state.guardEnabled) {
-        "Soft guard ready. Home #1 and #2 restore the app; Home #3 within five seconds returns here."
+      if (state.pendingRequirementMessage != null) {
+        "${state.pendingRequirementMessage} Return from Android Wi-Fi settings to retry automatically, or cancel."
+      } else if (state.guardEnabled) {
+        "Requirements are checked before either launch. Soft guard: Home #1/#2 restore; Home #3 returns here."
       } else {
-        "Kiosk launch needs the opt-in Accessibility service."
+        "Requirements are checked before either launch. Kiosk launch also needs Accessibility."
       }
-    launchGuidance.setTextColor(if (state.guardEnabled) COLOR_MUTED else COLOR_WARNING)
+    launchGuidance.setTextColor(
+      if (state.pendingRequirementMessage == null && state.guardEnabled) COLOR_MUTED else COLOR_WARNING
+    )
     manageControlsButton.visibility = if (state.guardEnabled) View.GONE else View.VISIBLE
   }
 
@@ -488,7 +569,13 @@ internal class RustyKioskNativePanel(
         !controls.systemPassthroughEnabled || !controls.passthroughLutApplied
     operatorBridgeStatus.text = "Direct link: ${controls.operatorBridgeStatusLabel}"
     operatorBridgeEndpoint.text = controls.operatorBridgeEndpoint ?: "Connect the headset to Wi-Fi to get an address."
-    operatorBridgeCode.text = "Pairing code: ${controls.operatorBridgePairingCode}"
+    if (renderedPairingCode != controls.operatorBridgePairingCode) {
+      renderedPairingCode = controls.operatorBridgePairingCode
+      pairingCodeVisible = false
+    }
+    operatorBridgeCode.text =
+      "Pairing code: ${OperatorBridgePairingCodePresentation.render(controls.operatorBridgePairingCode, pairingCodeVisible)}"
+    pairingCodeVisibilityButton.text = if (pairingCodeVisible) "Hide pairing code" else "Show pairing code"
     installerStatus.text =
       if (controls.installerAllowed) {
         "Local APK installer: wearer allowed"

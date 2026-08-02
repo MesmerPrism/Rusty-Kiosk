@@ -50,6 +50,7 @@ The projection supports:
 
 - app search by label, package, and tag;
 - tag filters and tag add/remove interactions;
+- explicit Any / Wi-Fi on / Wi-Fi off launch-requirement controls;
 - launchable, installed-without-front-door, and not-installed states;
 - guard-enabled and guard-setup states;
 - setup-helper readiness, Wi-Fi ADB, Accessibility, and Meta Home status;

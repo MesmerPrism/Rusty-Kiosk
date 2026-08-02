@@ -34,6 +34,11 @@ Its optional Accessibility service is a foreground watchdog:
 - search text, active tag filter, and selected visible app retained across
   fresh Kiosk returns until the wearer changes or clears them;
 - tag editing from the panel;
+- an explicit per-app **Any / Wi-Fi on / Wi-Fi off** launch requirement,
+  checked before both Normal and Kiosk launch without changing Wi-Fi;
+- bounded, read-only app-provided launch options that bind the selected package,
+  exclusive UID, signer, provider, and existing public front door before passing
+  one opaque option ID under one fixed extra key;
 - hot reload of an externally editable JSON tag file;
 - unresolved name-only entries shown as **Not installed**;
 - normal and soft-kiosk launch actions;
@@ -48,6 +53,8 @@ Its optional Accessibility service is a foreground watchdog:
 - a typed, ADB-shell-protected debug CLI for stable wearer-equivalent testing.
 - a release-safe, `DUMP`-protected typed host adapter for optional desktop
   management through QuestIonAble File Manager.
+- short-lived Direct Link session bootstrap for an already authorized,
+  exact-serial USB host, without exporting the on-headset pairing code;
 - an explicitly wearer-enabled local PC link for the same typed commands, tag
   file, bounded app-owned staging, and Android-confirmed APK sessions without
   routine ADB.
@@ -253,7 +260,8 @@ After the one-time installation/provisioning step, routine Kiosk commands,
 tags, bounded file staging, and wearer-confirmed APK installation can use the
 local direct link instead of USB or Wi-Fi ADB. Enable it in **User controls**,
 then enter the displayed `http://` address and pairing code in Meta Quest File
-Manager. The pairing code is generated on-headset and can be rotated locally.
+Manager. The pairing code is generated on-headset, masked by default behind an
+explicit local **Show / Hide** control, and can be rotated locally.
 
 QuestIonAble File Manager uses its PC ADB installer as the default APK route once
 that PC is authorized. It supports unattended and batch installation without an
@@ -267,6 +275,27 @@ are retained, request bodies are SHA-256 checked, and requests and responses
 are HMAC-SHA-256 signed. It is authenticated and integrity-protected, but the
 current HTTP transport is not encrypted; use a trusted local network or the
 PC's private hotspot. See [Direct operator link](docs/DIRECT_OPERATOR.md).
+
+An already authorized USB ADB shell may ask the fixed provider-v4 adapter to
+enable the listener and issue one 32-byte, five-minute session credential bound
+to the current app channel and bridge generation. The desktop wrapper owns the
+exact serial and must consume raw provider output only in a redacted, in-memory
+child-process parser. Rusty Kiosk never claims to know the host serial, never
+returns the persistent pairing code, and exposes separate status and
+generation-bound cleanup calls. Cleanup authority is a separate bounded,
+non-secret record, so a long attended operation can still turn off a link that
+bootstrap enabled after the network secret expires. A DUMP-only recovery call
+using the original operation ID can re-dispatch STOP after a lost response
+without returning either credential. Direct install requests commit each
+staged APK's exact name, byte count, and SHA-256, which are verified from the
+same opened handle copied into PackageInstaller. Bootstrap operation IDs remain
+one-time in a fixed non-evicting bootstrap-issuance-epoch ledger; saturation or malformed
+state fails closed instead of making old IDs reusable. If Android cannot confirm
+cleanup of a failed installer session, its receipt stays `cleanup-required` and
+incomplete until the same install body retries cleanup with a fresh authenticated
+transport request ID. That retry must match the stored ordered APK commitments and
+canonical digest exactly. Existing malformed receipt or replay-ledger state is
+damage, never absence, and cannot admit another session.
 
 ## Tag file
 

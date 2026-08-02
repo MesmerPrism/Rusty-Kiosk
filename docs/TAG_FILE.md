@@ -6,6 +6,10 @@ containing directory for create, close-write, move, and delete events.
 
 ## Schema
 
+Legacy v1 stores passive searchable tags only and therefore means **Any** launch
+requirement. The first explicit requirement edit upgrades the complete document
+to strict v2:
+
 ```json
 {
   "schema": "rusty.kiosk.app_tags.v1",
@@ -23,9 +27,40 @@ containing directory for create, close-write, move, and delete events.
 }
 ```
 
+```json
+{
+  "schema": "rusty.kiosk.app_tags.v2",
+  "apps": [
+    {
+      "name": "Offline Demo",
+      "package": "com.example.demo",
+      "tags": ["demo", "movement"],
+      "requirements": ["wifi-off"]
+    }
+  ]
+}
+```
+
 `name` is required. `package` is optional. `tags` is an array of short strings.
 The app normalizes tags to lowercase, trims whitespace, removes duplicates, and
 rejects an invalid schema or oversized file.
+
+v2 accepts zero or one compiled requirement: `wifi-on` or `wifi-off`. Zero is
+the explicit **Any** state. Unknown values, duplicates, both Wi-Fi states,
+duplicate app identities, unknown fields, and wrong JSON types fail closed.
+The requirement field is separate from `tags`: adding, searching, or deleting
+a tag named `wifi-on` never changes launch behavior, and tag editing preserves
+an existing requirement.
+
+Before either Normal or Kiosk launch, Rusty Kiosk reads ordinary Wi-Fi through
+`WifiManager.isWifiEnabled`. It never changes Wi-Fi and never uses the Wi-Fi ADB
+setting. If unmet, it opens Android's fixed Wi-Fi settings surface and keeps one
+two-minute pending binding. Return revalidates target, installed signer/version,
+launch mode, document digest, and requirement. Cancellation, expiry, process
+restart, app disappearance/update, or document change prevents launch.
+Pressing launch again for the exact pending binding remains waiting without
+reopening Settings or extending the deadline. Pressing launch after the binding
+changes cancels the old request and fails closed instead of switching targets.
 
 ## Matching
 
@@ -42,7 +77,7 @@ rejects an invalid schema or oversized file.
 The file contains low-rate user organization data only. It never stores APK
 paths, activities, signing data, permissions, commands, or binary payloads.
 
-An authorized desktop ADB host uses the `DUMP`-protected host-provider v2 tag
+An authorized desktop ADB host uses the `DUMP`-protected host-provider v4 tag
 methods instead of depending on raw access to Android's app-specific external
 directory. The provider reads or writes only this document in ordered 6 KiB
 Base64 chunks, caps the complete file at 256 KiB, verifies SHA-256, validates
