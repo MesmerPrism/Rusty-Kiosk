@@ -18,6 +18,8 @@ internal object RustyKioskPanelControls {
   const val APP_LIST = "rusty-kiosk-app-list"
   const val APP_DETAILS = "rusty-kiosk-app-details"
   const val LAUNCH_REQUIREMENT = "rusty-kiosk-launch-requirement"
+  const val LAUNCH_OPTIONS = "rusty-kiosk-launch-options"
+  const val LAUNCH_OPTION_LAUNCH = "rusty-kiosk-launch-option-launch"
   const val NORMAL_LAUNCH = "rusty-kiosk-normal-launch"
   const val KIOSK_LAUNCH = "rusty-kiosk-kiosk-launch"
   const val USER_CONTROL_STATUS = "rusty-kiosk-user-control-status"

@@ -70,6 +70,8 @@ internal data class ActiveRequirementLaunchBinding(
   val target: LaunchTarget,
   val installationIdentity: PackageInstallationIdentity,
   val launchKind: LaunchKind,
+  val launchOptionId: String?,
+  val launchOptionDigest: String?,
   val tagDocumentDigest: String,
   val requirementDigest: String,
 )
@@ -85,11 +87,24 @@ internal object ActiveRequirementLaunchBindingFactory {
     document: TagFileDocument,
     launchKind: LaunchKind,
     installationIdentity: PackageInstallationIdentity,
+    launchOptionId: String? = null,
+    launchOptionDigest: String? = null,
   ): ActiveRequirementLaunchCandidate {
     require(entry.installed) { "The requirement target is not installed." }
     val target = requireNotNull(entry.target) { "The requirement target is not launchable." }
     val packageName = requireNotNull(entry.packageName) { "The requirement target has no package." }
     require(target.packageName == packageName) { "The requirement target package changed." }
+    require(
+      launchOptionId == null ||
+        (launchOptionId.isNotBlank() &&
+          launchOptionId.length <= AppLaunchOptionsContract.MAX_OPTION_ID_LENGTH)
+    ) { "The launch option id is invalid." }
+    require((launchOptionId == null) == (launchOptionDigest == null)) {
+      "The launch option binding is incomplete."
+    }
+    require(launchOptionDigest == null || launchOptionDigest.matches(Regex("[0-9a-f]{64}"))) {
+      "The launch option digest is invalid."
+    }
     val requirement = document.requirementFor(entry)
     return ActiveRequirementLaunchCandidate(
       binding = ActiveRequirementLaunchBinding(
@@ -98,6 +113,8 @@ internal object ActiveRequirementLaunchBindingFactory {
         target = target,
         installationIdentity = installationIdentity,
         launchKind = launchKind,
+        launchOptionId = launchOptionId,
+        launchOptionDigest = launchOptionDigest,
         tagDocumentDigest = document.documentDigest,
         requirementDigest = stableDigest(
           "rusty.kiosk.active_launch_requirement.v2",

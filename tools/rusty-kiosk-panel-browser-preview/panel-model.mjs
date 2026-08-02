@@ -8,6 +8,20 @@ const baseEntries = [
     tags: ["onboarding", "web"],
     source: "android-launcher",
     launchRequirement: "any",
+    launchOptions: [
+      {
+        schemaVersion: 1,
+        optionId: "playlist.preview-loop",
+        displayLabel: "Gallery loop",
+        description: "Loop two saved profiles for 5s",
+      },
+      {
+        schemaVersion: 1,
+        optionId: "option.preview-once",
+        displayLabel: "Gallery once",
+        description: "Run one saved profile",
+      },
+    ],
   },
   {
     key: "package:io.example.movement",
@@ -18,6 +32,7 @@ const baseEntries = [
     tags: ["demo", "movement"],
     source: "quest-vr",
     launchRequirement: "wifi-on",
+    launchOptions: [],
   },
   {
     key: "package:com.example.gallery",
@@ -28,6 +43,7 @@ const baseEntries = [
     tags: ["utilities"],
     source: "tag-file-installed-package",
     launchRequirement: "any",
+    launchOptions: [],
   },
   {
     key: "missing-name:training library",
@@ -38,6 +54,7 @@ const baseEntries = [
     tags: ["onboarding"],
     source: "tag-file",
     launchRequirement: "any",
+    launchOptions: [],
   },
 ];
 
@@ -161,6 +178,14 @@ export function importPreviewState(value) {
       launchRequirement: ["wifi-on", "wifi-off"].includes(entry.launchRequirement)
         ? entry.launchRequirement
         : "any",
+      launchOptions: Array.isArray(entry.launchOptions)
+        ? entry.launchOptions.slice(0, 64).map((option) => ({
+            schemaVersion: Number(option.schemaVersion) === 1 ? 1 : 0,
+            optionId: String(option.optionId ?? "").slice(0, 160),
+            displayLabel: String(option.displayLabel ?? "").slice(0, 96),
+            description: String(option.description ?? "").slice(0, 160),
+          }))
+        : [],
     })),
     searchQuery: String(value.searchQuery ?? "").slice(0, 120),
     selectedTag: value.selectedTag == null ? null : normalizeTag(String(value.selectedTag)),

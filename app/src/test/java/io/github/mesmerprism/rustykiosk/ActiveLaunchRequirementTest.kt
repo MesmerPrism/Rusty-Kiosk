@@ -174,6 +174,7 @@ class ActiveLaunchRequirementTest {
       { it.copy(packageName = "com.example.other") },
       { it.copy(target = it.target.copy(activityName = "OtherActivity")) },
       { it.copy(installationIdentity = it.installationIdentity.copy(versionCode = 2L)) },
+      { it.copy(installationIdentity = it.installationIdentity.copy(uid = 10002)) },
       { it.copy(launchKind = if (it.launchKind == LaunchKind.NORMAL) LaunchKind.KIOSK else LaunchKind.NORMAL) },
       { it.copy(tagDocumentDigest = "3".repeat(64)) },
       { it.copy(requirementDigest = "4".repeat(64)) },
@@ -188,6 +189,24 @@ class ActiveLaunchRequirementTest {
     }
   }
 
+  @Test
+  fun optionIdAndRowDigestRemainBoundAcrossRemediation() {
+    val fixture = Fixture(LaunchKind.NORMAL)
+    val optionBinding =
+      fixture.binding.copy(
+        launchOptionId = "playlist.one",
+        launchOptionDigest = "5".repeat(64),
+      )
+    val optionCandidate = fixture.candidate.copy(binding = optionBinding)
+    assertTrue(fixture.coordinator.request(optionCandidate) is RequirementLaunchDecision.RemediationRequired)
+
+    val changedRow = optionCandidate.copy(
+      binding = optionBinding.copy(launchOptionDigest = "6".repeat(64))
+    )
+    val stale = fixture.coordinator.resume(changedRow) as RequirementLaunchDecision.Cleared
+    assertEquals(PendingRequirementClearReason.STALE_BINDING, stale.reason)
+  }
+
   private class Fixture(
     kind: LaunchKind,
     val store: MemoryStore = MemoryStore(),
@@ -196,13 +215,15 @@ class ActiveLaunchRequirementTest {
     var now = 100L
     var state = ActiveRequirementEvaluationState.UNSATISFIED
     val binding = ActiveRequirementLaunchBinding(
-      "package:com.example.app",
-      "com.example.app",
-      entry().target!!,
-      PackageInstallationIdentity("a".repeat(64), 100L, 1L),
-      kind,
-      "1".repeat(64),
-      "2".repeat(64),
+      catalogEntryKey = "package:com.example.app",
+      packageName = "com.example.app",
+      target = entry().target!!,
+      installationIdentity = PackageInstallationIdentity("a".repeat(64), 100L, 1L, 10001),
+      launchKind = kind,
+      launchOptionId = null,
+      launchOptionDigest = null,
+      tagDocumentDigest = "1".repeat(64),
+      requirementDigest = "2".repeat(64),
     )
     val candidate = ActiveRequirementLaunchCandidate(binding, requirement)
     val coordinator = ActiveRequirementLaunchCoordinator(

@@ -96,7 +96,10 @@ expansion of the `DUMP` provider.
 The CLI never accepts a shell command, executable path, Android component,
 intent action, package to launch, device path, Accessibility gesture, or
 free-form setup operation. App selection is restricted to the current visible
-catalogue, and launch commands operate only on that selection.
+catalogue, and launch commands operate only on that selection. `launch-option`
+accepts only one opaque option ID from the selected app's already discovered,
+bounded, read-only capability; the package, provider, signer, UID, owner Activity,
+intent shape, and single fixed extra key are all app-owned or Kiosk-owned.
 
 ## Usage
 
@@ -121,6 +124,12 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
   -Serial <quest-serial> `
   -Command select `
   -Value Browser
+
+pwsh -NoProfile -ExecutionPolicy Bypass `
+  -File .\tools\Invoke-RustyKioskCli.ps1 `
+  -Serial <quest-serial> `
+  -Command launch-option `
+  -Value option.demo-loop
 ```
 
 ## Command vocabulary
@@ -139,6 +148,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | `set-launch-requirement` | `any`, `wifi-on`, or `wifi-off` | Change the selected app's dedicated launch requirement |
 | `cancel-pending-launch` | none | Cancel the current unmet-requirement launch |
 | `launch-normal` / `launch-kiosk` | none | Use the corresponding launch button |
+| `launch-option` | opaque option ID, maximum 160 characters | Revalidate and normally launch the selected app's fixed front door with its one declared option; the soft guard remains disarmed |
 | `check-setup-helper` | none | Refresh the fixed helper's installed/provisioned status |
 | `request-wifi-adb` / `disable-wifi-adb` | none | Use the corresponding visible fixed-operation control |
 | `enable-wifi-adb-after-boot` / `disable-wifi-adb-after-boot` | none | Turn the visible restart-request preference on or off |

@@ -68,6 +68,12 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   revalidates the exact app, activity, installed identity, document, mode, and
   requirement; stale, expired, cancelled, unknown, or conflicting state fails
   closed.
+- App-provided launch options are read-only and selected-app scoped. Bind the
+  exact package, exclusive UID, signer/install identity, derived provider, and
+  existing catalogue front door; re-query the exact bounded row at dispatch.
+  Only the fixed option-ID extra is allowed. Never accept a caller/provider
+  component, action, URI, path, flag, arbitrary extra, or Kiosk-guarded option
+  launch that would defeat the owning app's Meta Home escape boundary.
 - A fresh Rusty Kiosk task restores the last search text, active tag filter,
   and selected visible app. The wearer clears the filters through the empty
   search field or **All apps**; a tag removed entirely by a tag-file reload

@@ -79,6 +79,28 @@ internal class LaunchController(context: Context) {
       }
   }
 
+  fun launchOption(
+    entry: CatalogEntry,
+    binding: AppLaunchOptionsBinding,
+    option: AppLaunchOption,
+  ): LaunchResult {
+    val plan = runCatching { AppLaunchOptionDispatchPolicy.create(entry, binding, option) }
+      .getOrElse {
+        return LaunchResult(false, "The app launch-option binding changed before dispatch.")
+      }
+    guardStore.disarm("app-launch-option")
+    return runCatching {
+        val intent = plan.target.toIntent(LaunchTaskPolicy.initialFlags(LaunchKind.NORMAL))
+        intent.putExtra(AppLaunchOptionsContract.EXTRA_LAUNCH_OPTION_ID, plan.optionId)
+        appContext.startActivity(intent)
+        LaunchResult(true, "Dispatched ${entry.label}: ${option.displayLabel}.")
+      }
+      .getOrElse { throwable ->
+        guardStore.disarm("app-launch-option-failed")
+        LaunchResult(false, "Launch failed: ${throwable.javaClass.simpleName}")
+      }
+  }
+
   fun disarm(reason: String) = guardStore.disarm(reason)
 
   private fun LaunchTarget.toIntent(flags: Int): Intent =

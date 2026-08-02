@@ -51,6 +51,8 @@ $labsReleaseReadbackTestPath =
   Join-Path $repoRoot 'tools\checks\Test-LabsReleaseReadback.ps1'
 $releaseWorkflowStructureTestPath =
   Join-Path $repoRoot 'tools\checks\Test-ReleaseWorkflowStructure.ps1'
+$appLaunchOptionsBoundaryTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-AppLaunchOptionsBoundary.ps1'
 $labsReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-labs.yml'
 $stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
 $ciWorkflowPath = Join-Path $repoRoot '.github\workflows\ci.yml'
@@ -907,6 +909,10 @@ try {
   }
 
   $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
+  & pwsh -NoProfile -ExecutionPolicy Bypass -File $appLaunchOptionsBoundaryTestPath
+  if ($LASTEXITCODE -ne 0) {
+    throw "App launch-options boundary gate failed with exit code $LASTEXITCODE."
+  }
   & pwsh -NoProfile -ExecutionPolicy Bypass `
     -File .\tools\Test-RustyKioskPanelPreview.ps1
   if ($LASTEXITCODE -ne 0) {

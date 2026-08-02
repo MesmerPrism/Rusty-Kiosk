@@ -182,6 +182,26 @@ is also cleared if a tag-file reload removes it from the catalogue entirely,
 and the selection moves to the first visible result if its prior app is no
 longer visible.
 
+## App-provided launch options
+
+The selected catalogue app may declare the neutral
+`rusty.quest.app_launch_options.v1` read-only capability. Kiosk accepts it only
+when the application metadata names the authority derived from the exact package
+and names the same exported front-door Activity already selected by the catalogue.
+The resolved provider and Activity must be enabled, exported, same-package,
+same-UID, and the UID must be exclusive to that package. Kiosk binds the current
+signing lineage, version, update time, UID, provider, Activity, and bounded rows.
+
+The provider query has one derived URI, four fixed columns, no clauses, at most
+64 rows, and strict ID/label/description bounds. Any malformed part rejects the
+entire capability. Selecting an option adds its row digest to the active Wi-Fi
+requirement binding. Kiosk re-resolves and re-queries the complete binding at the
+point of dispatch, disarms its soft guard, and launches the fixed front door with
+normal task flags and exactly one fixed extra containing the opaque option ID.
+Callers and provider rows cannot supply a component, action, URI, path, flags, or
+extra key. The owning app remains the sole authority for what the opaque option
+means and retains the ordinary Meta Home/system escape boundary.
+
 Rusty Kiosk declares Meta's optional passthrough capability and reapplies its
 persisted style whenever the Spatial scene becomes ready or resumes. Natural
 uses an identity LUT. Contour LUT uses hard luminance-to-color bands so scene
