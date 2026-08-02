@@ -1,6 +1,8 @@
 package io.github.mesmerprism.rustykiosk
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -77,4 +79,189 @@ class OperatorBridgeSessionPolicyTest {
       OperatorBridgeAuth.verify(ByteArray(32) { 9 }, "POST", "/v1/status", body, headers, timestamp).isFailure
     )
   }
+
+  @Test
+  fun cleanupOwnershipOutlivesFiveMinuteSecretWithoutRetainingThatSecret() {
+    val issuedAt = 1_000L
+    val ownership = cleanupOwnership(
+      issuedAt = issuedAt,
+      expiresAt = issuedAt + OperatorBridgeSessionStore.CLEANUP_OWNERSHIP_LIFETIME_MS,
+    )
+    val afterSecretExpiry = issuedAt + OperatorBridgeSessionStore.SESSION_LIFETIME_MS + 1L
+    assertTrue(
+      OperatorBridgeCleanupOwnershipPolicy.isRetained(
+        ownership,
+        afterSecretExpiry,
+        ownership.bridgeGeneration,
+      )
+    )
+    assertTrue(
+      OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+        listOf(ownership),
+        ownership.operationId,
+        ownership.sessionId,
+        ownership.bridgeGeneration,
+        afterSecretExpiry,
+        ownership.bridgeGeneration,
+      ) != null
+    )
+  }
+
+  @Test
+  fun cleanupRejectsPreexistingListenerWrongBindingAndGeneration() {
+    val now = 2_000L
+    val owned = cleanupOwnership(issuedAt = 1_000L, expiresAt = 5_000L)
+    val preexisting = owned.copy(operationId = "operation_preexisting", enabledByRequest = false)
+    assertNull(
+      OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+        listOf(preexisting),
+        preexisting.operationId,
+        preexisting.sessionId,
+        preexisting.bridgeGeneration,
+        now,
+        preexisting.bridgeGeneration,
+      )
+    )
+    assertNull(
+      OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+        listOf(owned),
+        "operation_wrong",
+        owned.sessionId,
+        owned.bridgeGeneration,
+        now,
+        owned.bridgeGeneration,
+      )
+    )
+    assertNull(
+      OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+        listOf(owned),
+        owned.operationId,
+        "another_session_identifier",
+        owned.bridgeGeneration,
+        now,
+        owned.bridgeGeneration,
+      )
+    )
+    assertNull(
+      OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+        listOf(owned),
+        owned.operationId,
+        owned.sessionId,
+        owned.bridgeGeneration,
+        now,
+        owned.bridgeGeneration + 1L,
+      )
+    )
+  }
+
+  @Test
+  fun recoveryUsesOnlyUniqueBootstrapOwnedOperationAndGeneration() {
+    val owned = cleanupOwnership()
+    val another = owned.copy(operationId = "operation_another", sessionId = "session_identifier_2")
+    assertEquals(
+      owned,
+      OperatorBridgeCleanupOwnershipPolicy.recoverableOwnedEnable(
+        listOf(owned, another),
+        owned.operationId,
+        now = 2_000L,
+        currentGeneration = owned.bridgeGeneration,
+      )
+    )
+    assertNull(
+      OperatorBridgeCleanupOwnershipPolicy.recoverableOwnedEnable(
+        listOf(owned, owned.copy(sessionId = "session_identifier_3")),
+        owned.operationId,
+        now = 2_000L,
+        currentGeneration = owned.bridgeGeneration,
+      )
+    )
+  }
+
+  @Test
+  fun dispatchedStopRetrySurvivesSecretExpiryAndConsumesOnlyAfterStoppedReadback() {
+    val dispatched = cleanupOwnership(
+      expiresAt = OperatorBridgeSessionStore.CLEANUP_OWNERSHIP_LIFETIME_MS,
+    ).copy(
+      bridgeGeneration = 8L,
+      state = OperatorBridgeCleanupOwnershipState.DISABLE_DISPATCHED,
+    )
+    val afterSecretExpiry = OperatorBridgeSessionStore.SESSION_LIFETIME_MS + 1L
+    assertEquals(
+      dispatched,
+      OperatorBridgeCleanupOwnershipPolicy.dispatchedDisable(
+        listOf(dispatched),
+        dispatched.operationId,
+        afterSecretExpiry,
+        dispatched.bridgeGeneration,
+      )
+    )
+    val pending = OperatorBridgeCleanupOwnershipPolicy.consumeCompletedDisables(
+      listOf(dispatched),
+      dispatched.bridgeGeneration,
+      stoppedReadbackConverged = false,
+    )
+    assertEquals(listOf(dispatched), pending.first)
+    assertEquals(0, pending.second)
+
+    val completed = OperatorBridgeCleanupOwnershipPolicy.consumeCompletedDisables(
+      pending.first,
+      dispatched.bridgeGeneration,
+      stoppedReadbackConverged = true,
+    )
+    assertTrue(completed.first.isEmpty())
+    assertEquals(1, completed.second)
+    val replay = OperatorBridgeCleanupOwnershipPolicy.consumeCompletedDisables(
+      completed.first,
+      dispatched.bridgeGeneration,
+      stoppedReadbackConverged = true,
+    )
+    assertEquals(0, replay.second)
+  }
+
+  @Test
+  fun cleanupOwnershipExpiresDropsOnGenerationTransitionAndIsBounded() {
+    val owned = cleanupOwnership(expiresAt = 3_000L)
+    assertTrue(
+      OperatorBridgeCleanupOwnershipPolicy.retainBounded(
+        listOf(owned),
+        now = 3_000L,
+        currentGeneration = owned.bridgeGeneration,
+      ).isEmpty()
+    )
+    assertTrue(
+      OperatorBridgeCleanupOwnershipPolicy.retainBounded(
+        listOf(owned),
+        now = 2_000L,
+        currentGeneration = owned.bridgeGeneration + 1L,
+      ).isEmpty()
+    )
+    val many = (0 until OperatorBridgeSessionStore.MAX_CLEANUP_OWNERSHIP_TOMBSTONES + 7).map { index ->
+      cleanupOwnership(
+        operationId = "operation_${index.toString().padStart(8, '0')}",
+        sessionId = "session_${index.toString().padStart(12, '0')}",
+      )
+    }
+    val retained = OperatorBridgeCleanupOwnershipPolicy.retainBounded(
+      many,
+      now = 2_000L,
+      currentGeneration = owned.bridgeGeneration,
+    )
+    assertEquals(OperatorBridgeSessionStore.MAX_CLEANUP_OWNERSHIP_TOMBSTONES, retained.size)
+    assertEquals(many.takeLast(retained.size), retained)
+  }
+
+  private fun cleanupOwnership(
+    operationId: String = "operation_identifier_1",
+    sessionId: String = "session_identifier_1",
+    enabledByRequest: Boolean = true,
+    issuedAt: Long = 1_000L,
+    expiresAt: Long = 10_000L,
+  ) = OperatorBridgeCleanupOwnership(
+    operationId,
+    sessionId,
+    bridgeGeneration = 7L,
+    enabledByRequest,
+    issuedAt,
+    expiresAt,
+  )
 }

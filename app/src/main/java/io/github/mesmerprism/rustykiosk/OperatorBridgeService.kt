@@ -46,8 +46,8 @@ class OperatorBridgeService : Service() {
       return if (snapshot.enabled) START_STICKY else START_NOT_STICKY
     }
     if (requestedAction == OperatorBridgeRequestedAction.STOP) {
-      settings.recordRunning(expectedGeneration, false)
       stopBridge()
+      settings.recordRunning(expectedGeneration, false)
       stopSelfResult(startId)
       return START_NOT_STICKY
     }
@@ -436,14 +436,36 @@ private class OperatorBridgeHttpServer(
 
   private fun install(body: ByteArray): JSONObject {
     val json = JSONObject(body.toString(StandardCharsets.UTF_8))
-    val requestId = json.optString("request_id")
+    require(json.keys().asSequence().toSet() == setOf("request_id", "files")) {
+      "The install request must contain only request_id and files."
+    }
+    val rawRequestId = json.get("request_id")
+    require(rawRequestId is String) { "The install request id must be a string." }
+    val requestId = rawRequestId
     require(RustyKioskInstallStore.REQUEST_ID.matches(requestId)) { "A valid install request id is required." }
-    val names = json.optJSONArray("files") ?: throw IllegalArgumentException("A fixed APK file list is required.")
-    require(names.length() in 1..RustyKioskInstaller.MAX_APK_PARTS) { "The APK file list is empty or too large." }
-    val files = (0 until names.length()).map { index ->
-      File(stagingDirectory, safeFileName(names.getString(index))).also { file ->
-        require(file.isFile) { "A requested APK is not present in the staging area." }
+    val entries = json.optJSONArray("files")
+      ?: throw IllegalArgumentException("A committed APK file list is required.")
+    require(entries.length() in 1..RustyKioskInstaller.MAX_APK_PARTS) {
+      "The APK file list is empty or too large."
+    }
+    val commitments = (0 until entries.length()).map { index ->
+      RustyKioskInstallPartCommitmentPolicy.parse(entries.getJSONObject(index)).also { commitment ->
+        require(commitment.bytes in 1..RustyKioskInstaller.MAX_APK_BYTES) {
+          "An APK commitment is empty or too large."
+        }
+        require(commitment.name.extensionEquals("apk")) { "Every install part must be an APK." }
+        requireSafeDecodedFileName(commitment.name)
       }
+    }
+    require(commitments.map { it.name }.distinct().size == commitments.size) {
+      "Install part names must be unique."
+    }
+    val parts = commitments.map { commitment ->
+      val file = File(stagingDirectory, commitment.name)
+      require(file.isFile && file.length() == commitment.bytes) {
+        "A requested APK does not match its committed staged byte count."
+      }
+      RustyKioskCommittedInstallPart(file, commitment)
     }
     runCatching {
       context.startActivity(
@@ -455,7 +477,7 @@ private class OperatorBridgeHttpServer(
           )
       )
     }
-    return RustyKioskInstaller(context).install(requestId, files).toJson()
+    return RustyKioskInstaller(context).install(requestId, parts).toJson()
   }
 
   private fun installResult(requestId: String): JSONObject {
@@ -576,11 +598,18 @@ private class OperatorBridgeHttpServer(
 
   private fun safeFileName(encoded: String): String {
     val decoded = URLDecoder.decode(encoded, StandardCharsets.UTF_8.name())
+    requireSafeDecodedFileName(decoded)
+    return decoded
+  }
+
+  private fun requireSafeDecodedFileName(decoded: String) {
     require(SAFE_FILE_NAME.matches(decoded) && decoded != "." && decoded != "..") {
       "Only a single bounded staging filename is accepted."
     }
-    return decoded
   }
+
+  private fun String.extensionEquals(expected: String): Boolean =
+    substringAfterLast('.', "").equals(expected, ignoreCase = true)
 
   private fun sha256(file: File): String {
     val digest = MessageDigest.getInstance("SHA-256")
@@ -598,7 +627,7 @@ private class OperatorBridgeHttpServer(
     JSONObject().put("accepted", false).put("message", message.take(240))
 
   companion object {
-    private const val SCHEMA = "rusty.kiosk.direct_operator.v1"
+    private const val SCHEMA = "rusty.kiosk.direct_operator.v2"
     private const val PATH_CONTRACT = "/v1/contract"
     private const val PATH_STATUS = "/v1/status"
     private const val PATH_KIOSK_INVOKE = "/v1/kiosk/invoke"

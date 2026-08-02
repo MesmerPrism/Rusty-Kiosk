@@ -109,7 +109,10 @@ component while preserving all other enabled services.
 - An authorized USB bootstrap may disable the link only when its exact
   operation ID, ephemeral session ID, and bridge generation still match and it
   originally enabled the listener. A pre-existing wearer-enabled listener is
-  not cleanup-owned by that host run.
+  not cleanup-owned by that host run. Cleanup ownership is non-secret and
+  outlives the five-minute network credential for at most 24 hours. If the
+  original response was lost, the DUMP-only recovery route uses only that
+  operation ID to disable or re-dispatch STOP and returns no credentials.
 - Uninstall the setup helper to remove the in-headset settings route. Browsing,
   tagging, normal launch, and an already running main app remain ordinary app
   behavior.

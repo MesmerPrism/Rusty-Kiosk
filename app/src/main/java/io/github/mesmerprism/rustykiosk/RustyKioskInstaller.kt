@@ -48,27 +48,29 @@ internal data class RustyKioskInstallReceipt(
 internal class RustyKioskInstallStore(context: Context) {
   private val directory = File(context.applicationContext.filesDir, "operator-installs")
 
-  fun record(receipt: RustyKioskInstallReceipt) {
-    directory.mkdirs()
-    val destination = receiptFile(receipt.requestId)
-    val temporary = File(directory, "${receipt.requestId}.json.tmp")
-    temporary.writeText(receipt.toJson().toString(), StandardCharsets.UTF_8)
-    check(temporary.renameTo(destination) || runCatching {
-      destination.writeText(receipt.toJson().toString(), StandardCharsets.UTF_8)
-      temporary.delete()
-      true
-    }.getOrDefault(false)) { "Could not record the install receipt." }
-  }
+  fun record(receipt: RustyKioskInstallReceipt) =
+    synchronized(RustyKioskInstallProcessLock.monitor) {
+      directory.mkdirs()
+      val destination = receiptFile(receipt.requestId)
+      val temporary = File(directory, "${receipt.requestId}.json.tmp")
+      temporary.writeText(receipt.toJson().toString(), StandardCharsets.UTF_8)
+      check(temporary.renameTo(destination) || runCatching {
+        destination.writeText(receipt.toJson().toString(), StandardCharsets.UTF_8)
+        temporary.delete()
+        true
+      }.getOrDefault(false)) { "Could not record the install receipt." }
+    }
 
-  fun read(requestId: String): RustyKioskInstallReceipt? {
-    if (!REQUEST_ID.matches(requestId)) return null
-    val file = receiptFile(requestId)
-    if (!file.isFile || file.length() > MAX_RECEIPT_BYTES) return null
-    return runCatching {
+  fun read(requestId: String): RustyKioskInstallReceipt? =
+    synchronized(RustyKioskInstallProcessLock.monitor) {
+      if (!REQUEST_ID.matches(requestId)) return@synchronized null
+      val file = receiptFile(requestId)
+      if (!file.isFile || file.length() > MAX_RECEIPT_BYTES) return@synchronized null
+      runCatching {
         RustyKioskInstallReceipt.fromJson(JSONObject(file.readText(StandardCharsets.UTF_8)))
       }
       .getOrNull()
-  }
+    }
 
   private fun receiptFile(requestId: String) = File(directory, "$requestId.json")
 
@@ -78,21 +80,52 @@ internal class RustyKioskInstallStore(context: Context) {
   }
 }
 
+internal data class RustyKioskCommittedInstallPart(
+  val file: File,
+  val commitment: RustyKioskInstallPartCommitment,
+)
+
+/** Serializes install request-id admission, immutable copying, and receipt transitions. */
+internal object RustyKioskInstallProcessLock {
+  val monitor = Any()
+}
+
 internal class RustyKioskInstaller(private val context: Context) {
   private val appContext = context.applicationContext
   private val installer = appContext.packageManager.packageInstaller
   private val store = RustyKioskInstallStore(appContext)
 
-  fun install(requestId: String, apkFiles: List<File>): RustyKioskInstallReceipt {
+  fun install(
+    requestId: String,
+    apkParts: List<RustyKioskCommittedInstallPart>,
+  ): RustyKioskInstallReceipt = synchronized(RustyKioskInstallProcessLock.monitor) {
+    installLocked(requestId, apkParts)
+  }
+
+  private fun installLocked(
+    requestId: String,
+    apkParts: List<RustyKioskCommittedInstallPart>,
+  ): RustyKioskInstallReceipt {
     require(RustyKioskInstallStore.REQUEST_ID.matches(requestId)) { "A valid install request id is required." }
     require(store.read(requestId) == null) { "That install request id was already used." }
-    require(apkFiles.isNotEmpty()) { "At least one APK is required." }
-    require(apkFiles.size <= MAX_APK_PARTS) { "The APK set exceeds the fixed part limit." }
-    apkFiles.forEach { file ->
+    require(apkParts.isNotEmpty()) { "At least one APK is required." }
+    require(apkParts.size <= MAX_APK_PARTS) { "The APK set exceeds the fixed part limit." }
+    require(apkParts.map { it.commitment.name }.distinct().size == apkParts.size) {
+      "Install part names must be unique."
+    }
+    apkParts.forEach { part ->
+      val file = part.file
+      val commitment = part.commitment
+      require(file.name == commitment.name) { "The staged APK name changed before admission." }
       require(file.isFile && file.extension.equals("apk", ignoreCase = true)) {
         "Every install part must be a staged APK file."
       }
-      require(file.length() in 1..MAX_APK_BYTES) { "A staged APK is empty or too large." }
+      require(commitment.bytes in 1..MAX_APK_BYTES && file.length() == commitment.bytes) {
+        "A staged APK does not match its committed byte count."
+      }
+      require(RustyKioskInstallPartCommitmentPolicy.SHA256.matches(commitment.sha256)) {
+        "A staged APK does not have a valid lowercase SHA-256 commitment."
+      }
     }
     if (!appContext.packageManager.canRequestPackageInstalls()) {
       return receipt(
@@ -118,35 +151,47 @@ internal class RustyKioskInstaller(private val context: Context) {
         sessionId,
       )
     store.record(pending)
-    installer.openSession(sessionId).use { session ->
-      apkFiles.forEachIndexed { index, file ->
-        val sessionName = "%03d-%s".format(index, file.name)
-        file.inputStream().use { input ->
-          session.openWrite(sessionName, 0, file.length()).use { output ->
-            input.copyTo(output)
-            session.fsync(output)
+    try {
+      installer.openSession(sessionId).use { session ->
+        apkParts.forEachIndexed { index, part ->
+          val sessionName = "%03d-%s".format(index, part.commitment.name)
+          part.file.inputStream().use { input ->
+            session.openWrite(sessionName, 0, part.commitment.bytes).use { output ->
+              RustyKioskInstallPartCommitmentPolicy.copyVerified(input, output, part.commitment)
+              session.fsync(output)
+            }
           }
         }
+        val callback =
+          PendingIntent.getBroadcast(
+            appContext,
+            sessionId,
+            Intent(appContext, RustyKioskInstallReceiver::class.java)
+              .setAction(RustyKioskInstallReceiver.ACTION_INSTALL_STATUS)
+              .putExtra(RustyKioskInstallReceiver.EXTRA_REQUEST_ID, requestId),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+          )
+        store.record(
+          receipt(
+            requestId,
+            "pending-android",
+            false,
+            "Android accepted the verified immutable-byte session; wearer confirmation is pending.",
+            sessionId,
+          )
+        )
+        session.commit(callback.intentSender)
       }
-      val callback =
-        PendingIntent.getBroadcast(
-          appContext,
-          sessionId,
-          Intent(appContext, RustyKioskInstallReceiver::class.java)
-            .setAction(RustyKioskInstallReceiver.ACTION_INSTALL_STATUS)
-            .putExtra(RustyKioskInstallReceiver.EXTRA_REQUEST_ID, requestId),
-          PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
-        )
-      store.record(
-        receipt(
+    } catch (throwable: Throwable) {
+      runCatching { installer.abandonSession(sessionId) }
+      return receipt(
           requestId,
-          "pending-android",
-          false,
-          "Android accepted the session; wearer confirmation is pending.",
+          "failed",
+          true,
+          throwable.message ?: "The staged APK changed before its verified installer copy completed.",
           sessionId,
         )
-      )
-      session.commit(callback.intentSender)
+        .also(store::record)
     }
     return requireNotNull(store.read(requestId))
   }

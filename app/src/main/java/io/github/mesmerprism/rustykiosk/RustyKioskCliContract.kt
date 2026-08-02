@@ -89,13 +89,17 @@ internal object OperatorRequestLifecyclePolicy {
     activeRequestId: String?,
     activeCommand: String?,
     activeProviderEpoch: String?,
+    activeEnqueuedAtMs: Long,
+    activeExpiresAtMs: Long,
+    nowMs: Long,
     request: RustyKioskCliRequest,
     currentProviderEpoch: String,
     terminalExists: Boolean,
   ): Boolean =
     !terminalExists && activeRequestId == request.requestId &&
       activeCommand == request.command.wireName &&
-      activeProviderEpoch == currentProviderEpoch
+      activeProviderEpoch == currentProviderEpoch &&
+      canClaim(nowMs, activeEnqueuedAtMs, activeExpiresAtMs)
 }
 
 internal object OperatorRequestProcessLock {
@@ -340,10 +344,17 @@ internal class RustyKioskCliStore(
     state: KioskUiState,
     guardArmed: Boolean,
   ) = synchronized(OperatorRequestProcessLock.monitor) {
+    reconcileExpired()
+    val activeEnqueuedAtMs = preferences.getLong(KEY_ACTIVE_ENQUEUED_AT_MS, -1L)
+    val activeExpiresAtMs = preferences.getLong(KEY_ACTIVE_EXPIRES_AT_MS, 0L)
+    val nowMs = wallNow()
     if (!OperatorRequestLifecyclePolicy.canRecord(
         preferences.getString(KEY_ACTIVE_REQUEST_ID, null),
         preferences.getString(KEY_ACTIVE_COMMAND, null),
         preferences.getString(KEY_ACTIVE_PROVIDER_EPOCH, null),
+        activeEnqueuedAtMs,
+        activeExpiresAtMs,
+        nowMs,
         request,
         providerEpochLocked(),
         resultFile(request.requestId).isFile,
@@ -376,7 +387,9 @@ internal class RustyKioskCliStore(
       .put("accepted", outcome.accepted)
       .put("completed", outcome.completed)
       .put("message", outcome.message.take(MAX_MESSAGE_LENGTH))
-      .put("recorded_at_ms", wallNow())
+      .put("enqueued_at_ms", activeEnqueuedAtMs)
+      .put("expires_at_ms", activeExpiresAtMs)
+      .put("recorded_at_ms", nowMs)
       .put("state", JSONObject()
         .put("installed_count", state.entries.count(CatalogEntry::installed))
         .put("not_installed_count", state.entries.count { !it.installed })
@@ -457,7 +470,7 @@ internal class RustyKioskCliStore(
         command,
         OperatorRequestState.EXPIRED,
         "The applied operator request expired before matching readback was recorded.",
-        null,
+        activeEnqueued.takeIf { it >= 0L },
         activeExpiry,
       )
     }

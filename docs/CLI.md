@@ -34,7 +34,7 @@ than the debug activity.
 
 ## Release host operator
 
-Release builds expose host schema `rusty.kiosk.host_operator.v3` through a
+Release builds expose host schema `rusty.kiosk.host_operator.v4` through a
 separate `ContentProvider.call()` adapter for an already authorized ADB shell. Android
 requires the caller to hold `android.permission.DUMP`; ordinary headset apps do
 not. The provider admits one bounded request into the same app-private queue and
@@ -44,9 +44,9 @@ write is capped at 256 KiB, SHA-256 checked, schema validated, and atomically
 activated before acknowledgement. It supports no query, insert, update, delete,
 shell, component, intent, host-supplied path, endpoint, or free-form setup route.
 
-Provider v3 adds read-only `request-status`, exact queued-request `cancel`, and
+Provider v4 adds read-only `request-status`, exact queued-request `cancel`, and
 explicit `direct-status`, `direct-enable`, and generation-bound
-`direct-disable`. Status never enqueues a command. Requests expire after two
+`direct-disable`, plus cleanup-only `direct-recover-disable`. Status never enqueues a command. Requests expire after two
 minutes, retain durable pending/claimed identity across process restart, and
 end in a bounded exact-ID receipt. Claimed and terminal requests cannot be
 cancelled. Lifecycle states are `pending`, `pending_wearer_action`,
@@ -64,6 +64,13 @@ Enable and disable are asynchronous foreground-service transitions;
 `completed` is truthful readback, and the host polls no-argument
 `direct-status` until the expected enabled/running pair converges.
 
+The five-minute HMAC secret is purged independently of a bounded 24-hour,
+non-secret cleanup tombstone. Disable requires `enabled_by_request=true` and an
+atomic current-generation recheck. If output was lost, the DUMP-only recovery
+method accepts only the original operation ID; it returns no session or pairing
+credential and can only disable or re-dispatch STOP for that owned generation.
+Current-generation stopped readback consumes the retry record.
+
 The host sequence is deliberately two-stage: call `invoke`, start the fixed
 `.RustyKioskActivity` with the admitted request id, then poll `result`. This
 keeps visible action execution in the same Activity handlers as the panel and
@@ -71,10 +78,12 @@ avoids granting the provider hidden foreground or business-logic authority.
 The public QuestIonAble File Manager implements this contract for its optional
 Rusty Kiosk tab.
 
-QuestIonAble File Manager also implements `rusty.kiosk.direct_operator.v1` for
+QuestIonAble File Manager also implements `rusty.kiosk.direct_operator.v2` for
 post-bootstrap operation without ADB. Its `kiosk-direct` CLI family covers
 status, typed commands, tag import/export, app-owned staging, and attended APK
-install receipts. This is a separate authenticated network transport, not an
+install receipts. Install admission supplies an ordered strict
+`{name, bytes, sha256}` entry for every APK and Kiosk verifies those committed
+bytes from the same opened handle copied into PackageInstaller. This is a separate authenticated network transport, not an
 expansion of the `DUMP` provider.
 
 The CLI never accepts a shell command, executable path, Android component,

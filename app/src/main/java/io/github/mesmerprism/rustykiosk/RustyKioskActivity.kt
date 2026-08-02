@@ -848,7 +848,7 @@ class RustyKioskActivity : AppSystemActivity() {
         Settings.Global.getInt(contentResolver, WIFI_ADB_SETTING, 0) == 1,
       accessibilityEnabled = isGuardEnabled(),
       operatorBridgeEnabled = bridge.enabled,
-      operatorBridgeRunning = bridge.running,
+      operatorBridgeRunning = bridge.enabled && bridge.running && bridge.transitionConverged,
       operatorBridgeEndpoint = bridge.endpoint,
       operatorBridgePairingCode = bridge.pairingCode,
       installerAllowed = bridge.installerAllowed,

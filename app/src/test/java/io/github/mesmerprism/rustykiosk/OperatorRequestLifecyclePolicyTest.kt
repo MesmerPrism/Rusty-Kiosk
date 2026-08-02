@@ -42,6 +42,9 @@ class OperatorRequestLifecyclePolicyTest {
         request.requestId,
         request.command.wireName,
         "epoch-a",
+        100L,
+        1_000L,
+        999L,
         request,
         "epoch-a",
         terminalExists = false,
@@ -49,10 +52,11 @@ class OperatorRequestLifecyclePolicyTest {
     )
     // Expiry clears active identity, an existing confirmed tombstone rejects a duplicate, and
     // crossed command/provider epochs cannot overwrite either terminal result.
-    assertFalse(OperatorRequestLifecyclePolicy.canRecord(null, null, null, request, "epoch-a", false))
-    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, request.command.wireName, "epoch-a", request, "epoch-a", true))
-    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, "reload", "epoch-a", request, "epoch-a", false))
-    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, request.command.wireName, "epoch-old", request, "epoch-a", false))
+    assertFalse(OperatorRequestLifecyclePolicy.canRecord(null, null, null, 100L, 1_000L, 999L, request, "epoch-a", false))
+    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, request.command.wireName, "epoch-a", 100L, 1_000L, 999L, request, "epoch-a", true))
+    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, "reload", "epoch-a", 100L, 1_000L, 999L, request, "epoch-a", false))
+    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, request.command.wireName, "epoch-old", 100L, 1_000L, 999L, request, "epoch-a", false))
+    assertFalse(OperatorRequestLifecyclePolicy.canRecord(request.requestId, request.command.wireName, "epoch-a", 100L, 1_000L, 1_000L, request, "epoch-a", false))
   }
 
   @Test

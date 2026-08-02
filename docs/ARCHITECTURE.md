@@ -76,7 +76,7 @@ and Wi-Fi ADB state after completion.
 | CLI vocabulary and bounds | `RustyKioskCliProtocol` |
 | CLI queue and result receipt | app-private `RustyKioskCliStore` |
 | App action semantics | the same activity handlers used by the native panel |
-| Release host admission | `DUMP`-protected `RustyKioskOperatorProvider.call()` v3 |
+| Release host admission | `DUMP`-protected `RustyKioskOperatorProvider.call()` v4 |
 | Typed request lifecycle | durable provider epoch + request ID + bounded queue/result tombstones |
 | USB Direct Link bootstrap | fixed provider methods + app-private generation-bound ephemeral sessions |
 | Fixed tag transfer | ordered bounded provider chunks + SHA-256/schema/atomic activation |
@@ -128,7 +128,7 @@ mode, document digest, requirement digest, and current Wi-Fi state. A process
 restart, selection disappearance, update, edit, cancellation, or expiry drops
 the pending launch; no target or guard action is replayed.
 
-## Provider-v3 bootstrap and request lifecycle
+## Provider-v4 bootstrap and request lifecycle
 
 The DUMP-protected provider adds status, exact queued-request cancellation, and
 explicit Direct Link status/enable/disable methods. Requests are keyed by an
@@ -146,6 +146,16 @@ on-headset. Generation changes, expiry, disablement, and code rotation revoke
 the session. The host-side exact-serial wrapper is evidence owned by the host;
 the Android app binds channel, package, DUMP caller, capability, and generation,
 not an ADB serial it cannot observe.
+
+The network secret and cleanup authority have separate lifetimes. A bounded
+non-secret tombstone records the originating operation/session/generation,
+whether bootstrap actually enabled the link, cleanup state, and a 24-hour
+deadline. Only that owned enable can advance to `disable_dispatched`; the
+record then tracks the post-disable generation so an operation-ID-only DUMP
+recovery call can re-dispatch STOP after response loss. Current-generation
+stopped readback consumes it. Direct install v2 requires ordered
+`{name, bytes, sha256}` commitments and verifies count and digest from the same
+source handle copied to PackageInstaller before commit.
 
 Returning to Rusty Kiosk starts a fresh MAIN task after a short teardown delay
 so a stale Spatial panel runtime is not reused.

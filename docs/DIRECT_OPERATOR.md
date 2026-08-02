@@ -12,7 +12,7 @@ It still owns only fixed secure-setting operations after one USB-C provision.
 
 ## Fixed surface
 
-Schema `rusty.kiosk.direct_operator.v1` listens on TCP port `39873` and exposes:
+Schema `rusty.kiosk.direct_operator.v2` listens on TCP port `39873` and exposes:
 
 - contract and status;
 - Rusty Kiosk's existing typed command admission and matching result readback;
@@ -38,8 +38,8 @@ over `RESPONSE`, the request ID, HTTP status, and digest. The PC never treats an
 unsigned or mismatched response as headset readback.
 
 An optional authorized-USB bootstrap uses host provider
-`rusty.kiosk.host_operator.v3` and result schema
-`rusty.kiosk.direct_usb_bootstrap.v1`. `direct-enable` takes one unique
+`rusty.kiosk.host_operator.v4` and result schema
+`rusty.kiosk.direct_usb_bootstrap.v2`. `direct-enable` takes one unique
 operation ID in the ContentProvider `arg`. It starts the listener if necessary
 and returns an honest `pending` or `confirmed` startup state plus channel,
 package, endpoint, bridge generation, session ID, five-minute expiry,
@@ -61,10 +61,21 @@ redacted in-memory parser and must not be echoed, logged, or placed in generic
 diagnostics. If `enabled_by_request=true`, cleanup may call `direct-disable`
 with the same operation ID in `arg`, plus typed extras
 `expected_bridge_generation` (long) and `session_id` (string). Kiosk disables
-only when all three ownership values still match.
+only when all three identity values still match and the tombstone proves that
+bootstrap, rather than the wearer, enabled that generation.
 Disable dispatch may remain `pending`; the host confirms cleanup only after
 no-argument `direct-status` reports both `direct_enabled=false` and
 `direct_running=false` on the new generation.
+
+The five-minute HMAC secret and cleanup authority are separate. A non-secret,
+24-hour bounded tombstone retains operation ID, session ID, bridge generation,
+`enabled_by_request`, cleanup state, and timestamps, but never the secret.
+`direct-disable` requires that bootstrap itself enabled the link and atomically
+rechecks the current generation. If an enable or cleanup response is lost,
+DUMP-only `direct-recover-disable` accepts the known original operation ID and
+can only disable that owned generation or re-dispatch its pending STOP. It
+returns no session ID, secret, or pairing code. The retry mapping follows the
+post-disable generation until stopped readback consumes it or its bound expires.
 
 Listener START/STOP intents carry their expected generation. The service ignores
 crossed stale actions and persists its internal running generation;
@@ -75,7 +86,7 @@ field: host confirmation remains the exact `bridge_generation` in this contract.
 This provides authentication, integrity, expiry, and replay resistance. It does
 not encrypt HTTP bodies. Use a trusted local network or a private Windows
 hotspot. Transport encryption is a future protocol-version change, not an
-implicit property of v1.
+implicit property of v2.
 
 ## Files and APKs
 
@@ -84,8 +95,10 @@ This gives the PC a bounded upload/list/download/delete route without granting a
 general headset filesystem capability. Ordinary QuestIonAble File Manager ADB
 browsing remains available separately for shell-visible shared paths.
 
-An install request names one to 32 already staged `.apk` parts. Rusty Kiosk
-copies them into one Android `PackageInstaller` session and explicitly requires
+An install request names one to 32 already staged `.apk` parts and commits each
+name to an exact integer byte count and lowercase SHA-256. Rusty Kiosk opens
+each staged source once, verifies count and digest while copying that same
+handle into one Android `PackageInstaller` session, and explicitly requires
 user action. Receipts progress through staging, Android admission, wearer
 confirmation, then installed or failed. The PC must not convert a pending
 receipt into success. The wearer must separately allow Rusty Kiosk as an
@@ -93,6 +106,8 @@ installer through Android's visible per-app setting. That source grant persists,
 but arbitrary first-time installs still require one wearer decision per package
 session. A base APK and all of its selected split APKs share one session and one
 decision.
+Concurrent replacement, size drift, digest drift, duplicate names, and unknown
+install fields abandon the session and fail closed before commit.
 
 QuestIonAble File Manager therefore presents authorized PC ADB installation as
 the default unattended and batch route. Direct PackageInstaller is the explicit

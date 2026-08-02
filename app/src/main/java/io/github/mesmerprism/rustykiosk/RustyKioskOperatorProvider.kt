@@ -32,6 +32,7 @@ class RustyKioskOperatorProvider : ContentProvider() {
       RustyKioskOperatorContract.METHOD_DIRECT_STATUS -> directStatus()
       RustyKioskOperatorContract.METHOD_DIRECT_ENABLE -> directEnable(arg)
       RustyKioskOperatorContract.METHOD_DIRECT_DISABLE -> directDisable(arg, extras)
+      RustyKioskOperatorContract.METHOD_DIRECT_RECOVER_DISABLE -> directRecoverDisable(arg)
       RustyKioskOperatorContract.METHOD_TAG_READ -> readTagChunk(extras)
       RustyKioskOperatorContract.METHOD_TAG_WRITE_BEGIN -> beginTagWrite(extras)
       RustyKioskOperatorContract.METHOD_TAG_WRITE_CHUNK -> writeTagChunk(extras)
@@ -259,32 +260,43 @@ class RustyKioskOperatorProvider : ContentProvider() {
     val providerContext = context ?: return failure("Rusty Kiosk operator context is unavailable.")
     val operationId = RustyKioskCliProtocol.validRequestId(operationIdArg)
       ?: return failure("A valid direct-link operation id is required in the provider arg.")
-    val settings = OperatorBridgeSettings(providerContext)
-    val enabledByRequest = runCatching { settings.setEnabled(true) }
-      .getOrElse { return failure("The direct link could not be enabled.") }
-    val snapshot = settings.snapshot()
-    val session = runCatching {
-      OperatorBridgeSessionStore(providerContext).issue(operationId, snapshot.bridgeGeneration)
-    }.getOrElse { throwable ->
-      if (enabledByRequest) settings.setEnabled(false)
-      return failure(throwable.message ?: "An ephemeral direct-link session could not be issued.")
-    }
-    return directStatusBundle(snapshot).apply {
-      putBoolean(RustyKioskOperatorContract.RESULT_ACCEPTED, true)
-      putBoolean(RustyKioskOperatorContract.RESULT_COMPLETED, snapshot.running)
-      putString(RustyKioskOperatorContract.RESULT_OPERATION_ID, operationId)
-      putString(RustyKioskOperatorContract.RESULT_SESSION_ID, session.sessionId)
-      putString(
-        RustyKioskOperatorContract.RESULT_SESSION_SECRET_BASE64,
-        session.sessionSecretBase64,
-      )
-      putLong(RustyKioskOperatorContract.RESULT_EXPIRES_AT_MS, session.expiresAtMs)
-      putString(RustyKioskOperatorContract.RESULT_SESSION_CAPABILITY, OperatorBridgeSessionStore.CAPABILITY)
-      putBoolean(RustyKioskOperatorContract.RESULT_ENABLED_BY_REQUEST, enabledByRequest)
-      putString(
-        RustyKioskOperatorContract.RESULT_MESSAGE,
-        "A bounded direct-link session was issued for this bridge generation.",
-      )
+    return synchronized(OperatorBridgeTransitionLock.monitor) {
+      val settings = OperatorBridgeSettings(providerContext)
+      val enabledByRequest = runCatching { settings.setEnabled(true) }
+        .getOrElse { return@synchronized failure("The direct link could not be enabled.") }
+      val snapshot = settings.snapshot()
+      if (!snapshot.enabled) {
+        return@synchronized failure("The direct link did not retain its enabled generation.")
+      }
+      val session = runCatching {
+        OperatorBridgeSessionStore(providerContext).issue(
+          operationId,
+          snapshot.bridgeGeneration,
+          enabledByRequest,
+        )
+      }.getOrElse { throwable ->
+        if (enabledByRequest) settings.setEnabledIfGeneration(false, snapshot.bridgeGeneration)
+        return@synchronized failure(
+          throwable.message ?: "An ephemeral direct-link session could not be issued."
+        )
+      }
+      directStatusBundle(snapshot).apply {
+        putBoolean(RustyKioskOperatorContract.RESULT_ACCEPTED, true)
+        putBoolean(RustyKioskOperatorContract.RESULT_COMPLETED, snapshot.running)
+        putString(RustyKioskOperatorContract.RESULT_OPERATION_ID, operationId)
+        putString(RustyKioskOperatorContract.RESULT_SESSION_ID, session.sessionId)
+        putString(
+          RustyKioskOperatorContract.RESULT_SESSION_SECRET_BASE64,
+          session.sessionSecretBase64,
+        )
+        putLong(RustyKioskOperatorContract.RESULT_EXPIRES_AT_MS, session.expiresAtMs)
+        putString(RustyKioskOperatorContract.RESULT_SESSION_CAPABILITY, OperatorBridgeSessionStore.CAPABILITY)
+        putBoolean(RustyKioskOperatorContract.RESULT_ENABLED_BY_REQUEST, enabledByRequest)
+        putString(
+          RustyKioskOperatorContract.RESULT_MESSAGE,
+          "A bounded direct-link session was issued for this bridge generation.",
+        )
+      }
     }
   }
 
@@ -297,33 +309,104 @@ class RustyKioskOperatorProvider : ContentProvider() {
       RustyKioskOperatorContract.EXTRA_EXPECTED_BRIDGE_GENERATION,
       -1L,
     ) ?: -1L
-    val settings = OperatorBridgeSettings(providerContext)
-    val before = settings.snapshot()
-    if (expectedGeneration <= 0L || before.bridgeGeneration != expectedGeneration) {
-      return failure("The direct-link bridge generation changed; no state was changed.")
+    return synchronized(OperatorBridgeTransitionLock.monitor) {
+      val settings = OperatorBridgeSettings(providerContext)
+      val before = settings.snapshot()
+      if (expectedGeneration <= 0L) {
+        return@synchronized failure("A positive expected bridge generation is required.")
+      }
+      val sessionStore = OperatorBridgeSessionStore(providerContext)
+      val ownership = sessionStore.ownedCleanupEnable(
+          operationId,
+          sessionId,
+          expectedGeneration,
+        )
+      if (!OperatorBridgeActionPolicy.canApplyOwnedDisable(
+          before.enabled,
+          before.bridgeGeneration,
+          expectedGeneration,
+          ownership != null,
+        )
+      ) {
+        return@synchronized failure(
+          "The originating bootstrap did not enable or no longer owns this bridge generation."
+        )
+      }
+      val postDisableGeneration = settings.generationAfterTransition(expectedGeneration)
+      if (!sessionStore.prepareDisableDispatch(requireNotNull(ownership), postDisableGeneration)) {
+        return@synchronized failure("Cleanup retry authority could not be prepared; no state was changed.")
+      }
+      if (!settings.setEnabledIfGeneration(false, expectedGeneration)) {
+        return@synchronized failure("The direct-link bridge generation changed; no state was changed.")
+      }
+      directStatusBundle(settings.snapshot()).apply {
+        putBoolean(RustyKioskOperatorContract.RESULT_ACCEPTED, true)
+        putString(RustyKioskOperatorContract.RESULT_OPERATION_ID, operationId)
+        putString(
+          RustyKioskOperatorContract.RESULT_MESSAGE,
+          "Direct-link disable was dispatched for the owned generation; status readback determines completion.",
+        )
+      }
     }
-    if (!OperatorBridgeSessionStore(providerContext).owns(
-        operationId,
-        sessionId,
-        expectedGeneration,
-      )
-    ) {
-      return failure("The originating operation/session does not own this bridge generation.")
-    }
-    settings.setEnabled(false)
-    return directStatusBundle(settings.snapshot()).apply {
-      putBoolean(RustyKioskOperatorContract.RESULT_ACCEPTED, true)
-      putString(RustyKioskOperatorContract.RESULT_OPERATION_ID, operationId)
-      putString(
-        RustyKioskOperatorContract.RESULT_MESSAGE,
-        "Direct-link disable was dispatched for the owned generation; status readback determines completion.",
-      )
+  }
+
+  /**
+   * DUMP-only recovery for a lost bootstrap response. The caller supplies only its original
+   * operation id; the app resolves the bounded non-secret ownership tombstone and returns neither
+   * the expired HMAC secret nor the durable on-headset pairing code.
+   */
+  private fun directRecoverDisable(operationIdArg: String?): Bundle {
+    val providerContext = context ?: return failure("Rusty Kiosk operator context is unavailable.")
+    val operationId = RustyKioskCliProtocol.validRequestId(operationIdArg)
+      ?: return failure("A valid originating operation id is required in the provider arg.")
+    return synchronized(OperatorBridgeTransitionLock.monitor) {
+      val settings = OperatorBridgeSettings(providerContext)
+      val before = settings.snapshot()
+      val sessionStore = OperatorBridgeSessionStore(providerContext)
+      if (before.enabled) {
+        val ownership = sessionStore.recoverableCleanupEnable(
+          operationId,
+          before.bridgeGeneration,
+        ) ?: return@synchronized failure(
+          "No live bootstrap-owned enable matches that operation and bridge generation."
+        )
+        val postDisableGeneration = settings.generationAfterTransition(ownership.bridgeGeneration)
+        if (!sessionStore.prepareDisableDispatch(ownership, postDisableGeneration) ||
+          !settings.setEnabledIfGeneration(false, ownership.bridgeGeneration)
+        ) {
+          return@synchronized failure("The direct-link bridge generation changed; no state was changed.")
+        }
+      } else {
+        val dispatched = sessionStore.dispatchedCleanupDisable(
+          operationId,
+          before.bridgeGeneration,
+        ) ?: return@synchronized failure(
+          "No bounded bootstrap-owned STOP retry matches that operation and bridge generation."
+        )
+        if (dispatched.state != OperatorBridgeCleanupOwnershipState.DISABLE_DISPATCHED ||
+          !runCatching { settings.requestStopIfDisabled(before.bridgeGeneration) }.getOrDefault(false)
+        ) {
+          return@synchronized failure("The cleanup STOP retry could not be dispatched.")
+        }
+      }
+      directStatusBundle(settings.snapshot()).apply {
+        putBoolean(RustyKioskOperatorContract.RESULT_ACCEPTED, true)
+        putString(RustyKioskOperatorContract.RESULT_OPERATION_ID, operationId)
+        putString(
+          RustyKioskOperatorContract.RESULT_MESSAGE,
+          "The lost-response bootstrap-owned generation was disabled without returning credentials.",
+        )
+      }
     }
   }
 
   private fun directStatusBundle(snapshot: OperatorBridgeSnapshot): Bundle = Bundle().apply {
+    if (!snapshot.enabled && !snapshot.running && snapshot.transitionConverged) {
+      OperatorBridgeSessionStore(requireNotNull(context))
+        .consumeCompletedDisableDispatches(snapshot.bridgeGeneration)
+    }
     putBoolean(RustyKioskOperatorContract.RESULT_ACCEPTED, true)
-    putBoolean(RustyKioskOperatorContract.RESULT_COMPLETED, snapshot.running == snapshot.enabled)
+    putBoolean(RustyKioskOperatorContract.RESULT_COMPLETED, snapshot.transitionConverged)
     putString(RustyKioskOperatorContract.RESULT_SCHEMA, RustyKioskOperatorContract.DIRECT_BOOTSTRAP_SCHEMA)
     putString(RustyKioskOperatorContract.RESULT_PRODUCT_CHANNEL, BuildConfig.PRODUCT_CHANNEL)
     putString(RustyKioskOperatorContract.RESULT_PACKAGE, BuildConfig.APPLICATION_ID)
@@ -337,7 +420,7 @@ class RustyKioskOperatorProvider : ContentProvider() {
     )
     putString(
       RustyKioskOperatorContract.RESULT_OPERATION_STATE,
-      if (snapshot.running == snapshot.enabled) OperatorRequestState.CONFIRMED.wireName
+      if (snapshot.transitionConverged) OperatorRequestState.CONFIRMED.wireName
       else OperatorRequestState.PENDING.wireName,
     )
     putString(RustyKioskOperatorContract.RESULT_MESSAGE, "Direct-link status read without issuing a credential.")
@@ -394,8 +477,8 @@ class RustyKioskOperatorProvider : ContentProvider() {
 }
 
 internal object RustyKioskOperatorContract {
-  const val SCHEMA = "rusty.kiosk.host_operator.v3"
-  const val DIRECT_BOOTSTRAP_SCHEMA = "rusty.kiosk.direct_usb_bootstrap.v1"
+  const val SCHEMA = "rusty.kiosk.host_operator.v4"
+  const val DIRECT_BOOTSTRAP_SCHEMA = "rusty.kiosk.direct_usb_bootstrap.v2"
   val AUTHORITY: String = BuildConfig.OPERATOR_AUTHORITY
   val PACKAGE_NAME: String = BuildConfig.APPLICATION_ID
   const val ACTIVITY_NAME = ".RustyKioskActivity"
@@ -409,6 +492,7 @@ internal object RustyKioskOperatorContract {
   const val METHOD_DIRECT_STATUS = "direct-status"
   const val METHOD_DIRECT_ENABLE = "direct-enable"
   const val METHOD_DIRECT_DISABLE = "direct-disable"
+  const val METHOD_DIRECT_RECOVER_DISABLE = "direct-recover-disable"
   const val METHOD_TAG_READ = "tag-read"
   const val METHOD_TAG_WRITE_BEGIN = "tag-write-begin"
   const val METHOD_TAG_WRITE_CHUNK = "tag-write-chunk"

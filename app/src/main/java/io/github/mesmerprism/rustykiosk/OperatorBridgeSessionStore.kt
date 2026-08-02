@@ -22,6 +22,90 @@ internal data class OperatorBridgeSessionCredential(
   val expiresAtMs: Long,
 )
 
+internal data class OperatorBridgeCleanupOwnership(
+  val operationId: String,
+  val sessionId: String,
+  val bridgeGeneration: Long,
+  val enabledByRequest: Boolean,
+  val issuedAtMs: Long,
+  val expiresAtMs: Long,
+  val state: OperatorBridgeCleanupOwnershipState = OperatorBridgeCleanupOwnershipState.ENABLE_OWNED,
+)
+
+internal enum class OperatorBridgeCleanupOwnershipState(val wireName: String) {
+  ENABLE_OWNED("enable_owned"),
+  DISABLE_DISPATCHED("disable_dispatched"),
+}
+
+internal object OperatorBridgeCleanupOwnershipPolicy {
+  fun isRetained(
+    ownership: OperatorBridgeCleanupOwnership,
+    now: Long,
+    currentGeneration: Long,
+  ): Boolean =
+    now >= 0L && ownership.issuedAtMs in 0..now && ownership.expiresAtMs > now &&
+      ownership.bridgeGeneration > 0L && ownership.bridgeGeneration == currentGeneration
+
+  fun retainBounded(
+    ownerships: List<OperatorBridgeCleanupOwnership>,
+    now: Long,
+    currentGeneration: Long,
+  ): List<OperatorBridgeCleanupOwnership> =
+    ownerships.filter { isRetained(it, now, currentGeneration) }
+      .takeLast(OperatorBridgeSessionStore.MAX_CLEANUP_OWNERSHIP_TOMBSTONES)
+
+  fun exactOwnedEnable(
+    ownerships: List<OperatorBridgeCleanupOwnership>,
+    operationId: String,
+    sessionId: String,
+    expectedGeneration: Long,
+    now: Long,
+    currentGeneration: Long,
+  ): OperatorBridgeCleanupOwnership? =
+    retainBounded(ownerships, now, currentGeneration).singleOrNull {
+      it.state == OperatorBridgeCleanupOwnershipState.ENABLE_OWNED && it.enabledByRequest &&
+        it.operationId == operationId && it.sessionId == sessionId &&
+        it.bridgeGeneration == expectedGeneration
+    }
+
+  fun recoverableOwnedEnable(
+    ownerships: List<OperatorBridgeCleanupOwnership>,
+    operationId: String,
+    now: Long,
+    currentGeneration: Long,
+  ): OperatorBridgeCleanupOwnership? =
+    retainBounded(ownerships, now, currentGeneration).singleOrNull {
+      it.state == OperatorBridgeCleanupOwnershipState.ENABLE_OWNED && it.enabledByRequest &&
+        it.operationId == operationId &&
+        it.bridgeGeneration == currentGeneration
+    }
+
+  fun dispatchedDisable(
+    ownerships: List<OperatorBridgeCleanupOwnership>,
+    operationId: String,
+    now: Long,
+    currentGeneration: Long,
+  ): OperatorBridgeCleanupOwnership? =
+    retainBounded(ownerships, now, currentGeneration).singleOrNull {
+      it.state == OperatorBridgeCleanupOwnershipState.DISABLE_DISPATCHED &&
+        it.enabledByRequest && it.operationId == operationId &&
+        it.bridgeGeneration == currentGeneration
+    }
+
+  fun consumeCompletedDisables(
+    ownerships: List<OperatorBridgeCleanupOwnership>,
+    currentGeneration: Long,
+    stoppedReadbackConverged: Boolean,
+  ): Pair<List<OperatorBridgeCleanupOwnership>, Int> {
+    if (!stoppedReadbackConverged) return ownerships to 0
+    val retained = ownerships.filterNot {
+      it.state == OperatorBridgeCleanupOwnershipState.DISABLE_DISPATCHED &&
+        it.bridgeGeneration == currentGeneration
+    }
+    return retained to (ownerships.size - retained.size)
+  }
+}
+
 internal object OperatorBridgeSessionPolicy {
   fun requireIssuanceAllowed(
     now: Long,
@@ -81,7 +165,11 @@ internal class OperatorBridgeSessionStore(
     Context.MODE_PRIVATE,
   )
 
-  fun issue(operationId: String, bridgeGeneration: Long): OperatorBridgeIssuedSession =
+  fun issue(
+    operationId: String,
+    bridgeGeneration: Long,
+    enabledByRequest: Boolean,
+  ): OperatorBridgeIssuedSession =
     synchronized(LOCK) {
       require(RustyKioskCliProtocol.validRequestId(operationId) != null) {
         "A valid bootstrap operation id is required."
@@ -93,6 +181,7 @@ internal class OperatorBridgeSessionStore(
       save(root)
       val lastObservedWallMs = root.optLong(KEY_LAST_OBSERVED_WALL_MS, -1L)
       val issuedOperations = root.getJSONArray(KEY_ISSUED_OPERATIONS)
+      val cleanupOwnerships = cleanupOwnerships(root)
       val recent = root.getJSONArray(KEY_RECENT_ISSUES)
       val recentValues = (0 until recent.length()).map { recent.getLong(it) }
         .filter { it in (now - RATE_WINDOW_MS)..now }
@@ -101,7 +190,8 @@ internal class OperatorBridgeSessionStore(
       OperatorBridgeSessionPolicy.requireIssuanceAllowed(
         now,
         bridgeGeneration,
-        (0 until issuedOperations.length()).any { issuedOperations.getString(it) == operationId },
+        (0 until issuedOperations.length()).any { issuedOperations.getString(it) == operationId } ||
+          cleanupOwnerships.any { it.operationId == operationId },
         recentValues,
         sessions.length(),
         secretBytes.size,
@@ -110,6 +200,10 @@ internal class OperatorBridgeSessionStore(
       val sessionId = Base64.encodeToString(randomBytes(18), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
       val secretBase64 = Base64.encodeToString(secretBytes, Base64.NO_WRAP)
       val expiresAt = now + SESSION_LIFETIME_MS
+      require(now <= Long.MAX_VALUE - CLEANUP_OWNERSHIP_LIFETIME_MS) {
+        "The cleanup-ownership clock is invalid."
+      }
+      val cleanupExpiresAt = now + CLEANUP_OWNERSHIP_LIFETIME_MS
       sessions.put(JSONObject()
         .put("session_id", sessionId)
         .put("operation_id", operationId)
@@ -125,7 +219,21 @@ internal class OperatorBridgeSessionStore(
         ((0 until issuedOperations.length()).map { issuedOperations.getString(it) } + operationId)
           .takeLast(MAX_OPERATION_TOMBSTONES)
       )
-      root.put(KEY_RECENT_ISSUES, nextRecent).put(KEY_ISSUED_OPERATIONS, nextOperations)
+      val nextCleanupOwnerships = OperatorBridgeCleanupOwnershipPolicy.retainBounded(
+        cleanupOwnerships + OperatorBridgeCleanupOwnership(
+          operationId,
+          sessionId,
+          bridgeGeneration,
+          enabledByRequest,
+          now,
+          cleanupExpiresAt,
+        ),
+        now,
+        bridgeGeneration,
+      )
+      root.put(KEY_RECENT_ISSUES, nextRecent)
+        .put(KEY_ISSUED_OPERATIONS, nextOperations)
+        .put(KEY_CLEANUP_OWNERSHIPS, encodeCleanupOwnerships(nextCleanupOwnerships))
       save(root)
       OperatorBridgeIssuedSession(operationId, sessionId, secretBase64, bridgeGeneration, now, expiresAt)
     }
@@ -182,21 +290,119 @@ internal class OperatorBridgeSessionStore(
       true
     }
 
-  fun owns(operationId: String, sessionId: String, bridgeGeneration: Long): Boolean =
+  fun ownedCleanupEnable(
+    operationId: String,
+    sessionId: String,
+    bridgeGeneration: Long,
+  ): OperatorBridgeCleanupOwnership? =
     synchronized(LOCK) {
       val now = wallNow()
       val root = runCatching { loadPurged(now, bridgeGeneration) }
-        .getOrElse { return@synchronized false }
-      val sessions = root.getJSONArray(KEY_SESSIONS)
-      val owned = (0 until sessions.length()).any {
-        val item = sessions.getJSONObject(it)
-        item.optString("operation_id") == operationId &&
-          item.optString("session_id") == sessionId &&
-          item.optLong("bridge_generation") == bridgeGeneration
-      }
+        .getOrElse { return@synchronized null }
+      val owned = OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+        cleanupOwnerships(root),
+        operationId,
+        sessionId,
+        bridgeGeneration,
+        now,
+        bridgeGeneration,
+      )
       save(root)
       owned
     }
+
+  fun recoverableCleanupEnable(
+    operationId: String,
+    bridgeGeneration: Long,
+  ): OperatorBridgeCleanupOwnership? = synchronized(LOCK) {
+    if (RustyKioskCliProtocol.validRequestId(operationId) == null || bridgeGeneration <= 0L) {
+      return@synchronized null
+    }
+    val now = wallNow()
+    val root = runCatching { loadPurged(now, bridgeGeneration) }
+      .getOrElse { return@synchronized null }
+    val ownership = OperatorBridgeCleanupOwnershipPolicy.recoverableOwnedEnable(
+      cleanupOwnerships(root),
+      operationId,
+      now,
+      bridgeGeneration,
+    )
+    save(root)
+    ownership
+  }
+
+  fun dispatchedCleanupDisable(
+    operationId: String,
+    bridgeGeneration: Long,
+  ): OperatorBridgeCleanupOwnership? = synchronized(LOCK) {
+    if (RustyKioskCliProtocol.validRequestId(operationId) == null || bridgeGeneration <= 0L) {
+      return@synchronized null
+    }
+    val now = wallNow()
+    val root = runCatching { loadPurged(now, bridgeGeneration) }
+      .getOrElse { return@synchronized null }
+    val ownership = OperatorBridgeCleanupOwnershipPolicy.dispatchedDisable(
+      cleanupOwnerships(root),
+      operationId,
+      now,
+      bridgeGeneration,
+    )
+    save(root)
+    ownership
+  }
+
+  /** Persist retry authority before the generation mutation can dispatch STOP or lose its reply. */
+  fun prepareDisableDispatch(
+    ownership: OperatorBridgeCleanupOwnership,
+    postDisableGeneration: Long,
+  ): Boolean = synchronized(LOCK) {
+    if (ownership.state != OperatorBridgeCleanupOwnershipState.ENABLE_OWNED ||
+      !ownership.enabledByRequest || postDisableGeneration <= 0L
+    ) return@synchronized false
+    val now = wallNow()
+    val root = runCatching { loadPurged(now, ownership.bridgeGeneration) }
+      .getOrElse { return@synchronized false }
+    val current = OperatorBridgeCleanupOwnershipPolicy.exactOwnedEnable(
+      cleanupOwnerships(root),
+      ownership.operationId,
+      ownership.sessionId,
+      ownership.bridgeGeneration,
+      now,
+      ownership.bridgeGeneration,
+    ) ?: return@synchronized false
+    val prepared = current.copy(
+      bridgeGeneration = postDisableGeneration,
+      state = OperatorBridgeCleanupOwnershipState.DISABLE_DISPATCHED,
+    )
+    val existing = cleanupOwnerships(root).filterNot {
+      it.state == OperatorBridgeCleanupOwnershipState.DISABLE_DISPATCHED &&
+        it.operationId == prepared.operationId
+    }
+    root.put(
+      KEY_CLEANUP_OWNERSHIPS,
+      encodeCleanupOwnerships(
+        (existing + prepared).takeLast(MAX_CLEANUP_OWNERSHIP_TOMBSTONES)
+      ),
+    )
+    save(root)
+    true
+  }
+
+  fun consumeCompletedDisableDispatches(bridgeGeneration: Long): Int = synchronized(LOCK) {
+    if (bridgeGeneration <= 0L) return@synchronized 0
+    val now = wallNow()
+    val root = runCatching { loadPurged(now, bridgeGeneration) }
+      .getOrElse { return@synchronized 0 }
+    val ownerships = cleanupOwnerships(root)
+    val (retained, consumed) = OperatorBridgeCleanupOwnershipPolicy.consumeCompletedDisables(
+      ownerships,
+      bridgeGeneration,
+      stoppedReadbackConverged = true,
+    )
+    root.put(KEY_CLEANUP_OWNERSHIPS, encodeCleanupOwnerships(retained))
+    save(root)
+    consumed
+  }
 
   fun revokeGeneration(bridgeGeneration: Long) = synchronized(LOCK) {
     val now = wallNow()
@@ -209,7 +415,11 @@ internal class OperatorBridgeSessionStore(
       val item = sessions.getJSONObject(index)
       if (item.optLong("bridge_generation") != bridgeGeneration) retained.put(item)
     }
+    val retainedCleanupOwnerships = cleanupOwnerships(root).filter {
+      it.bridgeGeneration != bridgeGeneration
+    }
     root.put(KEY_SESSIONS, retained)
+      .put(KEY_CLEANUP_OWNERSHIPS, encodeCleanupOwnerships(retainedCleanupOwnerships))
       .put("last_revoked_generation", bridgeGeneration)
       .put("last_revoked_at_ms", recordedNow)
       .put(KEY_LAST_OBSERVED_WALL_MS, recordedNow)
@@ -245,8 +455,14 @@ internal class OperatorBridgeSessionStore(
         retained.put(item)
       }
     }
+    val retainedCleanupOwnerships = OperatorBridgeCleanupOwnershipPolicy.retainBounded(
+      cleanupOwnerships(root),
+      now,
+      bridgeGeneration,
+    )
     return root
       .put(KEY_SESSIONS, retained)
+      .put(KEY_CLEANUP_OWNERSHIPS, encodeCleanupOwnerships(retainedCleanupOwnerships))
       .put(KEY_RECENT_ISSUES, root.optJSONArray(KEY_RECENT_ISSUES) ?: JSONArray())
       .put(KEY_ISSUED_OPERATIONS, root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray())
       .put(KEY_LAST_OBSERVED_WALL_MS, now)
@@ -259,6 +475,55 @@ internal class OperatorBridgeSessionStore(
       .put(KEY_SESSIONS, root.optJSONArray(KEY_SESSIONS) ?: JSONArray())
       .put(KEY_RECENT_ISSUES, root.optJSONArray(KEY_RECENT_ISSUES) ?: JSONArray())
       .put(KEY_ISSUED_OPERATIONS, root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray())
+      .put(KEY_CLEANUP_OWNERSHIPS, root.optJSONArray(KEY_CLEANUP_OWNERSHIPS) ?: JSONArray())
+  }
+
+  private fun cleanupOwnerships(root: JSONObject): List<OperatorBridgeCleanupOwnership> {
+    val source = root.optJSONArray(KEY_CLEANUP_OWNERSHIPS) ?: JSONArray()
+    return buildList {
+      for (index in 0 until source.length()) {
+        val item = source.optJSONObject(index) ?: continue
+        val operationId = item.optString("operation_id")
+        val sessionId = item.optString("session_id")
+        val generation = item.optLong("bridge_generation", -1L)
+        val issuedAt = item.optLong("issued_at_ms", -1L)
+        val expiresAt = item.optLong("expires_at_ms", -1L)
+        val state = OperatorBridgeCleanupOwnershipState.entries.singleOrNull {
+          it.wireName == item.optString("state", OperatorBridgeCleanupOwnershipState.ENABLE_OWNED.wireName)
+        } ?: continue
+        if (RustyKioskCliProtocol.validRequestId(operationId) == null ||
+          !SESSION_ID.matches(sessionId) || generation <= 0L || issuedAt < 0L || expiresAt <= issuedAt
+        ) continue
+        add(
+          OperatorBridgeCleanupOwnership(
+            operationId,
+            sessionId,
+            generation,
+            item.optBoolean("enabled_by_request", false),
+            issuedAt,
+            expiresAt,
+            state,
+          )
+        )
+      }
+    }
+  }
+
+  private fun encodeCleanupOwnerships(
+    ownerships: List<OperatorBridgeCleanupOwnership>,
+  ): JSONArray = JSONArray().also { array ->
+    ownerships.forEach { ownership ->
+      array.put(
+        JSONObject()
+          .put("operation_id", ownership.operationId)
+          .put("session_id", ownership.sessionId)
+          .put("bridge_generation", ownership.bridgeGeneration)
+          .put("enabled_by_request", ownership.enabledByRequest)
+          .put("issued_at_ms", ownership.issuedAtMs)
+          .put("expires_at_ms", ownership.expiresAtMs)
+          .put("state", ownership.state.wireName)
+      )
+    }
   }
 
   private fun save(root: JSONObject) {
@@ -267,10 +532,12 @@ internal class OperatorBridgeSessionStore(
 
   companion object {
     const val SESSION_LIFETIME_MS = 5 * 60 * 1000L
+    const val CLEANUP_OWNERSHIP_LIFETIME_MS = 24L * 60L * 60L * 1000L
     const val MAX_CONCURRENT_SESSIONS = 4
     const val MAX_ISSUES_PER_WINDOW = 4
     const val SESSION_SECRET_BYTES = 32
-    const val CAPABILITY = "rusty.kiosk.direct_operator.v1"
+    const val MAX_CLEANUP_OWNERSHIP_TOMBSTONES = 512
+    const val CAPABILITY = "rusty.kiosk.direct_operator.v2"
     private const val RATE_WINDOW_MS = OperatorBridgeSessionPolicy.RATE_WINDOW_MS
     private const val MAX_OPERATION_TOMBSTONES = 128
     private const val PREFERENCES = "rusty_kiosk_operator_sessions"
@@ -278,6 +545,7 @@ internal class OperatorBridgeSessionStore(
     private const val KEY_SESSIONS = "sessions"
     private const val KEY_RECENT_ISSUES = "recent_issues"
     private const val KEY_ISSUED_OPERATIONS = "issued_operations"
+    private const val KEY_CLEANUP_OWNERSHIPS = "cleanup_ownerships"
     private const val KEY_LAST_OBSERVED_WALL_MS = "last_observed_wall_ms"
     private val SESSION_ID = Regex("[A-Za-z0-9_-]{16,64}")
     private val LOCK = Any()

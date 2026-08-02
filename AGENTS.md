@@ -99,15 +99,23 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   authorized ADB shell through `RustyKioskOperatorProvider`. The provider is
   protected by caller-held `android.permission.DUMP`, supports `call()` only,
   admits one app-private request at a time, and returns only the matching
-  Base64-encoded structured receipt. Provider v3 additionally exposes read-only
+  Base64-encoded structured receipt. Provider v4 additionally exposes read-only
   exact-ID lifecycle status, exact queued-request cancellation, and an explicit
   Direct Link bootstrap for authorized USB. Bootstrap returns only one
   short-lived, high-entropy, generation-bound session secret; it never exports
-  the durable on-headset pairing code. Provider v3 may additionally transfer only
+  the durable on-headset pairing code. Provider v4 may additionally transfer only
   the fixed tag document as ordered, bounded Base64 chunks with total-size,
   SHA-256, schema, and atomic-activation checks. It never accepts shell commands,
   Android components, intent actions, endpoints, device paths, or new setup
   operations.
+- Direct bootstrap cleanup keeps no secret after the five-minute network session expires. A
+  bounded non-secret ownership tombstone retains only the exact operation/session/generation,
+  whether bootstrap enabled the link, its cleanup state, and its deadline. Only bootstrap-owned
+  enables may be disabled. A DUMP-only operation-ID recovery route may re-dispatch STOP after a
+  lost response; stopped readback consumes it, and it never returns a secret or pairing code.
+- Direct attended install requests bind every staged APK name to an exact byte count and lowercase
+  SHA-256. PackageInstaller receives bytes from the same opened source handle while count and
+  digest are verified; replacement, drift, duplicate names, and expanded payloads fail closed.
 - Typed requests carry a durable provider epoch, fixed expiry, exact terminal
   tombstone, and per-request receipt. Status never enqueues, restart
   reconciliation never replays a claimed request, and cancellation loses safely

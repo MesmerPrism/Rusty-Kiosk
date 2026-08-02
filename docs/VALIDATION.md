@@ -48,13 +48,14 @@ Unit tests cover:
   conflict/unknown rejection; both-mode Wi-Fi preflight; cancellation, expiry,
   settings-return debounce, process-restart cancellation, app disappearance,
   and point-of-use target/install/document revalidation;
-- provider-v3 process-wide transition locking, original-expiry transfer,
+- provider-v4 process-wide transition locking, original-expiry transfer,
   first-terminal tombstones, concurrent enqueue, cancel/consume, and
   expiry/record races;
 - Direct USB session entropy, one-time operation IDs, issuance rate/concurrency
   bounds, monotonic-wall-clock issuance, capability/generation/expiry/revocation
-  rules, raw-byte HMAC, generation-bound crossed START/STOP rejection, and the
-  checked Kiosk/QFM bootstrap wire fixture;
+  rules, raw-byte HMAC, generation-bound crossed START/STOP rejection, long-run
+  non-secret cleanup ownership, lost-response STOP recovery, immutable direct
+  install byte commitments, and the checked Kiosk/QFM bootstrap wire fixture;
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
   decisions;
 - deterministic lowercase SHA-256 certificate digest formatting.
@@ -245,11 +246,13 @@ run should prove:
     mismatch opens fixed Android Wi-Fi settings without target/guard mutation,
     unchanged return waits without reopening, changed return launches once, and
     cancel/expiry/app update prevents launch;
-21. bootstrap Direct Link through the exact-serial provider-v3 host route,
+21. bootstrap Direct Link through the exact-serial provider-v4 host route,
     retain the secret only in memory, poll pending startup, confirm exact session
     ID + bridge generation through authenticated status, exercise status/result/
     exact cancel, then disable only when `enabled_by_request=true` and exact
-    ownership still matches.
+    ownership still matches. Also exercise operation-ID-only lost-response
+    recovery after the five-minute secret expiry, require stopped readback, and
+    prove a staged APK replacement cannot satisfy its committed size/SHA-256.
 
 Run app actions through `tools/Invoke-RustyKioskCli.ps1`; display-coordinate
 touch injection is not accepted. `focus-search` and `focus-tag-editor` must

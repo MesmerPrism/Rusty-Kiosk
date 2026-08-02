@@ -273,13 +273,19 @@ are HMAC-SHA-256 signed. It is authenticated and integrity-protected, but the
 current HTTP transport is not encrypted; use a trusted local network or the
 PC's private hotspot. See [Direct operator link](docs/DIRECT_OPERATOR.md).
 
-An already authorized USB ADB shell may ask the fixed provider-v3 adapter to
+An already authorized USB ADB shell may ask the fixed provider-v4 adapter to
 enable the listener and issue one 32-byte, five-minute session credential bound
 to the current app channel and bridge generation. The desktop wrapper owns the
 exact serial and must consume raw provider output only in a redacted, in-memory
 child-process parser. Rusty Kiosk never claims to know the host serial, never
 returns the persistent pairing code, and exposes separate status and
-generation-bound cleanup calls.
+generation-bound cleanup calls. Cleanup authority is a separate bounded,
+non-secret record, so a long attended operation can still turn off a link that
+bootstrap enabled after the network secret expires. A DUMP-only recovery call
+using the original operation ID can re-dispatch STOP after a lost response
+without returning either credential. Direct install requests commit each
+staged APK's exact name, byte count, and SHA-256, which are verified from the
+same opened handle copied into PackageInstaller.
 
 ## Tag file
 
