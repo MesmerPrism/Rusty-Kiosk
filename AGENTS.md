@@ -60,6 +60,14 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   Rusty Kiosk both disarm pending guard state.
 - A name-only tag-file entry that does not match an installed launchable app
   remains visible and is labeled not installed.
+- Per-app launch requirements are a dedicated three-state field (`any`,
+  `wifi-on`, `wifi-off`), never inferred from ordinary searchable tags. Both
+  Normal and Kiosk launch use the same read-only ordinary-Wi-Fi preflight.
+  An unmet requirement opens Android's fixed Wi-Fi settings surface without
+  launching, arming the guard, changing Wi-Fi, or touching Wi-Fi ADB. Return
+  revalidates the exact app, activity, installed identity, document, mode, and
+  requirement; stale, expired, cancelled, unknown, or conflicting state fails
+  closed.
 - A fresh Rusty Kiosk task restores the last search text, active tag filter,
   and selected visible app. The wearer clears the filters through the empty
   search field or **All apps**; a tag removed entirely by a tag-file reload
@@ -91,11 +99,19 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   authorized ADB shell through `RustyKioskOperatorProvider`. The provider is
   protected by caller-held `android.permission.DUMP`, supports `call()` only,
   admits one app-private request at a time, and returns only the matching
-  Base64-encoded structured receipt. Provider v2 may additionally transfer only
+  Base64-encoded structured receipt. Provider v3 additionally exposes read-only
+  exact-ID lifecycle status, exact queued-request cancellation, and an explicit
+  Direct Link bootstrap for authorized USB. Bootstrap returns only one
+  short-lived, high-entropy, generation-bound session secret; it never exports
+  the durable on-headset pairing code. Provider v3 may additionally transfer only
   the fixed tag document as ordered, bounded Base64 chunks with total-size,
   SHA-256, schema, and atomic-activation checks. It never accepts shell commands,
   Android components, intent actions, endpoints, device paths, or new setup
   operations.
+- Typed requests carry a durable provider epoch, fixed expiry, exact terminal
+  tombstone, and per-request receipt. Status never enqueues, restart
+  reconciliation never replays a claimed request, and cancellation loses safely
+  to application or terminal completion.
 - Desktop operator tools must admit a request through that provider, launch the
   fixed Rusty Kiosk activity, then poll the matching receipt. They must not
   reconstruct guard state, catalogue matching, tag semantics, or setup-helper

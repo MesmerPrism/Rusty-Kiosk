@@ -44,6 +44,17 @@ Unit tests cover:
 - preservation of other enabled Accessibility services;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
+- strict legacy/v2 launch-requirement migration; passive-tag independence;
+  conflict/unknown rejection; both-mode Wi-Fi preflight; cancellation, expiry,
+  settings-return debounce, process-restart cancellation, app disappearance,
+  and point-of-use target/install/document revalidation;
+- provider-v3 process-wide transition locking, original-expiry transfer,
+  first-terminal tombstones, concurrent enqueue, cancel/consume, and
+  expiry/record races;
+- Direct USB session entropy, one-time operation IDs, issuance rate/concurrency
+  bounds, monotonic-wall-clock issuance, capability/generation/expiry/revocation
+  rules, raw-byte HMAC, generation-bound crossed START/STOP rejection, and the
+  checked Kiosk/QFM bootstrap wire fixture;
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
   decisions;
 - deterministic lowercase SHA-256 certificate digest formatting.
@@ -228,6 +239,17 @@ run should prove:
 17. after restart or a later manual request, Meta approval remains visible and
     attended; the panel reports only effective setting state;
 18. **Exit to Meta Home** disarms pending guard state and opens Meta Home.
+19. set each selected-app requirement through both visible and typed controls;
+    prove a passive `wifi-on` tag alone has no effect;
+20. for both Normal and Kiosk modes, prove matching ordinary Wi-Fi launches,
+    mismatch opens fixed Android Wi-Fi settings without target/guard mutation,
+    unchanged return waits without reopening, changed return launches once, and
+    cancel/expiry/app update prevents launch;
+21. bootstrap Direct Link through the exact-serial provider-v3 host route,
+    retain the secret only in memory, poll pending startup, confirm exact session
+    ID + bridge generation through authenticated status, exercise status/result/
+    exact cancel, then disable only when `enabled_by_request=true` and exact
+    ownership still matches.
 
 Run app actions through `tools/Invoke-RustyKioskCli.ps1`; display-coordinate
 touch injection is not accepted. `focus-search` and `focus-tag-editor` must

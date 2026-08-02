@@ -17,6 +17,7 @@ internal object RustyKioskPanelControls {
   const val TAG_FILTERS = "rusty-kiosk-tag-filters"
   const val APP_LIST = "rusty-kiosk-app-list"
   const val APP_DETAILS = "rusty-kiosk-app-details"
+  const val LAUNCH_REQUIREMENT = "rusty-kiosk-launch-requirement"
   const val NORMAL_LAUNCH = "rusty-kiosk-normal-launch"
   const val KIOSK_LAUNCH = "rusty-kiosk-kiosk-launch"
   const val USER_CONTROL_STATUS = "rusty-kiosk-user-control-status"

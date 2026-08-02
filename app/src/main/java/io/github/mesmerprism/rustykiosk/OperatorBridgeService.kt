@@ -20,6 +20,7 @@ import java.util.Locale
 class OperatorBridgeService : Service() {
   private lateinit var settings: OperatorBridgeSettings
   private var server: OperatorBridgeHttpServer? = null
+  private var serverGeneration: Long? = null
 
   override fun onCreate() {
     super.onCreate()
@@ -28,11 +29,26 @@ class OperatorBridgeService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-    if (intent?.action == ACTION_STOP) {
-      settings.recordRunning(false)
-      settings.recordEnabled(false)
+    val snapshot = settings.snapshot()
+    val requestedAction = if (intent?.action == ACTION_STOP) {
+      OperatorBridgeRequestedAction.STOP
+    } else {
+      OperatorBridgeRequestedAction.START
+    }
+    val expectedGeneration = intent?.getLongExtra(EXTRA_EXPECTED_GENERATION, -1L)
+      ?.takeIf { it > 0L } ?: snapshot.bridgeGeneration
+    if (!OperatorBridgeActionPolicy.shouldApply(
+        requestedAction,
+        expectedGeneration,
+        snapshot.bridgeGeneration,
+        snapshot.enabled,
+      )) {
+      return if (snapshot.enabled) START_STICKY else START_NOT_STICKY
+    }
+    if (requestedAction == OperatorBridgeRequestedAction.STOP) {
+      settings.recordRunning(expectedGeneration, false)
       stopBridge()
-      stopSelf()
+      stopSelfResult(startId)
       return START_NOT_STICKY
     }
     startForeground(
@@ -45,34 +61,48 @@ class OperatorBridgeService : Service() {
         .setSilent(true)
         .build(),
     )
+    if (serverGeneration != expectedGeneration) stopBridge()
     if (server == null) {
       runCatching {
           OperatorBridgeHttpServer(this, settings.pairingCode()).also { http ->
             http.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
             server = http
+            serverGeneration = expectedGeneration
           }
         }
-        .onSuccess { settings.recordRunning(true) }
+        .onSuccess {
+          if (!settings.recordRunning(expectedGeneration, true)) {
+            stopBridge()
+            stopSelfResult(startId)
+          }
+        }
         .onFailure { throwable ->
-          settings.recordRunning(false, throwable.message ?: throwable.javaClass.simpleName)
-          stopSelf()
+          settings.recordRunning(
+            expectedGeneration,
+            false,
+            throwable.message ?: throwable.javaClass.simpleName,
+          )
+          stopSelfResult(startId)
         }
     }
     return START_STICKY
   }
 
   override fun onDestroy() {
-    stopBridge()
-    settings.recordRunning(false)
+    val stoppedGeneration = stopBridge()
+    stoppedGeneration?.let { settings.recordRunning(it, false) }
     super.onDestroy()
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
 
-  private fun stopBridge() {
+  private fun stopBridge(): Long? {
+    val stoppedGeneration = serverGeneration
     server?.stop()
     server = null
+    serverGeneration = null
     stopForeground(STOP_FOREGROUND_REMOVE)
+    return stoppedGeneration
   }
 
   private fun createNotificationChannel() {
@@ -91,6 +121,7 @@ class OperatorBridgeService : Service() {
   companion object {
     const val ACTION_START = "io.github.mesmerprism.rustykiosk.action.START_OPERATOR_BRIDGE"
     const val ACTION_STOP = "io.github.mesmerprism.rustykiosk.action.STOP_OPERATOR_BRIDGE"
+    const val EXTRA_EXPECTED_GENERATION = "rusty_kiosk_expected_bridge_generation"
     private const val CHANNEL_ID = "rusty_kiosk_operator_bridge"
     private const val NOTIFICATION_ID = 3073
   }
@@ -104,6 +135,8 @@ private class OperatorBridgeHttpServer(
   private val tagStore = TagFileStore(context)
   private val cliStore = RustyKioskCliStore(context)
   private val installStore = RustyKioskInstallStore(context)
+  private val sessionStore = OperatorBridgeSessionStore(context)
+  private val bridgeSettings = OperatorBridgeSettings(context)
   private val stagingDirectory =
     (context.getExternalFilesDir("operator-staging")
         ?: File(context.filesDir, "operator-staging"))
@@ -120,33 +153,45 @@ private class OperatorBridgeHttpServer(
         failure(throwable.message ?: "Signed request headers are required."),
       )
     }
+    val authKey = resolveAuthKey(auth) ?: return unsignedJson(
+      Response.Status.UNAUTHORIZED,
+      failure("The ephemeral direct-link session is unavailable, expired, or from another bridge generation."),
+    )
     return runCatching {
         when {
           session.method == Method.GET && session.uri == PATH_STATUS ->
-            withEmptyAuth(session, target, auth) { bridgeStatus() }
+            withEmptyAuth(session, target, auth, authKey) { bridgeStatus(auth) }
           session.method == Method.POST && session.uri == PATH_KIOSK_INVOKE ->
-            withJsonBody(session, target, auth, MAX_JSON_BYTES, ::invokeKiosk)
+            withJsonBody(session, target, auth, authKey, MAX_JSON_BYTES, ::invokeKiosk)
           session.method == Method.GET && session.uri == PATH_KIOSK_RESULT ->
-            withEmptyAuth(session, target, auth) {
+            withEmptyAuth(session, target, auth, authKey) {
               val requestId = session.parameters["request_id"]?.singleOrNull()
                 ?: throw IllegalArgumentException("A single Kiosk request id is required.")
               kioskResult(requestId)
             }
+          session.method == Method.GET && session.uri == PATH_KIOSK_REQUEST_STATUS ->
+            withEmptyAuth(session, target, auth, authKey) {
+              val requestId = session.parameters["request_id"]?.singleOrNull()
+                ?: throw IllegalArgumentException("A single Kiosk request id is required.")
+              kioskRequestStatus(requestId)
+            }
+          session.method == Method.POST && session.uri == PATH_KIOSK_CANCEL ->
+            withJsonBody(session, target, auth, authKey, MAX_JSON_BYTES, ::cancelKioskRequest)
           session.method == Method.GET && session.uri == PATH_TAGS ->
-            authenticatedFile(session, target, auth, tagFile())
+            authenticatedFile(session, target, auth, authKey, tagFile())
           session.method == Method.PUT && session.uri == PATH_TAGS ->
-            withJsonBody(session, target, auth, TagFileCodec.MAX_BYTES.toLong(), ::replaceTags)
+            withJsonBody(session, target, auth, authKey, TagFileCodec.MAX_BYTES.toLong(), ::replaceTags)
           session.method == Method.GET && session.uri == PATH_STAGING ->
-            withEmptyAuth(session, target, auth) { stagingList() }
+            withEmptyAuth(session, target, auth, authKey) { stagingList() }
           session.uri.startsWith(PATH_STAGING_FILE_PREFIX) ->
-            stagingFileRequest(session, target, auth)
+            stagingFileRequest(session, target, auth, authKey)
           session.method == Method.POST && session.uri == PATH_INSTALL ->
-            withJsonBody(session, target, auth, MAX_JSON_BYTES, ::install)
+            withJsonBody(session, target, auth, authKey, MAX_JSON_BYTES, ::install)
           session.method == Method.GET && session.uri.startsWith(PATH_INSTALL_PREFIX) ->
-            withEmptyAuth(session, target, auth) {
+            withEmptyAuth(session, target, auth, authKey) {
               installResult(session.uri.removePrefix(PATH_INSTALL_PREFIX))
             }
-          else -> signedJson(auth.requestId, Response.Status.NOT_FOUND, failure("Unknown bridge operation."))
+          else -> signedJson(auth.requestId, Response.Status.NOT_FOUND, failure("Unknown bridge operation."), authKey)
         }
       }
       .getOrElse { throwable ->
@@ -154,9 +199,17 @@ private class OperatorBridgeHttpServer(
           auth.requestId,
           Response.Status.BAD_REQUEST,
           failure(throwable.message ?: "The bridge request could not be completed."),
+          authKey,
         )
       }
   }
+
+  private fun resolveAuthKey(auth: OperatorBridgeAuthHeaders): ByteArray? =
+    if (auth.sessionId == null) {
+      pairingKey.toByteArray(StandardCharsets.UTF_8)
+    } else {
+      sessionStore.resolve(auth.sessionId, bridgeSettings.generation())?.secret
+    }
 
   private fun publicContract(): Response =
     unsignedJson(
@@ -165,6 +218,8 @@ private class OperatorBridgeHttpServer(
         .put("schema", SCHEMA)
         .put("auth", "hmac-sha256-v1")
         .put("response_auth", "hmac-sha256-response-v1")
+        .put("ephemeral_session_header", "X-Rusty-Session-Id")
+        .put("operator_request_lifetime_ms", RustyKioskCliStore.REQUEST_LIFETIME_MS)
         .put("port", OperatorBridgeSettings.PORT)
         .put("max_clock_skew_seconds", OperatorBridgeAuth.MAX_CLOCK_SKEW_SECONDS)
         .put("max_tag_bytes", TagFileCodec.MAX_BYTES)
@@ -174,11 +229,13 @@ private class OperatorBridgeHttpServer(
         .put("arbitrary_paths", false),
     )
 
-  private fun bridgeStatus(): JSONObject {
+  private fun bridgeStatus(auth: OperatorBridgeAuthHeaders): JSONObject {
     val snapshot = OperatorBridgeSettings(context).snapshot()
     return success("Direct operator link is ready.")
       .put("schema", SCHEMA)
       .put("endpoint", snapshot.endpoint ?: JSONObject.NULL)
+      .put("bridge_generation", snapshot.bridgeGeneration)
+      .put("session_id", auth.sessionId ?: JSONObject.NULL)
       .put("installer_allowed", snapshot.installerAllowed)
       .put("staging_directory_kind", "app-owned")
   }
@@ -215,10 +272,43 @@ private class OperatorBridgeHttpServer(
         .getOrThrow()
         .requestId
     val result = cliStore.readResult(valid)
-      ?: return success("Matching Kiosk readback is still pending.")
-        .put("request_id", valid)
-        .put("completed", false)
+      ?: return kioskRequestStatus(valid)
     return JSONObject(result)
+  }
+
+  private fun kioskRequestStatus(requestId: String): JSONObject {
+    val valid = RustyKioskCliProtocol.validRequestId(requestId)
+      ?: throw IllegalArgumentException("A valid Kiosk request id is required.")
+    val status = cliStore.status(valid)
+    return JSONObject()
+      .put("accepted", status.state != OperatorRequestState.UNKNOWN)
+      .put("completed", status.completed)
+      .put("provider_epoch", status.providerEpoch)
+      .put("request_id", status.requestId)
+      .put("operation_state", status.state.wireName)
+      .put("command", status.command ?: JSONObject.NULL)
+      .put("enqueued_at_ms", status.enqueuedAtMs ?: JSONObject.NULL)
+      .put("expires_at_ms", status.expiresAtMs ?: JSONObject.NULL)
+      .put("message", status.message)
+  }
+
+  private fun cancelKioskRequest(body: ByteArray): JSONObject {
+    val requestId = JSONObject(body.toString(StandardCharsets.UTF_8)).optString("request_id")
+    val valid = RustyKioskCliProtocol.validRequestId(requestId)
+      ?: throw IllegalArgumentException("A valid Kiosk request id is required.")
+    val before = cliStore.status(valid)
+    if (before.state != OperatorRequestState.PENDING) {
+      return kioskRequestStatus(valid)
+        .put("accepted", false)
+        .put("message", "Only the exact queued request can be cancelled; applied or terminal state was preserved.")
+    }
+    val after = cliStore.cancel(valid)
+    return kioskRequestStatus(valid).apply {
+      if (after.state != OperatorRequestState.CANCELLED) {
+        put("accepted", false)
+        put("message", "The request was claimed or became terminal before cancellation; state was preserved.")
+      }
+    }
   }
 
   private fun tagFile(): File {
@@ -256,18 +346,19 @@ private class OperatorBridgeHttpServer(
     session: IHTTPSession,
     target: String,
     auth: OperatorBridgeAuthHeaders,
+    authKey: ByteArray,
   ): Response {
     val fileName = safeFileName(session.uri.removePrefix(PATH_STAGING_FILE_PREFIX))
     val destination = File(stagingDirectory, fileName)
     return when (session.method) {
-      Method.GET -> authenticatedFile(session, target, auth, destination)
-      Method.PUT -> authenticatedUpload(session, target, auth, destination)
-      Method.DELETE -> withEmptyAuth(session, target, auth) {
+      Method.GET -> authenticatedFile(session, target, auth, authKey, destination)
+      Method.PUT -> authenticatedUpload(session, target, auth, authKey, destination)
+      Method.DELETE -> withEmptyAuth(session, target, auth, authKey) {
         require(destination.isFile) { "The staged file does not exist." }
         require(destination.delete()) { "The staged file could not be removed." }
         success("Staged file removed.").put("name", fileName)
       }
-      else -> signedJson(auth.requestId, Response.Status.METHOD_NOT_ALLOWED, failure("Unsupported staging operation."))
+      else -> signedJson(auth.requestId, Response.Status.METHOD_NOT_ALLOWED, failure("Unsupported staging operation."), authKey)
     }
   }
 
@@ -275,9 +366,10 @@ private class OperatorBridgeHttpServer(
     session: IHTTPSession,
     target: String,
     auth: OperatorBridgeAuthHeaders,
+    authKey: ByteArray,
     destination: File,
   ): Response {
-    preauthorizeEnvelope(session, target, auth)
+    preauthorizeEnvelope(session, target, auth, authKey)
     val length = contentLength(session)
     require(length in 1..MAX_STAGED_FILE_BYTES) { "The staged file is empty or exceeds the fixed size limit." }
     val temporary = File(stagingDirectory, ".${destination.name}.${auth.requestId}.part")
@@ -296,7 +388,8 @@ private class OperatorBridgeHttpServer(
         }
       }
       val actualSha = digest.digest().joinToString("") { "%02x".format(it) }
-      OperatorBridgeAuth.verifyDigest(pairingKey, session.method.name, target, actualSha, auth).getOrThrow()
+      OperatorBridgeAuth.verifyDigest(authKey, session.method.name, target, actualSha, auth).getOrThrow()
+      recordAuthenticatedSessionUse(auth)
       acceptReplay(auth.requestId)
       require(temporary.renameTo(destination) || runCatching {
         temporary.copyTo(destination, overwrite = true)
@@ -310,6 +403,7 @@ private class OperatorBridgeHttpServer(
           .put("name", destination.name)
           .put("bytes", destination.length())
           .put("sha256", actualSha),
+        authKey,
       )
     } catch (throwable: Throwable) {
       temporary.delete()
@@ -321,9 +415,10 @@ private class OperatorBridgeHttpServer(
     session: IHTTPSession,
     target: String,
     auth: OperatorBridgeAuthHeaders,
+    authKey: ByteArray,
     file: File,
   ): Response {
-    verifyEmpty(session, target, auth)
+    verifyEmpty(session, target, auth, authKey)
     acceptReplay(auth.requestId)
     require(file.isFile) { "The requested bounded file does not exist." }
     val sha = sha256(file)
@@ -334,7 +429,7 @@ private class OperatorBridgeHttpServer(
         FileInputStream(file),
         file.length(),
       )
-    signResponse(response, auth.requestId, Response.Status.OK, sha)
+    signResponse(response, auth.requestId, Response.Status.OK, sha, authKey)
     response.addHeader("X-Rusty-File-Name", file.name)
     return response
   }
@@ -376,37 +471,50 @@ private class OperatorBridgeHttpServer(
     session: IHTTPSession,
     target: String,
     auth: OperatorBridgeAuthHeaders,
+    authKey: ByteArray,
     maxBytes: Long,
     action: (ByteArray) -> JSONObject,
   ): Response {
     val body = readBody(session, maxBytes)
-    OperatorBridgeAuth.verify(pairingKey, session.method.name, target, body, auth).getOrThrow()
+    OperatorBridgeAuth.verify(authKey, session.method.name, target, body, auth).getOrThrow()
+    recordAuthenticatedSessionUse(auth)
     acceptReplay(auth.requestId)
-    return signedJson(auth.requestId, Response.Status.OK, action(body))
+    return signedJson(auth.requestId, Response.Status.OK, action(body), authKey)
   }
 
   private fun withEmptyAuth(
     session: IHTTPSession,
     target: String,
     auth: OperatorBridgeAuthHeaders,
+    authKey: ByteArray,
     action: () -> JSONObject,
   ): Response {
-    verifyEmpty(session, target, auth)
+    verifyEmpty(session, target, auth, authKey)
     acceptReplay(auth.requestId)
-    return signedJson(auth.requestId, Response.Status.OK, action())
+    return signedJson(auth.requestId, Response.Status.OK, action(), authKey)
   }
 
-  private fun verifyEmpty(session: IHTTPSession, target: String, auth: OperatorBridgeAuthHeaders) {
-    OperatorBridgeAuth.verify(pairingKey, session.method.name, target, EMPTY_BODY, auth).getOrThrow()
+  private fun verifyEmpty(session: IHTTPSession, target: String, auth: OperatorBridgeAuthHeaders, authKey: ByteArray) {
+    OperatorBridgeAuth.verify(authKey, session.method.name, target, EMPTY_BODY, auth).getOrThrow()
+    recordAuthenticatedSessionUse(auth)
+  }
+
+  private fun recordAuthenticatedSessionUse(auth: OperatorBridgeAuthHeaders) {
+    auth.sessionId?.let { sessionId ->
+      require(sessionStore.recordAuthenticatedUse(sessionId, bridgeSettings.generation())) {
+        "The ephemeral session expired or was revoked during authentication."
+      }
+    }
   }
 
   private fun preauthorizeEnvelope(
     session: IHTTPSession,
     target: String,
     auth: OperatorBridgeAuthHeaders,
+    authKey: ByteArray,
   ) {
     OperatorBridgeAuth.verifyDigest(
-        pairingKey,
+        authKey,
         session.method.name,
         target,
         auth.contentSha256,
@@ -420,7 +528,7 @@ private class OperatorBridgeHttpServer(
     require(replayStore.accept(requestId)) { "That signed request id was already used." }
   }
 
-  private fun signedJson(requestId: String, status: Response.Status, json: JSONObject): Response {
+  private fun signedJson(requestId: String, status: Response.Status, json: JSONObject, authKey: ByteArray): Response {
     val bytes = json.toString().toByteArray(StandardCharsets.UTF_8)
     val response =
       newFixedLengthResponse(
@@ -429,16 +537,16 @@ private class OperatorBridgeHttpServer(
         ByteArrayInputStream(bytes),
         bytes.size.toLong(),
       )
-    signResponse(response, requestId, status, OperatorBridgeAuth.sha256(bytes))
+    signResponse(response, requestId, status, OperatorBridgeAuth.sha256(bytes), authKey)
     return response
   }
 
-  private fun signResponse(response: Response, requestId: String, status: Response.Status, sha: String) {
+  private fun signResponse(response: Response, requestId: String, status: Response.Status, sha: String, authKey: ByteArray) {
     response.addHeader("X-Rusty-Request-Id", requestId)
     response.addHeader("X-Rusty-Content-Sha256", sha)
     response.addHeader(
       "X-Rusty-Signature",
-      OperatorBridgeAuth.signResponse(pairingKey, requestId, status.requestStatus, sha),
+      OperatorBridgeAuth.signResponse(authKey, requestId, status.requestStatus, sha),
     )
   }
 
@@ -495,6 +603,8 @@ private class OperatorBridgeHttpServer(
     private const val PATH_STATUS = "/v1/status"
     private const val PATH_KIOSK_INVOKE = "/v1/kiosk/invoke"
     private const val PATH_KIOSK_RESULT = "/v1/kiosk/result"
+    private const val PATH_KIOSK_REQUEST_STATUS = "/v1/kiosk/request-status"
+    private const val PATH_KIOSK_CANCEL = "/v1/kiosk/cancel"
     private const val PATH_TAGS = "/v1/tags"
     private const val PATH_STAGING = "/v1/staging"
     private const val PATH_STAGING_FILE_PREFIX = "/v1/staging/files/"

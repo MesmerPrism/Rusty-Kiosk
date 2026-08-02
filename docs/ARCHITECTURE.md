@@ -52,6 +52,9 @@ and Wi-Fi ADB state after completion.
 | --- | --- |
 | Installed launchable-app discovery | `InstalledAppRepository` |
 | Tag-file bytes and matching | `TagFileStore` / `CatalogAssembler` |
+| Dedicated per-app launch requirement | strict tag-document v2 field / `ActiveRequirementLaunchCoordinator` |
+| Ordinary Wi-Fi observation | read-only Android `WifiManager.isWifiEnabled` |
+| Unmet requirement remediation | fixed Android `ACTION_WIFI_SETTINGS` surface |
 | Search and tag filter | immutable `KioskUiState` projection |
 | Retained search, active tag filter, and visible selection | app-private `KioskBrowsingStateStore` |
 | Normal versus kiosk launch choice | `LaunchController` |
@@ -73,7 +76,9 @@ and Wi-Fi ADB state after completion.
 | CLI vocabulary and bounds | `RustyKioskCliProtocol` |
 | CLI queue and result receipt | app-private `RustyKioskCliStore` |
 | App action semantics | the same activity handlers used by the native panel |
-| Release host admission | `DUMP`-protected `RustyKioskOperatorProvider.call()` v2 |
+| Release host admission | `DUMP`-protected `RustyKioskOperatorProvider.call()` v3 |
+| Typed request lifecycle | durable provider epoch + request ID + bounded queue/result tombstones |
+| USB Direct Link bootstrap | fixed provider methods + app-private generation-bound ephemeral sessions |
 | Fixed tag transfer | ordered bounded provider chunks + SHA-256/schema/atomic activation |
 | Direct-link opt-in and pairing-code rotation | visible `RustyKioskActivity` controls |
 | Direct request admission | expiry + replay store + HMAC-SHA-256 body/response checks |
@@ -106,6 +111,41 @@ target --Home #3 within 5 s--> Meta shell --disarm/return--> Rusty Kiosk
 Rusty Kiosk --Home--> Meta Home
 Rusty Kiosk --Exit to Meta Home--> Meta Home
 ```
+
+## Active launch requirements
+
+`any`, `wifi-on`, and `wifi-off` are one dedicated field, separate from passive
+searchable tags. Legacy v1 documents migrate as `any`; the first explicit edit
+upgrades the document to strict v2. Unknown handlers, duplicates, conflicts,
+unavailable state, or schema drift fail closed.
+
+Both launch buttons share one preflight before guard handoff or target launch.
+An unmet requirement creates one two-minute process-scoped pending binding and
+opens Android's fixed Wi-Fi settings Activity. Rusty Kiosk does not change
+ordinary Wi-Fi and never reads the Wi-Fi ADB setting for this decision. Return
+revalidates the exact entry, target component, signing/install identity, launch
+mode, document digest, requirement digest, and current Wi-Fi state. A process
+restart, selection disappearance, update, edit, cancellation, or expiry drops
+the pending launch; no target or guard action is replayed.
+
+## Provider-v3 bootstrap and request lifecycle
+
+The DUMP-protected provider adds status, exact queued-request cancellation, and
+explicit Direct Link status/enable/disable methods. Requests are keyed by an
+app-private provider epoch plus request ID, expire after two minutes, move to a
+per-request terminal tombstone, and are never reconstructed after a claimed
+request loses its process. Read-only status does not enqueue. Cancellation
+fails closed if application or any terminal result wins the race.
+
+Direct enable issues a one-time provider response containing a random 32-byte
+session key valid for five minutes and one Stable/Labs-isolated bridge
+generation. Issuance is rate/concurrency bounded and audited by IDs and times
+without logging the secret. The session authenticates only the fixed Direct
+Link capability through `X-Rusty-Session-Id`; the durable pairing code remains
+on-headset. Generation changes, expiry, disablement, and code rotation revoke
+the session. The host-side exact-serial wrapper is evidence owned by the host;
+the Android app binds channel, package, DUMP caller, capability, and generation,
+not an ADB serial it cannot observe.
 
 Returning to Rusty Kiosk starts a fresh MAIN task after a short teardown delay
 so a stale Spatial panel runtime is not reused.

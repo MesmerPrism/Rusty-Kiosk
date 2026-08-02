@@ -76,6 +76,7 @@ internal fun RustyKioskPanel(
   onUseNaturalPassthrough: () -> Unit,
   onUseContourPassthrough: () -> Unit,
   onExitToMetaHome: () -> Unit,
+  onLaunchRequirementSelected: (AppLaunchRequirement) -> Unit = {},
 ) {
   Surface(
     modifier =
@@ -177,6 +178,7 @@ internal fun RustyKioskPanel(
             tagFocusRequest = state.tagFocusRequest,
             onAddTag = onAddTag,
             onRemoveTag = onRemoveTag,
+            onLaunchRequirementSelected = onLaunchRequirementSelected,
             onNormalLaunch = onNormalLaunch,
             onKioskLaunch = onKioskLaunch,
             onOpenUserControls = onOpenUserControls,
@@ -286,6 +288,7 @@ private fun AppDetails(
   tagFocusRequest: Long,
   onAddTag: (String) -> Unit,
   onRemoveTag: (String) -> Unit,
+  onLaunchRequirementSelected: (AppLaunchRequirement) -> Unit,
   onNormalLaunch: () -> Unit,
   onKioskLaunch: () -> Unit,
   onOpenUserControls: () -> Unit,
@@ -355,6 +358,33 @@ private fun AppDetails(
           ) {
             Text("$tag ×")
           }
+        }
+      }
+    }
+
+    Text(
+      "Launch requirement: ${entry.launchRequirement.wireName}",
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(
+      modifier = Modifier.fillMaxWidth().testTag(RustyKioskPanelControls.LAUNCH_REQUIREMENT),
+      horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+      AppLaunchRequirement.entries.forEach { requirement ->
+        OutlinedButton(
+          onClick = { onLaunchRequirementSelected(requirement) },
+          enabled = requirement != entry.launchRequirement,
+          modifier = Modifier.weight(1f),
+          contentPadding = ButtonDefaults.TextButtonContentPadding,
+        ) {
+          Text(
+            when (requirement) {
+              AppLaunchRequirement.ANY -> "Any"
+              AppLaunchRequirement.WIFI_ON -> "Wi-Fi on"
+              AppLaunchRequirement.WIFI_OFF -> "Wi-Fi off"
+            }
+          )
         }
       }
     }

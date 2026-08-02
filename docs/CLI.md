@@ -34,7 +34,7 @@ than the debug activity.
 
 ## Release host operator
 
-Release builds expose host schema `rusty.kiosk.host_operator.v2` through a
+Release builds expose host schema `rusty.kiosk.host_operator.v3` through a
 separate `ContentProvider.call()` adapter for an already authorized ADB shell. Android
 requires the caller to hold `android.permission.DUMP`; ordinary headset apps do
 not. The provider admits one bounded request into the same app-private queue and
@@ -43,6 +43,26 @@ transfers the one fixed tag document through ordered 6 KiB Base64 chunks. A
 write is capped at 256 KiB, SHA-256 checked, schema validated, and atomically
 activated before acknowledgement. It supports no query, insert, update, delete,
 shell, component, intent, host-supplied path, endpoint, or free-form setup route.
+
+Provider v3 adds read-only `request-status`, exact queued-request `cancel`, and
+explicit `direct-status`, `direct-enable`, and generation-bound
+`direct-disable`. Status never enqueues a command. Requests expire after two
+minutes, retain durable pending/claimed identity across process restart, and
+end in a bounded exact-ID receipt. Claimed and terminal requests cannot be
+cancelled. Lifecycle states are `pending`, `pending_wearer_action`,
+`confirmed`, `rejected`, `expired`, `cancelled`, and `unknown`.
+
+`direct-enable` requires a unique operation ID and returns channel, package,
+endpoint, bridge generation, session ID, expiry, `enabled_by_request`, and one
+standard-Base64 32-byte session secret. It never returns the persistent pairing
+code. The exact ADB serial belongs to the desktop wrapper; raw `content call`
+output must go directly into a redacted in-memory parser and must never be
+echoed, logged, or included in a diagnostic `CommandResult`. `direct-disable`
+requires the originating operation/session IDs and expected generation and
+fails closed after a generation change.
+Enable and disable are asynchronous foreground-service transitions;
+`completed` is truthful readback, and the host polls no-argument
+`direct-status` until the expected enabled/running pair converges.
 
 The host sequence is deliberately two-stage: call `invoke`, start the fixed
 `.RustyKioskActivity` with the admitted request id, then poll `result`. This
@@ -100,6 +120,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | `select` | visible key, exact package, or exact label | Select a visible catalogue row |
 | `filter-tag` | optional tag | Select a tag chip; blank selects **All apps** |
 | `add-tag` / `remove-tag` | tag | Use the selected app's tag action |
+| `set-launch-requirement` | `any`, `wifi-on`, or `wifi-off` | Change the selected app's dedicated launch requirement |
+| `cancel-pending-launch` | none | Cancel the current unmet-requirement launch |
 | `launch-normal` / `launch-kiosk` | none | Use the corresponding launch button |
 | `check-setup-helper` | none | Refresh the fixed helper's installed/provisioned status |
 | `request-wifi-adb` / `disable-wifi-adb` | none | Use the corresponding visible fixed-operation control |
@@ -113,6 +135,12 @@ as the visible search field, tag chips, and app rows. Their values survive the
 fresh Spatial task created by a triple-Home return; blank filter values
 explicitly clear that state, and an app outside the current results is never
 retained in the details area.
+
+Searchable tags and launch requirements are independent. A passive tag named
+`wifi-on` has no effect. Both launch commands preflight ordinary Wi-Fi before
+target or guard mutation; unmet state opens fixed Android Wi-Fi settings and
+returns `pending_wearer_action`. Return revalidates the exact bound app before
+launch.
 
 Fixed helper commands write their result only after the helper answers and the
 main app performs effective-state readback. A Wi-Fi ADB request can complete as

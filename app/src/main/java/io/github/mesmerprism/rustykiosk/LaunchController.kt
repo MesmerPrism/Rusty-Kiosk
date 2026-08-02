@@ -11,6 +11,7 @@ internal enum class LaunchKind {
 internal data class LaunchResult(
   val accepted: Boolean,
   val message: String,
+  val completed: Boolean = true,
 )
 
 internal object LaunchTaskPolicy {

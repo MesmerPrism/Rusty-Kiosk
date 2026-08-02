@@ -37,6 +37,41 @@ Authenticated responses include the request ID, response digest, and an HMAC
 over `RESPONSE`, the request ID, HTTP status, and digest. The PC never treats an
 unsigned or mismatched response as headset readback.
 
+An optional authorized-USB bootstrap uses host provider
+`rusty.kiosk.host_operator.v3` and result schema
+`rusty.kiosk.direct_usb_bootstrap.v1`. `direct-enable` takes one unique
+operation ID in the ContentProvider `arg`. It starts the listener if necessary
+and returns an honest `pending` or `confirmed` startup state plus channel,
+package, endpoint, bridge generation, session ID, five-minute expiry,
+`enabled_by_request`, and one standard-Base64 random 32-byte session secret.
+The persistent pairing code is never returned.
+
+The secret is issued once, concurrency/rate bounded, scoped to this fixed
+Direct protocol, and tied to one Stable/Labs app-private bridge generation. An
+ephemeral client adds `X-Rusty-Session-Id` and uses the decoded bytes as its
+HMAC key. Authenticated `/v1/status` echoes the exact session ID and generation
+for confirmation; the public contract remains credential-free. Expiry,
+disablement, rotation, or generation substitution fails closed. Audit retains
+only IDs and issue/use/revocation times. The app-private session store persists
+its last observed wall time and rejects issuance after clock rollback, so the
+rate window cannot be reset by moving the clock backwards.
+
+The host owns exact-serial ADB evidence. Raw `content call` stdout must feed a
+redacted in-memory parser and must not be echoed, logged, or placed in generic
+diagnostics. If `enabled_by_request=true`, cleanup may call `direct-disable`
+with the same operation ID in `arg`, plus typed extras
+`expected_bridge_generation` (long) and `session_id` (string). Kiosk disables
+only when all three ownership values still match.
+Disable dispatch may remain `pending`; the host confirms cleanup only after
+no-argument `direct-status` reports both `direct_enabled=false` and
+`direct_running=false` on the new generation.
+
+Listener START/STOP intents carry their expected generation. The service ignores
+crossed stale actions and persists its internal running generation;
+`direct_running=true` is projected only when enabled, current generation, and
+running generation all agree. The internal field is not an additional host wire
+field: host confirmation remains the exact `bridge_generation` in this contract.
+
 This provides authentication, integrity, expiry, and replay resistance. It does
 not encrypt HTTP bodies. Use a trusted local network or a private Windows
 hotspot. Transport encryption is a future protocol-version change, not an
@@ -76,3 +111,9 @@ To revoke direct access, disable it in **User controls**. To invalidate a saved
 PC credential, rotate the pairing code; rotation also disables the listener
 until the wearer enables it again. Uninstalling Rusty Kiosk removes its pairing
 state, staging files, and receipts.
+
+Typed commands use durable provider epoch + request ID state. The direct route
+exposes read-only `/v1/kiosk/request-status` and exact queued-request
+`/v1/kiosk/cancel`; status never creates work. Requests expire after two
+minutes. Claimed, wearer-pending, and terminal operations cannot be cancelled,
+and process restart reconciliation never replays a claimed mutation.

@@ -7,6 +7,7 @@ const baseEntries = [
     launchable: true,
     tags: ["onboarding", "web"],
     source: "android-launcher",
+    launchRequirement: "any",
   },
   {
     key: "package:io.example.movement",
@@ -16,6 +17,7 @@ const baseEntries = [
     launchable: true,
     tags: ["demo", "movement"],
     source: "quest-vr",
+    launchRequirement: "wifi-on",
   },
   {
     key: "package:com.example.gallery",
@@ -25,6 +27,7 @@ const baseEntries = [
     launchable: false,
     tags: ["utilities"],
     source: "tag-file-installed-package",
+    launchRequirement: "any",
   },
   {
     key: "missing-name:training library",
@@ -34,6 +37,7 @@ const baseEntries = [
     launchable: false,
     tags: ["onboarding"],
     source: "tag-file",
+    launchRequirement: "any",
   },
 ];
 
@@ -129,6 +133,11 @@ export function removeTag(state, value) {
   }));
 }
 
+export function setLaunchRequirement(state, value) {
+  if (!["any", "wifi-on", "wifi-off"].includes(value)) return state;
+  return updateSelected(state, (entry) => ({ ...entry, launchRequirement: value }));
+}
+
 export function importPreviewState(value) {
   if (!value || value.schema !== "rusty.kiosk.browser_preview_state.v1") {
     throw new Error("Unsupported Rusty Kiosk preview state.");
@@ -149,6 +158,9 @@ export function importPreviewState(value) {
         ? [...new Set(entry.tags.map(normalizeTag).filter(Boolean))].slice(0, 24)
         : [],
       source: String(entry.source ?? "imported").slice(0, 80),
+      launchRequirement: ["wifi-on", "wifi-off"].includes(entry.launchRequirement)
+        ? entry.launchRequirement
+        : "any",
     })),
     searchQuery: String(value.searchQuery ?? "").slice(0, 120),
     selectedTag: value.selectedTag == null ? null : normalizeTag(String(value.selectedTag)),

@@ -48,6 +48,7 @@
     "rusty-kiosk-tag-filters",
     "rusty-kiosk-app-list",
     "rusty-kiosk-app-details",
+    "rusty-kiosk-launch-requirement",
     "rusty-kiosk-normal-launch",
     "rusty-kiosk-kiosk-launch",
     "rusty-kiosk-user-control-status",
