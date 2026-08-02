@@ -52,6 +52,11 @@ class RustyKioskActivity : AppSystemActivity() {
   private val packageIdentityResolver by lazy(LazyThreadSafetyMode.NONE) {
     PackageSigningIdentityResolver(this)
   }
+  private val appLaunchOptionsDelegate = lazy(LazyThreadSafetyMode.NONE) {
+    AppLaunchOptionsRepository(this)
+  }
+  private val appLaunchOptions: AppLaunchOptionsRepository
+    get() = appLaunchOptionsDelegate.value
   private val requirementCoordinator by lazy(LazyThreadSafetyMode.NONE) {
     ActiveRequirementLaunchCoordinator(
       ProcessPendingRequirementLaunchStore,
@@ -161,6 +166,7 @@ class RustyKioskActivity : AppSystemActivity() {
     passthroughController?.stop("activity-destroyed")
     passthroughController = null
     if (kioskPanelDelegate.isInitialized()) kioskPanel.release()
+    if (appLaunchOptionsDelegate.isInitialized()) appLaunchOptions.close()
     super.onDestroy()
   }
 
@@ -205,6 +211,7 @@ class RustyKioskActivity : AppSystemActivity() {
       onCancelPendingRequirementLaunch = ::cancelPendingRequirementLaunch,
       onNormalLaunch = { launchSelected(LaunchKind.NORMAL) },
       onKioskLaunch = { launchSelected(LaunchKind.KIOSK) },
+      onLaunchOption = ::launchSelectedOption,
       onOpenUserControls = { state = state.copy(userControlsOpen = true) },
       onCloseUserControls = { state = state.copy(userControlsOpen = false) },
       onCheckSetupHelper = { dispatchSetupHelper(SetupHelperOperation.STATUS) },
@@ -253,7 +260,9 @@ class RustyKioskActivity : AppSystemActivity() {
           tagFocusRequest = state.tagFocusRequest,
           pendingRequirementLaunchId = requirementCoordinator.pending()?.pendingId,
           pendingRequirementMessage = state.pendingRequirementMessage,
-        )
+          lastDispatchedOptionId = state.lastDispatchedOptionId,
+          lastDispatchedOptionPackage = state.lastDispatchedOptionPackage,
+        ).withSelectedLaunchOptions()
       }
     state =
       result.getOrElse { throwable ->
@@ -321,6 +330,36 @@ class RustyKioskActivity : AppSystemActivity() {
     return handleRequirementDecision(requirementCoordinator.request(bound.candidate), bound)
   }
 
+  private fun launchSelectedOption(optionId: String): LaunchResult {
+    val entry = state.selectedEntry
+      ?: return LaunchResult(false, "Select an app first.").also { result ->
+        state = state.copy(statusLine = result.message)
+      }
+    val displayedBinding = state.selectedLaunchOptions.binding
+    val displayedOption = state.selectedLaunchOptions.options.singleOrNull { it.optionId == optionId }
+    if (state.selectedLaunchOptions.status != AppLaunchOptionsStatus.READY ||
+      displayedBinding == null || displayedOption == null
+    ) {
+      return LaunchResult(false, "The selected launch option is not currently offered.").also {
+        state = state.copy(statusLine = it.message)
+      }
+    }
+    val bound = createFreshRequirementCandidate(entry.key, LaunchKind.NORMAL, optionId)
+      ?: return LaunchResult(false, "The app or launch option changed before requirement preflight.")
+        .also { state = state.copy(statusLine = it.message) }
+    if (bound.launchOptionBinding != displayedBinding || bound.launchOption != displayedOption) {
+      return LaunchResult(false, "The app or launch option changed before requirement preflight.")
+        .also {
+          state =
+            state.copy(
+              statusLine = it.message,
+              selectedLaunchOptions = appLaunchOptions.discover(entry),
+            )
+        }
+    }
+    return handleRequirementDecision(requirementCoordinator.request(bound.candidate), bound)
+  }
+
   private fun performLaunch(entry: CatalogEntry, kind: LaunchKind): LaunchResult {
     val targetPackage = entry.target?.packageName
     if (kind == LaunchKind.KIOSK && targetPackage != null) {
@@ -337,22 +376,81 @@ class RustyKioskActivity : AppSystemActivity() {
   private data class BoundRequirementCandidate(
     val candidate: ActiveRequirementLaunchCandidate,
     val entry: CatalogEntry,
+    val launchOptionBinding: AppLaunchOptionsBinding? = null,
+    val launchOption: AppLaunchOption? = null,
   )
 
   private fun createFreshRequirementCandidate(
     entryKey: String,
     kind: LaunchKind,
+    launchOptionId: String? = null,
   ): BoundRequirementCandidate? = runCatching {
     val document = tagStore.loadDocument()
     val entry = CatalogAssembler.assemble(installedApps.snapshot(), document)
       .singleOrNull { it.key == entryKey } ?: return null
     val packageName = entry.packageName ?: return null
     val identity = packageIdentityResolver.resolve(packageName) ?: return null
+    val optionResolution = launchOptionId?.let { optionId ->
+      appLaunchOptions.resolveForLaunch(entry, optionId).takeIf {
+        it.state.status == AppLaunchOptionsStatus.READY &&
+          it.state.binding != null &&
+          it.option != null &&
+          it.state.binding.packageName == packageName &&
+          it.state.binding.signingIdentity == identity.signingIdentity &&
+          it.state.binding.lastUpdateTime == identity.lastUpdateTime &&
+          it.state.binding.versionCode == identity.versionCode &&
+          it.state.binding.uid == identity.uid
+      } ?: return null
+    }
     BoundRequirementCandidate(
-      ActiveRequirementLaunchBindingFactory.create(entry, document, kind, identity),
-      entry,
+      candidate =
+        ActiveRequirementLaunchBindingFactory.create(
+          entry,
+          document,
+          kind,
+          identity,
+          launchOptionId = launchOptionId,
+          launchOptionDigest = optionResolution?.option?.stableDigest(),
+        ),
+      entry = entry,
+      launchOptionBinding = optionResolution?.state?.binding,
+      launchOption = optionResolution?.option,
     )
   }.getOrNull()
+
+  private fun performBoundLaunch(bound: BoundRequirementCandidate): LaunchResult {
+    val optionId = bound.candidate.binding.launchOptionId
+    if (optionId == null) return performLaunch(bound.entry, bound.candidate.binding.launchKind)
+    val expectedBinding = bound.launchOptionBinding
+      ?: return LaunchResult(false, "The launch-option binding is unavailable.")
+    val expectedOption = bound.launchOption
+      ?: return LaunchResult(false, "The launch option is unavailable.")
+    val fresh = appLaunchOptions.resolveForLaunch(bound.entry, optionId)
+    val unchanged =
+      fresh.state.status == AppLaunchOptionsStatus.READY &&
+        fresh.state.binding == expectedBinding &&
+        fresh.option == expectedOption &&
+        fresh.option.stableDigest() == bound.candidate.binding.launchOptionDigest
+    if (!unchanged) {
+      val result = LaunchResult(false, "The app or launch option changed before dispatch.")
+      state =
+        state.copy(
+          statusLine = result.message,
+          selectedLaunchOptions = fresh.state,
+        )
+      return result
+    }
+    guardLaunchHandoffLease.clear()
+    val result = launchController.launchOption(bound.entry, expectedBinding, expectedOption)
+    state =
+      state.copy(
+        statusLine = result.message,
+        selectedLaunchOptions = fresh.state,
+        lastDispatchedOptionId = if (result.accepted) expectedOption.optionId else state.lastDispatchedOptionId,
+        lastDispatchedOptionPackage = if (result.accepted) expectedBinding.packageName else state.lastDispatchedOptionPackage,
+      )
+    return result
+  }
 
   private fun handleRequirementDecision(
     decision: RequirementLaunchDecision,
@@ -363,6 +461,7 @@ class RustyKioskActivity : AppSystemActivity() {
         ?: createFreshRequirementCandidate(
           decision.candidate.binding.catalogEntryKey,
           decision.candidate.binding.launchKind,
+          decision.candidate.binding.launchOptionId,
         )?.takeIf { it.candidate == decision.candidate }
       if (fresh == null) {
         requirementCoordinator.cancel()
@@ -378,7 +477,7 @@ class RustyKioskActivity : AppSystemActivity() {
           pendingRequirementLaunchId = null,
           pendingRequirementMessage = null,
         )
-        performLaunch(fresh.entry, fresh.candidate.binding.launchKind)
+        performBoundLaunch(fresh)
       }
     }
     is RequirementLaunchDecision.RemediationRequired -> {
@@ -431,12 +530,14 @@ class RustyKioskActivity : AppSystemActivity() {
     val bound = createFreshRequirementCandidate(
       pending.binding.catalogEntryKey,
       pending.binding.launchKind,
+      pending.binding.launchOptionId,
     )
     val result = handleRequirementDecision(requirementCoordinator.resume(bound?.candidate), bound)
     if (result.completed) {
       val pendingCli = pendingRequirementCliRequest ?: cliStore.activeRequest()?.takeIf {
         it.command == RustyKioskCliCommand.LAUNCH_NORMAL ||
-          it.command == RustyKioskCliCommand.LAUNCH_KIOSK
+          it.command == RustyKioskCliCommand.LAUNCH_KIOSK ||
+          it.command == RustyKioskCliCommand.LAUNCH_OPTION
       }
       pendingCli?.let { request ->
         pendingRequirementCliRequest = null
@@ -450,7 +551,8 @@ class RustyKioskActivity : AppSystemActivity() {
       if (result.completed) {
         val pendingCli = pendingRequirementCliRequest ?: cliStore.activeRequest()?.takeIf {
           it.command == RustyKioskCliCommand.LAUNCH_NORMAL ||
-            it.command == RustyKioskCliCommand.LAUNCH_KIOSK
+            it.command == RustyKioskCliCommand.LAUNCH_KIOSK ||
+            it.command == RustyKioskCliCommand.LAUNCH_OPTION
         }
         pendingCli?.let { request ->
           pendingRequirementCliRequest = null
@@ -532,6 +634,7 @@ class RustyKioskActivity : AppSystemActivity() {
         cancelPendingRequirementLaunch().toCliOutcome()
       RustyKioskCliCommand.LAUNCH_NORMAL -> launchFromCli(request, LaunchKind.NORMAL)
       RustyKioskCliCommand.LAUNCH_KIOSK -> launchFromCli(request, LaunchKind.KIOSK)
+      RustyKioskCliCommand.LAUNCH_OPTION -> launchOptionFromCli(request)
       RustyKioskCliCommand.CHECK_SETUP_HELPER ->
         requestSetupOperationFromCli(request, SetupHelperOperation.STATUS)
       RustyKioskCliCommand.REQUEST_WIFI_ADB ->
@@ -585,17 +688,19 @@ class RustyKioskActivity : AppSystemActivity() {
   private fun setSearchQuery(query: String) {
     val searchQuery = browsingStateStore.setSearchQuery(query)
     val selectedKey = retainedVisibleSelection(searchQuery, state.selectedTag)
-    state = state.copy(searchQuery = searchQuery, selectedKey = selectedKey)
+    val updated = state.copy(searchQuery = searchQuery, selectedKey = selectedKey)
+    state = if (selectedKey == state.selectedKey) updated else updated.withSelectedLaunchOptions()
   }
 
   private fun setTagFilter(tag: String?) {
     val selectedTag = browsingStateStore.setSelectedTag(tag)
     val selectedKey = retainedVisibleSelection(state.searchQuery, selectedTag)
-    state = state.copy(selectedTag = selectedTag, selectedKey = selectedKey)
+    val updated = state.copy(selectedTag = selectedTag, selectedKey = selectedKey)
+    state = if (selectedKey == state.selectedKey) updated else updated.withSelectedLaunchOptions()
   }
 
   private fun setSelectedKey(key: String?) {
-    state = state.copy(selectedKey = browsingStateStore.setSelectedKey(key))
+    state = state.copy(selectedKey = browsingStateStore.setSelectedKey(key)).withSelectedLaunchOptions()
   }
 
   private fun retainedVisibleSelection(searchQuery: String, selectedTag: String?): String? {
@@ -648,6 +753,18 @@ class RustyKioskActivity : AppSystemActivity() {
     }
     return result.toCliOutcome()
   }
+
+  private fun launchOptionFromCli(request: RustyKioskCliRequest): RustyKioskCliOutcome? {
+    val result = launchSelectedOption(request.value.orEmpty())
+    if (result.accepted && !result.completed) {
+      pendingRequirementCliRequest = request
+      return null
+    }
+    return result.toCliOutcome()
+  }
+
+  private fun KioskUiState.withSelectedLaunchOptions(): KioskUiState =
+    copy(selectedLaunchOptions = appLaunchOptions.discover(selectedEntry))
 
   private fun requestSetupOperationFromCli(
     request: RustyKioskCliRequest,

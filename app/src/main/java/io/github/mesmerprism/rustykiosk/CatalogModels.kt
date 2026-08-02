@@ -148,6 +148,9 @@ internal data class KioskUiState(
   val tagFocusRequest: Long = 0L,
   val pendingRequirementLaunchId: String? = null,
   val pendingRequirementMessage: String? = null,
+  val selectedLaunchOptions: AppLaunchOptionsUiState = AppLaunchOptionsUiState(),
+  val lastDispatchedOptionId: String? = null,
+  val lastDispatchedOptionPackage: String? = null,
 ) {
   val tags: List<String>
     get() = entries.flatMap { it.tags }.distinct().sorted()

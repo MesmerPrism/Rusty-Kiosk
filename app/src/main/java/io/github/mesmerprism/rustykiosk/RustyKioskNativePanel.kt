@@ -48,6 +48,7 @@ internal class RustyKioskNativePanel(
   private val onCancelPendingRequirementLaunch: () -> Unit,
   private val onNormalLaunch: () -> Unit,
   private val onKioskLaunch: () -> Unit,
+  private val onLaunchOption: (String) -> Unit,
   private val onOpenUserControls: () -> Unit,
   private val onCloseUserControls: () -> Unit,
   private val onCheckSetupHelper: () -> Unit,
@@ -90,6 +91,8 @@ internal class RustyKioskNativePanel(
   private lateinit var requirementWifiOnButton: Button
   private lateinit var requirementWifiOffButton: Button
   private lateinit var cancelPendingLaunchButton: Button
+  private lateinit var launchOptionsStatus: TextView
+  private lateinit var launchOptionsRow: LinearLayout
   private lateinit var normalLaunchButton: Button
   private lateinit var kioskLaunchButton: Button
   private lateinit var launchGuidance: TextView
@@ -237,6 +240,9 @@ internal class RustyKioskNativePanel(
 
     val details = column().apply {
       setPadding(dp(14), dp(12), dp(14), dp(12))
+    }
+    val detailsScroller = ScrollView(context).apply {
+      isFillViewport = true
       background = rounded(COLOR_SURFACE, COLOR_BORDER, 1, 8)
       tag = RustyKioskPanelControls.APP_DETAILS
     }
@@ -283,6 +289,17 @@ internal class RustyKioskNativePanel(
     cancelPendingLaunchButton = button("Cancel pending launch", onCancelPendingRequirementLaunch)
     details.addView(cancelPendingLaunchButton, margin(top = 5, height = 42))
 
+    launchOptionsStatus = text("", 13f, COLOR_MUTED).apply {
+      tag = RustyKioskPanelControls.LAUNCH_OPTIONS
+    }
+    details.addView(launchOptionsStatus, margin(top = 5))
+    val launchOptionsScroller = HorizontalScrollView(context).apply {
+      isHorizontalScrollBarEnabled = false
+    }
+    launchOptionsRow = row()
+    launchOptionsScroller.addView(launchOptionsRow, FrameLayout.LayoutParams(WRAP, MATCH))
+    details.addView(launchOptionsScroller, margin(top = 3, height = 58))
+
     normalLaunchButton = button("Normal launch", onNormalLaunch).apply {
       tag = RustyKioskPanelControls.NORMAL_LAUNCH
     }
@@ -305,7 +322,8 @@ internal class RustyKioskNativePanel(
       ),
       margin(top = 8),
     )
-    body.addView(details, LinearLayout.LayoutParams(0, MATCH, 0.54f))
+    detailsScroller.addView(details, FrameLayout.LayoutParams(MATCH, WRAP))
+    body.addView(detailsScroller, LinearLayout.LayoutParams(0, MATCH, 0.54f))
     parent.addView(body, LinearLayout.LayoutParams(MATCH, 0, 1f).apply { topMargin = dp(8) })
   }
 
@@ -495,6 +513,27 @@ internal class RustyKioskNativePanel(
     requirementWifiOffButton.isEnabled = enabled && requirement != AppLaunchRequirement.WIFI_OFF
     cancelPendingLaunchButton.visibility =
       if (state.pendingRequirementLaunchId == null) View.GONE else View.VISIBLE
+
+    val launchOptions = state.selectedLaunchOptions
+    launchOptionsStatus.text = launchOptions.message
+    launchOptionsStatus.setTextColor(
+      if (launchOptions.status == AppLaunchOptionsStatus.REJECTED) COLOR_WARNING else COLOR_MUTED
+    )
+    launchOptionsRow.removeAllViews()
+    launchOptions.options.forEach { option ->
+      val description = option.description.takeIf(String::isNotBlank)
+      val label = listOfNotNull(option.displayLabel, description).joinToString(" · ")
+      val optionButton = button(label, { onLaunchOption(option.optionId) }, primary = true).apply {
+        tag = RustyKioskPanelControls.LAUNCH_OPTION_LAUNCH
+        contentDescription = "${option.displayLabel}. ${option.description}".trim()
+        isAllCaps = false
+        maxLines = 2
+      }
+      launchOptionsRow.addView(
+        optionButton,
+        LinearLayout.LayoutParams(WRAP, dp(54)).apply { rightMargin = dp(6) },
+      )
+    }
 
     selectedTags.removeAllViews()
     entry?.tags?.sorted()?.forEach { tag ->

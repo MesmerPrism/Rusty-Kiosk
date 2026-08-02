@@ -28,7 +28,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -64,6 +66,7 @@ internal fun RustyKioskPanel(
   onRemoveTag: (String) -> Unit,
   onNormalLaunch: () -> Unit,
   onKioskLaunch: () -> Unit,
+  onLaunchOption: (String) -> Unit = {},
   onOpenUserControls: () -> Unit,
   onCloseUserControls: () -> Unit,
   onCheckSetupHelper: () -> Unit,
@@ -181,6 +184,8 @@ internal fun RustyKioskPanel(
             onLaunchRequirementSelected = onLaunchRequirementSelected,
             onNormalLaunch = onNormalLaunch,
             onKioskLaunch = onKioskLaunch,
+            launchOptions = state.selectedLaunchOptions,
+            onLaunchOption = onLaunchOption,
             onOpenUserControls = onOpenUserControls,
             modifier = Modifier.weight(0.54f),
           )
@@ -291,6 +296,8 @@ private fun AppDetails(
   onLaunchRequirementSelected: (AppLaunchRequirement) -> Unit,
   onNormalLaunch: () -> Unit,
   onKioskLaunch: () -> Unit,
+  launchOptions: AppLaunchOptionsUiState,
+  onLaunchOption: (String) -> Unit,
   onOpenUserControls: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -300,6 +307,7 @@ private fun AppDetails(
       modifier.fillMaxHeight()
         .testTag(RustyKioskPanelControls.APP_DETAILS)
         .border(1.dp, Divider, RoundedCornerShape(8.dp))
+        .verticalScroll(rememberScrollState())
         .padding(14.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
@@ -390,6 +398,33 @@ private fun AppDetails(
     }
 
     HorizontalDivider(color = Divider)
+
+    Text(
+      launchOptions.message,
+      modifier = Modifier.testTag(RustyKioskPanelControls.LAUNCH_OPTIONS),
+      style = MaterialTheme.typography.bodySmall,
+      color =
+        if (launchOptions.status == AppLaunchOptionsStatus.REJECTED) MissingColor
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    if (launchOptions.options.isNotEmpty()) {
+      LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        items(launchOptions.options, key = AppLaunchOption::optionId) { option ->
+          Button(
+            onClick = { onLaunchOption(option.optionId) },
+            modifier = Modifier.testTag(RustyKioskPanelControls.LAUNCH_OPTION_LAUNCH),
+            shape = RoundedCornerShape(8.dp),
+          ) {
+            Column {
+              Text(option.displayLabel, maxLines = 1)
+              if (option.description.isNotBlank()) {
+                Text(option.description, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+              }
+            }
+          }
+        }
+      }
+    }
 
     Button(
       onClick = onNormalLaunch,

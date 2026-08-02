@@ -24,6 +24,7 @@ internal enum class RustyKioskCliCommand(val wireName: String, val valueRule: Cl
   CANCEL_PENDING_LAUNCH("cancel-pending-launch", CliValueRule.NONE),
   LAUNCH_NORMAL("launch-normal", CliValueRule.NONE),
   LAUNCH_KIOSK("launch-kiosk", CliValueRule.NONE),
+  LAUNCH_OPTION("launch-option", CliValueRule.REQUIRED),
   CHECK_SETUP_HELPER("check-setup-helper", CliValueRule.NONE),
   REQUEST_WIFI_ADB("request-wifi-adb", CliValueRule.NONE),
   ENABLE_WIFI_AFTER_BOOT("enable-wifi-adb-after-boot", CliValueRule.NONE),
@@ -123,7 +124,12 @@ internal object RustyKioskCliProtocol {
       val cleanCommand = command.orEmpty().trim().lowercase(Locale.ROOT)
       val kind = RustyKioskCliCommand.entries.firstOrNull { it.wireName == cleanCommand }
         ?: error("unknown command")
-      val cleanValue = value?.trim()?.takeIf(String::isNotEmpty)
+      val cleanValue =
+        if (kind == RustyKioskCliCommand.LAUNCH_OPTION) {
+          value?.takeIf(String::isNotBlank)
+        } else {
+          value?.trim()?.takeIf(String::isNotEmpty)
+        }
       require((cleanValue?.length ?: 0) <= MAX_VALUE_LENGTH) { "value is too long" }
       when (kind.valueRule) {
         CliValueRule.NONE -> require(cleanValue == null) { "command does not accept a value" }
@@ -361,6 +367,7 @@ internal class RustyKioskCliStore(
       )) return@synchronized
     val selected = state.selectedEntry
     val controls = state.userControls
+    val selectedLaunchOptionsBinding = state.selectedLaunchOptions.binding
     fun encodeEntries(entries: List<CatalogEntry>): JSONArray = JSONArray().also { array ->
       entries.take(MAX_RESULT_ENTRIES).forEach { entry ->
         array.put(JSONObject()
@@ -371,6 +378,17 @@ internal class RustyKioskCliStore(
           .put("launchable", entry.launchable)
           .put("tags", JSONArray(entry.tags.sorted()))
           .put("launch_requirement", entry.launchRequirement.wireName))
+      }
+    }
+    fun encodeLaunchOptions(options: List<AppLaunchOption>): JSONArray = JSONArray().also { array ->
+      options.take(AppLaunchOptionsContract.MAX_OPTION_COUNT).forEach { option ->
+        array.put(
+          JSONObject()
+            .put("schema_version", option.schemaVersion)
+            .put("option_id", option.optionId)
+            .put("display_label", option.displayLabel)
+            .put("description", option.description)
+        )
       }
     }
     val operationState = when {
@@ -411,6 +429,20 @@ internal class RustyKioskCliStore(
         .put("selected_installed", selected?.installed ?: false)
         .put("selected_launchable", selected?.launchable ?: false)
         .put("selected_launch_requirement", selected?.launchRequirement?.wireName ?: JSONObject.NULL)
+        .put("selected_launch_options_status", state.selectedLaunchOptions.status.wireName)
+        .put("selected_launch_options_message", state.selectedLaunchOptions.message)
+        .put("selected_launch_options", encodeLaunchOptions(state.selectedLaunchOptions.options))
+        .put("selected_launch_options_package", selectedLaunchOptionsBinding?.packageName ?: JSONObject.NULL)
+        .put("selected_launch_options_uid", selectedLaunchOptionsBinding?.uid ?: JSONObject.NULL)
+        .put("selected_launch_options_signing_identity", selectedLaunchOptionsBinding?.signingIdentity ?: JSONObject.NULL)
+        .put("selected_launch_options_version_code", selectedLaunchOptionsBinding?.versionCode ?: JSONObject.NULL)
+        .put("selected_launch_options_last_update_time_ms", selectedLaunchOptionsBinding?.lastUpdateTime ?: JSONObject.NULL)
+        .put("selected_launch_options_provider_authority", selectedLaunchOptionsBinding?.providerAuthority ?: JSONObject.NULL)
+        .put("selected_launch_options_provider_class", selectedLaunchOptionsBinding?.providerClass ?: JSONObject.NULL)
+        .put("selected_launch_options_owner_activity", selectedLaunchOptionsBinding?.ownerActivity ?: JSONObject.NULL)
+        .put("selected_launch_options_binding_sha256", selectedLaunchOptionsBinding?.stableDigest() ?: JSONObject.NULL)
+        .put("last_dispatched_option_id", state.lastDispatchedOptionId ?: JSONObject.NULL)
+        .put("last_dispatched_option_package", state.lastDispatchedOptionPackage ?: JSONObject.NULL)
         .put("pending_requirement_launch", state.pendingRequirementLaunchId != null)
         .put("pending_requirement_launch_id", state.pendingRequirementLaunchId ?: JSONObject.NULL)
         .put("wifi_adb_enabled", controls.wirelessDebuggingEnabled)

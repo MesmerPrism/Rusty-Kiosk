@@ -36,6 +36,9 @@ Its optional Accessibility service is a foreground watchdog:
 - tag editing from the panel;
 - an explicit per-app **Any / Wi-Fi on / Wi-Fi off** launch requirement,
   checked before both Normal and Kiosk launch without changing Wi-Fi;
+- bounded, read-only app-provided launch options that bind the selected package,
+  exclusive UID, signer, provider, and existing public front door before passing
+  one opaque option ID under one fixed extra key;
 - hot reload of an externally editable JSON tag file;
 - unresolved name-only entries shown as **Not installed**;
 - normal and soft-kiosk launch actions;

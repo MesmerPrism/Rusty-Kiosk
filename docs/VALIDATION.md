@@ -68,6 +68,11 @@ Unit tests cover:
 The static guard checks additionally require Rusty Kiosk to disarm itself when
 its own package becomes foreground and prohibit Accessibility UI-tree access,
 global actions, gestures, and Android HOME-role declarations.
+They hold app-provided launch options to the derived provider authority,
+exclusive package UID, signer/install identity, existing catalogue front door,
+full pre/post-query binding equality, bounded timeout fuse, strict cursor shape,
+option-digest continuity, one fixed extra, normal task flags, disarmed guard,
+dispatch-only receipt naming, and non-duplicated browser control identity.
 They require the exported foreground provider to remain call-only, v2-only,
 and bound to the armed package, exclusive UID, protocol metadata, launch-time
 signing lineage, installation/update identity, and current readback. The client
