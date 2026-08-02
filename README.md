@@ -285,7 +285,12 @@ bootstrap enabled after the network secret expires. A DUMP-only recovery call
 using the original operation ID can re-dispatch STOP after a lost response
 without returning either credential. Direct install requests commit each
 staged APK's exact name, byte count, and SHA-256, which are verified from the
-same opened handle copied into PackageInstaller.
+same opened handle copied into PackageInstaller. Bootstrap operation IDs remain
+one-time in a fixed non-evicting bootstrap-issuance-epoch ledger; saturation or malformed
+state fails closed instead of making old IDs reusable. If Android cannot confirm
+cleanup of a failed installer session, its receipt stays `cleanup-required` and
+incomplete until the same install body retries cleanup with a fresh authenticated
+transport request ID.
 
 ## Tag file
 

@@ -56,6 +56,11 @@ only IDs and issue/use/revocation times. The app-private session store persists
 its last observed wall time and rejects issuance after clock rollback, so the
 rate window cannot be reset by moving the clock backwards.
 
+Operation IDs are one-time within a durable app-private bootstrap-issuance epoch. A
+fixed 4096-entry exact ledger never evicts on bridge-generation change. When it
+is full, malformed, or bound to a mismatched epoch, new issuance fails closed;
+clearing app data creates the next bootstrap-issuance epoch and is the only reset path.
+
 The host owns exact-serial ADB evidence. Raw `content call` stdout must feed a
 redacted in-memory parser and must not be echoed, logged, or placed in generic
 diagnostics. If `enabled_by_request=true`, cleanup may call `direct-disable`
@@ -78,10 +83,12 @@ returns no session ID, secret, or pairing code. The retry mapping follows the
 post-disable generation until stopped readback consumes it or its bound expires.
 
 Listener START/STOP intents carry their expected generation. The service ignores
-crossed stale actions and persists its internal running generation;
-`direct_running=true` is projected only when enabled, current generation, and
-running generation all agree. The internal field is not an additional host wire
-field: host confirmation remains the exact `bridge_generation` in this contract.
+crossed stale actions and persists its internal running generation.
+`direct_running` remains the raw service-observed boolean, so disable readback
+cannot report a false stop while the old listener is still closing. Completion
+requires enabled state, running state, and the internal running generation to
+converge on the current `bridge_generation`; the internal generation is not an
+additional host wire field.
 
 This provides authentication, integrity, expiry, and replay resistance. It does
 not encrypt HTTP bodies. Use a trusted local network or a private Windows
@@ -108,6 +115,12 @@ session. A base APK and all of its selected split APKs share one session and one
 decision.
 Concurrent replacement, size drift, digest drift, duplicate names, and unknown
 install fields abandon the session and fail closed before commit.
+An abandon call that returns normally is terminal. If it throws, only a
+PackageInstaller readback proving that the session is absent permits terminal
+`failed`; present or unavailable readback records incomplete
+`cleanup-required`. The operator retries that cleanup by resending the same
+install body with a fresh authenticated transport request ID. This retry cannot
+stage or commit a second session under the original install request ID.
 
 QuestIonAble File Manager therefore presents authorized PC ADB installation as
 the default unattended and batch route. Direct PackageInstaller is the explicit

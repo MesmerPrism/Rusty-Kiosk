@@ -5,6 +5,7 @@ import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.SecureRandom
+import java.util.UUID
 
 internal data class OperatorBridgeIssuedSession(
   val operationId: String,
@@ -113,6 +114,7 @@ internal object OperatorBridgeSessionPolicy {
     operationAlreadyUsed: Boolean,
     recentIssueTimes: List<Long>,
     activeSessionCount: Int,
+    issuedOperationCount: Int,
     entropyBytes: Int,
     lastObservedWallMs: Long = now,
   ) {
@@ -124,6 +126,9 @@ internal object OperatorBridgeSessionPolicy {
       "The bootstrap clock moved backwards."
     }
     require(!operationAlreadyUsed) { "That bootstrap operation id was already used." }
+    require(issuedOperationCount in 0 until OperatorBridgeSessionStore.MAX_OPERATION_IDS_PER_EPOCH) {
+      "The bounded bootstrap operation-id ledger is full; issuance fails closed for this bootstrap epoch."
+    }
     require(recentIssueTimes.count { it in (now - RATE_WINDOW_MS)..now } <
       OperatorBridgeSessionStore.MAX_ISSUES_PER_WINDOW) {
       "Ephemeral session issuance is temporarily rate limited."
@@ -147,6 +152,39 @@ internal object OperatorBridgeSessionPolicy {
       sessionGeneration > 0L && sessionGeneration == currentGeneration
 
   const val RATE_WINDOW_MS = 60 * 1000L
+}
+
+internal object OperatorBridgeOperationLedgerPolicy {
+  fun normalize(operationIds: List<String>): List<String> {
+    require(operationIds.size <= OperatorBridgeSessionStore.MAX_OPERATION_IDS_PER_EPOCH) {
+      "The bootstrap operation-id ledger exceeds its fixed bound."
+    }
+    require(operationIds.all { RustyKioskCliProtocol.validRequestId(it) != null }) {
+      "The bootstrap operation-id ledger contains an invalid id."
+    }
+    require(operationIds.distinct().size == operationIds.size) {
+      "The bootstrap operation-id ledger contains a duplicate id."
+    }
+    return operationIds
+  }
+
+  fun append(operationIds: List<String>, operationId: String): List<String> {
+    val current = normalize(operationIds)
+    require(operationId !in current) { "That bootstrap operation id was already used." }
+    require(current.size < OperatorBridgeSessionStore.MAX_OPERATION_IDS_PER_EPOCH) {
+      "The bounded bootstrap operation-id ledger is full; issuance fails closed for this bootstrap epoch."
+    }
+    return current + operationId
+  }
+
+  fun requireEpoch(storedEpoch: String?, currentEpoch: String): String {
+    require(currentEpoch.isNotBlank()) { "The bootstrap issuance epoch is unavailable." }
+    if (storedEpoch.isNullOrBlank()) return currentEpoch
+    require(storedEpoch == currentEpoch) {
+      "The bootstrap operation-id ledger belongs to a different issuance epoch."
+    }
+    return storedEpoch
+  }
 }
 
 /**
@@ -180,7 +218,7 @@ internal class OperatorBridgeSessionStore(
       // forward-time issuance attempt cannot be followed by a clock rollback that resets policy.
       save(root)
       val lastObservedWallMs = root.optLong(KEY_LAST_OBSERVED_WALL_MS, -1L)
-      val issuedOperations = root.getJSONArray(KEY_ISSUED_OPERATIONS)
+      val issuedOperations = issuedOperations(root)
       val cleanupOwnerships = cleanupOwnerships(root)
       val recent = root.getJSONArray(KEY_RECENT_ISSUES)
       val recentValues = (0 until recent.length()).map { recent.getLong(it) }
@@ -190,10 +228,11 @@ internal class OperatorBridgeSessionStore(
       OperatorBridgeSessionPolicy.requireIssuanceAllowed(
         now,
         bridgeGeneration,
-        (0 until issuedOperations.length()).any { issuedOperations.getString(it) == operationId } ||
+        operationId in issuedOperations ||
           cleanupOwnerships.any { it.operationId == operationId },
         recentValues,
         sessions.length(),
+        issuedOperations.size,
         secretBytes.size,
         lastObservedWallMs,
       )
@@ -216,8 +255,7 @@ internal class OperatorBridgeSessionStore(
         .put("last_used_at_ms", JSONObject.NULL))
       val nextRecent = JSONArray(recentValues + now)
       val nextOperations = JSONArray(
-        ((0 until issuedOperations.length()).map { issuedOperations.getString(it) } + operationId)
-          .takeLast(MAX_OPERATION_TOMBSTONES)
+        OperatorBridgeOperationLedgerPolicy.append(issuedOperations, operationId)
       )
       val nextCleanupOwnerships = OperatorBridgeCleanupOwnershipPolicy.retainBounded(
         cleanupOwnerships + OperatorBridgeCleanupOwnership(
@@ -469,13 +507,42 @@ internal class OperatorBridgeSessionStore(
   }
 
   private fun loadState(): JSONObject {
-    val root = runCatching { JSONObject(preferences.getString(KEY_STATE, null) ?: "{}") }
-      .getOrDefault(JSONObject())
+    val stored = preferences.getString(KEY_STATE, null)
+    val root = if (stored == null) JSONObject() else JSONObject(stored)
+    val epoch = OperatorBridgeOperationLedgerPolicy.requireEpoch(
+      root.optString(KEY_PROVIDER_EPOCH).takeIf(String::isNotBlank),
+      providerEpochLocked(),
+    )
+    val operations = root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()
+    OperatorBridgeOperationLedgerPolicy.normalize(
+      (0 until operations.length()).map { operations.getString(it) }
+    )
     return root
+      .put(KEY_PROVIDER_EPOCH, epoch)
       .put(KEY_SESSIONS, root.optJSONArray(KEY_SESSIONS) ?: JSONArray())
       .put(KEY_RECENT_ISSUES, root.optJSONArray(KEY_RECENT_ISSUES) ?: JSONArray())
       .put(KEY_ISSUED_OPERATIONS, root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray())
       .put(KEY_CLEANUP_OWNERSHIPS, root.optJSONArray(KEY_CLEANUP_OWNERSHIPS) ?: JSONArray())
+  }
+
+  private fun providerEpochLocked(): String {
+    val stored = preferences.getString(KEY_PROVIDER_EPOCH_ANCHOR, null)
+    if (stored != null) {
+      require(stored.isNotBlank()) { "The bootstrap issuance epoch anchor is malformed." }
+      return stored
+    }
+    val generated = UUID.randomUUID().toString()
+    check(preferences.edit().putString(KEY_PROVIDER_EPOCH_ANCHOR, generated).commit()) {
+      "The bootstrap issuance epoch anchor could not be persisted."
+    }
+    return generated
+  }
+
+  private fun issuedOperations(root: JSONObject): List<String> {
+    val source = root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()
+    return OperatorBridgeOperationLedgerPolicy.normalize(
+      (0 until source.length()).map { source.getString(it) }
+    )
   }
 
   private fun cleanupOwnerships(root: JSONObject): List<OperatorBridgeCleanupOwnership> {
@@ -527,7 +594,9 @@ internal class OperatorBridgeSessionStore(
   }
 
   private fun save(root: JSONObject) {
-    preferences.edit().putString(KEY_STATE, root.toString()).commit()
+    check(preferences.edit().putString(KEY_STATE, root.toString()).commit()) {
+      "The bootstrap session and operation ledger could not be persisted."
+    }
   }
 
   companion object {
@@ -539,7 +608,7 @@ internal class OperatorBridgeSessionStore(
     const val MAX_CLEANUP_OWNERSHIP_TOMBSTONES = 512
     const val CAPABILITY = "rusty.kiosk.direct_operator.v2"
     private const val RATE_WINDOW_MS = OperatorBridgeSessionPolicy.RATE_WINDOW_MS
-    private const val MAX_OPERATION_TOMBSTONES = 128
+    const val MAX_OPERATION_IDS_PER_EPOCH = 4096
     private const val PREFERENCES = "rusty_kiosk_operator_sessions"
     private const val KEY_STATE = "state_json"
     private const val KEY_SESSIONS = "sessions"
@@ -547,6 +616,8 @@ internal class OperatorBridgeSessionStore(
     private const val KEY_ISSUED_OPERATIONS = "issued_operations"
     private const val KEY_CLEANUP_OWNERSHIPS = "cleanup_ownerships"
     private const val KEY_LAST_OBSERVED_WALL_MS = "last_observed_wall_ms"
+    private const val KEY_PROVIDER_EPOCH = "provider_epoch"
+    private const val KEY_PROVIDER_EPOCH_ANCHOR = "provider_epoch_anchor"
     private val SESSION_ID = Regex("[A-Za-z0-9_-]{16,64}")
     private val LOCK = Any()
   }

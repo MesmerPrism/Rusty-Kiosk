@@ -147,6 +147,11 @@ the session. The host-side exact-serial wrapper is evidence owned by the host;
 the Android app binds channel, package, DUMP caller, capability, and generation,
 not an ADB serial it cannot observe.
 
+Operation-ID replay authority is a fixed 4096-entry, non-evicting ledger bound
+to a durable app-private bootstrap-issuance epoch. Bridge-generation changes never
+clear it. Saturation, malformed state, or epoch mismatch rejects issuance; only
+the app-data reset that creates a new bootstrap-issuance epoch resets this scope.
+
 The network secret and cleanup authority have separate lifetimes. A bounded
 non-secret tombstone records the originating operation/session/generation,
 whether bootstrap actually enabled the link, cleanup state, and a 24-hour
@@ -156,6 +161,11 @@ recovery call can re-dispatch STOP after response loss. Current-generation
 stopped readback consumes it. Direct install v2 requires ordered
 `{name, bytes, sha256}` commitments and verifies count and digest from the same
 source handle copied to PackageInstaller before commit.
+If session abandonment throws, Kiosk treats either a successful abandon return
+or PackageInstaller absence readback as cleanup confirmation. Present or
+unreadable session state remains `cleanup-required` and incomplete; repeating
+the same install body may retry cleanup but cannot start another install under
+that request ID.
 
 Returning to Rusty Kiosk starts a fresh MAIN task after a short teardown delay
 so a stale Spatial panel runtime is not reused.

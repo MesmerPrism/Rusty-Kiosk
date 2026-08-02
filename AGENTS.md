@@ -113,9 +113,15 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   whether bootstrap enabled the link, its cleanup state, and its deadline. Only bootstrap-owned
   enables may be disabled. A DUMP-only operation-ID recovery route may re-dispatch STOP after a
   lost response; stopped readback consumes it, and it never returns a secret or pairing code.
+- Bootstrap operation IDs are one-time for the durable app-private bootstrap-issuance epoch. Their fixed
+  4096-entry ledger never evicts on bridge-generation changes and fails closed when full,
+  malformed, or bound to a different epoch; clearing app data is the epoch-reset boundary.
 - Direct attended install requests bind every staged APK name to an exact byte count and lowercase
   SHA-256. PackageInstaller receives bytes from the same opened source handle while count and
   digest are verified; replacement, drift, duplicate names, and expanded payloads fail closed.
+  An unconfirmed session-abandon attempt remains `cleanup-required` and incomplete. Repeating the
+  same install body with a fresh authenticated transport request may retry cleanup only and never
+  starts a second install under that install request ID.
 - Typed requests carry a durable provider epoch, fixed expiry, exact terminal
   tombstone, and per-request receipt. Status never enqueues, restart
   reconciliation never replays a claimed request, and cancellation loses safely

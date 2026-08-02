@@ -358,7 +358,14 @@ if ($directBootstrapContract.schema -ne 'rusty.kiosk.direct_usb_bootstrap_contra
     $directBootstrapContract.recover_disable.returns_pairing_code -ne $false -or
     $directBootstrapContract.cleanup_ownership.secret_retained -ne $false -or
     $directBootstrapContract.cleanup_ownership.successful_cleanup_consumes_after_stopped_readback -ne $true -or
+    $directBootstrapContract.operation_replay.scope -ne 'app-private-bootstrap-issuance-epoch' -or
+    $directBootstrapContract.operation_replay.max_operation_ids -ne 4096 -or
+    $directBootstrapContract.operation_replay.eviction -ne 'none' -or
+    $directBootstrapContract.operation_replay.saturation -ne 'fail-closed-until-new-bootstrap-issuance-epoch' -or
+    $directBootstrapContract.operation_replay.bridge_generation_change_clears_ids -ne $false -or
     $directBootstrapContract.direct_install.copy_rule -ne 'same-opened-handle-count-and-digest-verified-before-packageinstaller-commit' -or
+    $directBootstrapContract.direct_install.abandon_failure_present_or_unknown -ne 'cleanup-required-incomplete' -or
+    $directBootstrapContract.direct_install.cleanup_retry_starts_second_install -ne $false -or
     $directBootstrapContract.status_returns_secret -ne $false -or
     $directBootstrapContract.persistent_pairing_code_exported -ne $false) {
   throw 'The Kiosk/QFM Direct USB bootstrap fixture does not match the fixed v2 wire contract.'
@@ -392,6 +399,12 @@ foreach ($token in @(
   'SESSION_SECRET_BYTES = 32',
   'MAX_CONCURRENT_SESSIONS',
   'MAX_ISSUES_PER_WINDOW',
+  'MAX_OPERATION_IDS_PER_EPOCH = 4096',
+  'OperatorBridgeOperationLedgerPolicy',
+  'requireEpoch',
+  'return current + operationId',
+  'if (stored == null) JSONObject() else JSONObject(stored)',
+  'The bootstrap session and operation ledger could not be persisted.',
   'bridge_generation',
   'issued_operations',
   'first_used_at_ms',
@@ -416,6 +429,16 @@ foreach ($token in @(
 }
 if (-not $installer.Contains('RustyKioskInstallProcessLock.monitor', [StringComparison]::Ordinal)) {
   throw 'The process-wide direct-install request-id boundary is missing.'
+}
+foreach ($token in @(
+  'cleanup-required',
+  'retryCleanupIfRequired',
+  'installer.mySessions',
+  'cleanupConfirmed'
+)) {
+  if (-not $installer.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fail-closed PackageInstaller cleanup boundary is missing: $token"
+  }
 }
 foreach ($token in @(
   'OperatorRequestProcessLock.monitor',

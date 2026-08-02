@@ -83,7 +83,11 @@ post-bootstrap operation without ADB. Its `kiosk-direct` CLI family covers
 status, typed commands, tag import/export, app-owned staging, and attended APK
 install receipts. Install admission supplies an ordered strict
 `{name, bytes, sha256}` entry for every APK and Kiosk verifies those committed
-bytes from the same opened handle copied into PackageInstaller. This is a separate authenticated network transport, not an
+bytes from the same opened handle copied into PackageInstaller. A failed copy is
+terminal only after Android accepts abandonment or confirms that the session is
+absent. Otherwise `cleanup-required` remains incomplete, and resending the same
+install body with a new authenticated transport request ID retries cleanup only.
+This is a separate authenticated network transport, not an
 expansion of the `DUMP` provider.
 
 The CLI never accepts a shell command, executable path, Android component,

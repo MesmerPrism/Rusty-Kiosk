@@ -45,6 +45,31 @@ internal data class RustyKioskInstallReceipt(
   }
 }
 
+internal data class RustyKioskInstallCleanupDecision(
+  val state: String,
+  val completed: Boolean,
+  val cleanupConfirmed: Boolean,
+)
+
+internal object RustyKioskInstallCleanupPolicy {
+  fun afterAbandonAttempt(
+    abandonReturned: Boolean,
+    sessionStillPresent: Boolean?,
+  ): RustyKioskInstallCleanupDecision =
+    if (abandonReturned || sessionStillPresent == false) {
+      RustyKioskInstallCleanupDecision(STATE_FAILED, completed = true, cleanupConfirmed = true)
+    } else {
+      RustyKioskInstallCleanupDecision(
+        STATE_CLEANUP_REQUIRED,
+        completed = false,
+        cleanupConfirmed = false,
+      )
+    }
+
+  const val STATE_FAILED = "failed"
+  const val STATE_CLEANUP_REQUIRED = "cleanup-required"
+}
+
 internal class RustyKioskInstallStore(context: Context) {
   private val directory = File(context.applicationContext.filesDir, "operator-installs")
 
@@ -102,6 +127,24 @@ internal class RustyKioskInstaller(private val context: Context) {
     installLocked(requestId, apkParts)
   }
 
+  /**
+   * A repeated install body may use a fresh authenticated transport request id to retry only an
+   * unresolved PackageInstaller cleanup. It never reuses that install id for a second install.
+   */
+  fun retryCleanupIfRequired(requestId: String): RustyKioskInstallReceipt? =
+    synchronized(RustyKioskInstallProcessLock.monitor) {
+      val existing = store.read(requestId) ?: return@synchronized null
+      if (existing.state != RustyKioskInstallCleanupPolicy.STATE_CLEANUP_REQUIRED) {
+        return@synchronized null
+      }
+      val sessionId = existing.sessionId ?: return@synchronized existing
+      resolveFailedSessionCleanup(
+        requestId,
+        sessionId,
+        "Retrying cleanup for the failed Android installer session.",
+      )
+    }
+
   private fun installLocked(
     requestId: String,
     apkParts: List<RustyKioskCommittedInstallPart>,
@@ -150,8 +193,8 @@ internal class RustyKioskInstaller(private val context: Context) {
         "Copying staged APK parts into Android's package installer.",
         sessionId,
       )
-    store.record(pending)
     try {
+      store.record(pending)
       installer.openSession(sessionId).use { session ->
         apkParts.forEachIndexed { index, part ->
           val sessionName = "%03d-%s".format(index, part.commitment.name)
@@ -183,17 +226,43 @@ internal class RustyKioskInstaller(private val context: Context) {
         session.commit(callback.intentSender)
       }
     } catch (throwable: Throwable) {
-      runCatching { installer.abandonSession(sessionId) }
-      return receipt(
-          requestId,
-          "failed",
-          true,
-          throwable.message ?: "The staged APK changed before its verified installer copy completed.",
-          sessionId,
-        )
-        .also(store::record)
+      return resolveFailedSessionCleanup(
+        requestId,
+        sessionId,
+        throwable.message ?: "The verified Android installer staging operation failed.",
+      )
     }
     return requireNotNull(store.read(requestId))
+  }
+
+  private fun resolveFailedSessionCleanup(
+    requestId: String,
+    sessionId: Int,
+    failureMessage: String,
+  ): RustyKioskInstallReceipt {
+    val abandon = runCatching { installer.abandonSession(sessionId) }
+    val sessionStillPresent = if (abandon.isSuccess) {
+      false
+    } else {
+      runCatching { installer.mySessions.any { it.sessionId == sessionId } }.getOrNull()
+    }
+    val decision = RustyKioskInstallCleanupPolicy.afterAbandonAttempt(
+      abandonReturned = abandon.isSuccess,
+      sessionStillPresent = sessionStillPresent,
+    )
+    val message = if (decision.cleanupConfirmed) {
+      "Android confirmed the failed installer session is absent; use a new install request id to retry. Failure: ${failureMessage.take(96)}"
+    } else {
+      "Android did not confirm session cleanup; repeat the same install body with a fresh authenticated transport request id. Failure: ${failureMessage.take(80)}"
+    }
+    return receipt(
+        requestId,
+        decision.state,
+        decision.completed,
+        message,
+        sessionId,
+      )
+      .also(store::record)
   }
 
   private fun receipt(

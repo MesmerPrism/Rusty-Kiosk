@@ -51,11 +51,13 @@ Unit tests cover:
 - provider-v4 process-wide transition locking, original-expiry transfer,
   first-terminal tombstones, concurrent enqueue, cancel/consume, and
   expiry/record races;
-- Direct USB session entropy, one-time operation IDs, issuance rate/concurrency
+- Direct USB session entropy, bootstrap-issuance-epoch-scoped non-evicting one-time
+  operation IDs, ledger saturation/malformed/epoch mismatch rejection, issuance rate/concurrency
   bounds, monotonic-wall-clock issuance, capability/generation/expiry/revocation
   rules, raw-byte HMAC, generation-bound crossed START/STOP rejection, long-run
   non-secret cleanup ownership, lost-response STOP recovery, immutable direct
-  install byte commitments, and the checked Kiosk/QFM bootstrap wire fixture;
+  install byte commitments, abandonment failure/absence readback and cleanup-only
+  retry states, and the checked Kiosk/QFM bootstrap wire fixture;
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
   decisions;
 - deterministic lowercase SHA-256 certificate digest formatting.

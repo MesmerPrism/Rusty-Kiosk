@@ -10,12 +10,12 @@ import org.junit.Test
 class OperatorBridgeSessionPolicyTest {
   @Test
   fun issuanceRequiresHighEntropyUniqueOperationAndPositiveGeneration() {
-    OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 4L, false, emptyList(), 0, 32)
+    OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 4L, false, emptyList(), 0, 0, 32)
     listOf(
-      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 0L, false, emptyList(), 0, 32) },
-      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 4L, true, emptyList(), 0, 32) },
-      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 4L, false, emptyList(), 0, 16) },
-      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(-1L, 4L, false, emptyList(), 0, 32) },
+      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 0L, false, emptyList(), 0, 0, 32) },
+      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 4L, true, emptyList(), 0, 1, 32) },
+      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(1_000L, 4L, false, emptyList(), 0, 0, 16) },
+      { OperatorBridgeSessionPolicy.requireIssuanceAllowed(-1L, 4L, false, emptyList(), 0, 0, 32) },
     ).forEach { rejected -> assertThrows(IllegalArgumentException::class.java, rejected) }
   }
 
@@ -28,6 +28,7 @@ class OperatorBridgeSessionPolicyTest {
         false,
         List(OperatorBridgeSessionStore.MAX_ISSUES_PER_WINDOW) { 59_000L + it },
         0,
+        0,
         32,
       )
     }
@@ -38,6 +39,7 @@ class OperatorBridgeSessionPolicyTest {
         false,
         emptyList(),
         OperatorBridgeSessionStore.MAX_CONCURRENT_SESSIONS,
+        0,
         32,
       )
     }
@@ -46,12 +48,60 @@ class OperatorBridgeSessionPolicyTest {
   @Test
   fun persistedLastObservedWallTimeRejectsRollbackBeforeRateWindowCanReset() {
     OperatorBridgeSessionPolicy.requireIssuanceAllowed(
-      10_000L, 1L, false, emptyList(), 0, 32, lastObservedWallMs = 10_000L,
+      10_000L, 1L, false, emptyList(), 0, 0, 32, lastObservedWallMs = 10_000L,
     )
     assertThrows(IllegalArgumentException::class.java) {
       OperatorBridgeSessionPolicy.requireIssuanceAllowed(
-        9_999L, 1L, false, emptyList(), 0, 32, lastObservedWallMs = 10_000L,
+        9_999L, 1L, false, emptyList(), 0, 0, 32, lastObservedWallMs = 10_000L,
       )
+    }
+  }
+
+  @Test
+  fun operationIdsNeverEvictAndRemainUsedAcrossBridgeGenerations() {
+    val fullLedger = (0 until OperatorBridgeSessionStore.MAX_OPERATION_IDS_PER_EPOCH).map { index ->
+      "operation_${index.toString().padStart(8, '0')}"
+    }
+    assertEquals(fullLedger, OperatorBridgeOperationLedgerPolicy.normalize(fullLedger))
+    assertThrows(IllegalArgumentException::class.java) {
+      OperatorBridgeOperationLedgerPolicy.append(fullLedger, "operation_new_identifier")
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      OperatorBridgeOperationLedgerPolicy.append(fullLedger.take(256), fullLedger.first())
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      OperatorBridgeSessionPolicy.requireIssuanceAllowed(
+        now = 2_000L,
+        bridgeGeneration = 99L,
+        operationAlreadyUsed = true,
+        recentIssueTimes = emptyList(),
+        activeSessionCount = 0,
+        issuedOperationCount = 256,
+        entropyBytes = OperatorBridgeSessionStore.SESSION_SECRET_BYTES,
+      )
+    }
+  }
+
+  @Test
+  fun operationLedgerIsExplicitlyBootstrapEpochScopedAndFailsClosedOnMismatch() {
+    assertEquals(
+      "provider-epoch-a",
+      OperatorBridgeOperationLedgerPolicy.requireEpoch(null, "provider-epoch-a"),
+    )
+    assertEquals(
+      "provider-epoch-a",
+      OperatorBridgeOperationLedgerPolicy.requireEpoch("provider-epoch-a", "provider-epoch-a"),
+    )
+    assertThrows(IllegalArgumentException::class.java) {
+      OperatorBridgeOperationLedgerPolicy.requireEpoch("provider-epoch-old", "provider-epoch-new")
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      OperatorBridgeOperationLedgerPolicy.normalize(
+        listOf("operation_identifier", "operation_identifier")
+      )
+    }
+    assertThrows(IllegalArgumentException::class.java) {
+      OperatorBridgeOperationLedgerPolicy.normalize(listOf("bad id"))
     }
   }
 

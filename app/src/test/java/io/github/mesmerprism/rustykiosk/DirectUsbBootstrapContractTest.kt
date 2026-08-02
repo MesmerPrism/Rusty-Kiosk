@@ -29,6 +29,7 @@ class DirectUsbBootstrapContractTest {
     assertEquals("operation_id", RustyKioskOperatorContract.RESULT_OPERATION_ID)
     assertEquals("session_secret_base64", RustyKioskOperatorContract.RESULT_SESSION_SECRET_BASE64)
     assertEquals(32, OperatorBridgeSessionStore.SESSION_SECRET_BYTES)
+    assertEquals(4096, OperatorBridgeSessionStore.MAX_OPERATION_IDS_PER_EPOCH)
     assertEquals("rusty.kiosk.direct_operator.v2", OperatorBridgeSessionStore.CAPABILITY)
     assertTrue(
       OperatorBridgeSessionStore.CLEANUP_OWNERSHIP_LIFETIME_MS >

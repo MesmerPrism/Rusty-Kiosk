@@ -460,6 +460,9 @@ private class OperatorBridgeHttpServer(
     require(commitments.map { it.name }.distinct().size == commitments.size) {
       "Install part names must be unique."
     }
+    RustyKioskInstaller(context).retryCleanupIfRequired(requestId)?.let { receipt ->
+      return receipt.toJson()
+    }
     val parts = commitments.map { commitment ->
       val file = File(stagingDirectory, commitment.name)
       require(file.isFile && file.length() == commitment.bytes) {
