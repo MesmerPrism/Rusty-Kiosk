@@ -22,7 +22,7 @@ val launcherApplicationId =
   launcherDistribution.map { distribution ->
     when (distribution) {
       "Store" -> "io.github.mesmerprism.rustykiosk.launcher"
-      "LabsStore" -> "io.github.mesmerprism.rustykiosk.launcher.labs"
+      "LabsStore" -> "io.github.mesmerprism.rustykiosk.launcher.labstore"
       "Business" -> "io.github.mesmerprism.rustykiosk.launcher.business"
       else -> error(
         "RUSTY_KIOSK_LAUNCHER_DISTRIBUTION must be exactly Store, LabsStore, or Business",
@@ -43,7 +43,7 @@ val targetPackage =
 val launcherProductChannel =
   launcherDistribution.map { if (it == "LabsStore") "labs" else "stable" }
 val launcherLabel =
-  launcherDistribution.map { if (it == "LabsStore") "Rusty Kiosk Labs Launcher" else "Rusty Kiosk Launcher" }
+  launcherDistribution.map { if (it == "LabsStore") "Rusty Kiosk Lab Launcher" else "Rusty Kiosk Launcher" }
 
 val releaseKeystorePath =
   providers.environmentVariable("RUSTY_KIOSK_LAUNCHER_KEYSTORE_PATH").orNull

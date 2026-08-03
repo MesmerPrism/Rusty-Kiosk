@@ -13,7 +13,7 @@ if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [vers
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $releasePackages = [ordered]@{
   Store = 'io.github.mesmerprism.rustykiosk.launcher'
-  LabsStore = 'io.github.mesmerprism.rustykiosk.launcher.labs'
+  LabsStore = 'io.github.mesmerprism.rustykiosk.launcher.labstore'
   Business = 'io.github.mesmerprism.rustykiosk.launcher.business'
 }
 if ($Distribution -cnotin @($releasePackages.Keys)) {
@@ -27,7 +27,7 @@ $productionTarget = if ($Distribution -ceq 'LabsStore') {
 }
 $productChannel = if ($Distribution -ceq 'LabsStore') { 'labs' } else { 'stable' }
 $expectedLabel = if ($Distribution -ceq 'LabsStore') {
-  'Rusty Kiosk Labs Launcher'
+  'Rusty Kiosk Lab Launcher'
 } else {
   'Rusty Kiosk Launcher'
 }

@@ -19,7 +19,7 @@ authority.
 | Surface | Package |
 | --- | --- |
 | Stable Store launcher | `io.github.mesmerprism.rustykiosk.launcher` |
-| Labs Store launcher | `io.github.mesmerprism.rustykiosk.launcher.labs` |
+| Labs Store launcher | `io.github.mesmerprism.rustykiosk.launcher.labstore` |
 | Quest Private App / Business launcher | `io.github.mesmerprism.rustykiosk.launcher.business` |
 | Stable Rusty Kiosk target | `io.github.mesmerprism.rustykiosk` |
 | Labs Rusty Kiosk target | `io.github.mesmerprism.rustykiosk.labs` |
