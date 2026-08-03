@@ -673,7 +673,7 @@ if (@([regex]::Matches($launcherManifest, '<package\s+android:name=')).Count -ne
 }
 foreach ($token in @(
   'io.github.mesmerprism.rustykiosk.launcher',
-  'io.github.mesmerprism.rustykiosk.launcher.labs',
+  'io.github.mesmerprism.rustykiosk.launcher.labstore',
   'io.github.mesmerprism.rustykiosk.launcher.business',
   'RUSTY_KIOSK_LAUNCHER_DISTRIBUTION',
   'rusty-kiosk-v0.6.4-bundle-manifest.json',
@@ -825,7 +825,7 @@ foreach ($contract in @(
   @{ Text = $ciWorkflow; Token = 'runs-on: windows-2025'; Name = 'bounded CI runner generation' },
   @{ Text = $ciWorkflow; Token = 'timeout-minutes: 45'; Name = 'bounded CI runtime' },
   @{ Text = $labsLauncherCandidate; Token = "distribution_track = 'meta-store-app'"; Name = 'Labs launcher Meta Store track' },
-  @{ Text = $labsLauncherCandidate; Token = 'separate Rusty Kiosk Labs Launcher Store app'; Name = 'separate Labs Store identity' },
+  @{ Text = $labsLauncherCandidate; Token = 'separate Rusty Kiosk Lab Launcher Store app'; Name = 'separate Labs Store identity' },
   @{ Text = $releaseSignerPolicy; Token = '423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb'; Name = 'authorized signer pin' },
   @{ Text = $releaseSignerPolicy; Token = 'e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2'; Name = 'signer-policy provenance' },
   @{ Text = $agentNotes; Token = 'separate-coinstallable'; Name = 'agent Labs ownership' },
@@ -1012,7 +1012,7 @@ try {
       $launcherLabsReleaseText,
       '<manifest[^>]+\bpackage="([^"]+)"'
     ).Groups[1].Value
-  if ($launcherLabsReleasePackage -cne 'io.github.mesmerprism.rustykiosk.launcher.labs' -or
+  if ($launcherLabsReleasePackage -cne 'io.github.mesmerprism.rustykiosk.launcher.labstore' -or
       $launcherLabsReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs') {
     throw 'The Labs launcher is not fixed to the Labs core identity.'
   }

@@ -7,6 +7,9 @@ offers normal or soft-kiosk launch.
 
 New-user setup and behavior are explained on the
 [Rusty Kiosk onboarding site](https://mesmerprism.com/Rusty-Kiosk/).
+Friends testing the co-installable pre-release should instead follow the
+[Labs tester setup](docs/LABS_TESTING.md), which binds the exact Meta Alpha,
+guided Windows installer, and Kiosk Labs release.
 
 The project is intentionally not a Home replacement or managed-device kiosk.
 Its optional Accessibility service is a foreground watchdog:
@@ -130,7 +133,8 @@ The recommended installation route remains
 [QuestIonAble File Manager](https://mesmerprism.com/QuestIonAble-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
-The current published bundle is version `0.6.5`; version `0.6.4` remains the
+The current stable published bundle is version `0.6.5`; the current
+co-installable Labs prerelease is `0.6.6-alpha.8`. Version `0.6.4` remains the
 watchdog-recovery reliability release and `0.6.3` the first published bundle.
 The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are retained as
 pre-publication workflow-failure checkpoints and have no release assets.

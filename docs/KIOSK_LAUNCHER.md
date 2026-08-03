@@ -19,7 +19,7 @@ authority.
 | Surface | Package |
 | --- | --- |
 | Stable Store launcher | `io.github.mesmerprism.rustykiosk.launcher` |
-| Labs Store launcher | `io.github.mesmerprism.rustykiosk.launcher.labs` |
+| Labs Store launcher | `io.github.mesmerprism.rustykiosk.launcher.labstore` |
 | Quest Private App / Business launcher | `io.github.mesmerprism.rustykiosk.launcher.business` |
 | Stable Rusty Kiosk target | `io.github.mesmerprism.rustykiosk` |
 | Labs Rusty Kiosk target | `io.github.mesmerprism.rustykiosk.labs` |
@@ -28,8 +28,10 @@ The Stable Store launcher is already public at
 <https://www.meta.com/en-gb/experiences/rusty-kiosk-launcher/1241943475671333/>.
 Labs is intentionally a second Store app rather than a release-channel upload
 to that listing, so both launchers can coexist and each remains pinned to its
-matching Kiosk product channel. Registration and Store publication of the Labs
-app remain an attended Meta-console step.
+matching Kiosk product channel. The Labs launcher is published to a link-only
+Meta Alpha channel at <https://www.meta.com/s/4SlXf1lVo>. It remains a small
+handoff app: testers install and provision the Labs core separately by following
+the [Labs tester setup](LABS_TESTING.md).
 
 The launcher manifest declares one exact `<queries><package ... /></queries>`
 entry. It does not use `QUERY_ALL_PACKAGES`.

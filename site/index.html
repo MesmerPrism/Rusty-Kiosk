@@ -31,6 +31,7 @@
         <a class="product-name" href="./">Rusty Kiosk</a>
       </div>
       <nav class="site-nav" aria-label="Rusty Kiosk navigation">
+        <a href="#labs">Labs testing</a>
         <a href="#guide">Visual guide</a>
         <a href="#setup">Set up</a>
         <a href="#use">First use</a>
@@ -50,6 +51,21 @@
         <a class="action-link" href="https://github.com/MesmerPrism/Rusty-Kiosk/releases/latest">Standalone release bundle</a>
       </div>
       <p class="availability">File Manager is the recommended setup route. Advanced operators can also download the signed Kiosk APK pair, license, source pointer, and verification manifest from GitHub Releases.</p>
+    </section>
+
+    <section id="labs" class="section" aria-labelledby="labs-title">
+      <div class="section-heading">
+        <p class="product-context">Current public preview</p>
+        <h2 id="labs-title">Help test Rusty Kiosk Labs</h2>
+        <p>The tested Alpha.8 setup has two parts: File Manager Labs installs and provisions the full Kiosk core; the Meta Alpha installs a small launcher that opens that trusted core.</p>
+      </div>
+      <div class="actions">
+        <a class="action-link action-link--strong" href="https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/download/v0.5.0-alpha.7/QuestIonAbleFileManager-Labs-Setup.exe">Download the guided Labs installer</a>
+        <a class="action-link" href="https://www.meta.com/s/4SlXf1lVo">Join the Meta Alpha</a>
+        <a class="action-link" href="https://github.com/MesmerPrism/Rusty-Kiosk/blob/main/docs/LABS_TESTING.md">Read every setup and test step</a>
+      </div>
+      <p class="callout"><strong>Install the core first.</strong> The Meta app does not install or update Rusty Kiosk itself. On Windows, use File Manager Labs 0.5.0-alpha.7 and choose <strong>Install and provision (USB)</strong>; it embeds the exact signed Kiosk 0.6.6-alpha.8 bundle.</p>
+      <p class="availability">This link-only preview requires Developer Mode and one authorized USB connection for initial core setup. The per-app Wi-Fi on/off launch requirement is included and is separate from optional Wi-Fi ADB.</p>
     </section>
 
     <aside class="requirements" aria-labelledby="requirements-title">
@@ -79,6 +95,10 @@
         <article>
           <h3>Choose how it opens</h3>
           <p>Use a normal launch for ordinary Quest behavior, or kiosk launch when you want the selected app to be restored after Home.</p>
+        </article>
+        <article>
+          <h3>Require Wi-Fi on or off</h3>
+          <p>Give an app an optional Wi-Fi requirement. When it is not met, Kiosk opens visible Android Wi-Fi settings instead of changing the radio itself.</p>
         </article>
       </div>
     </section>

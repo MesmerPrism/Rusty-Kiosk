@@ -170,7 +170,7 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - Kiosk Labs is a `separate-coinstallable` product under main package
   `io.github.mesmerprism.rustykiosk.labs`, helper package
   `io.github.mesmerprism.rustykiosk.setuphelper.labs`, and launcher package
-  `io.github.mesmerprism.rustykiosk.launcher.labs`. Uninstalling Labs must not
+  `io.github.mesmerprism.rustykiosk.launcher.labstore`. Uninstalling Labs must not
   change stable. Release version codes are derived from the
   tag as `major*1,000,000 + minor*10,000 + patch*100 + suffix`, where alpha
   uses its 1..98 ordinal and the later same-semantic stable release reserves

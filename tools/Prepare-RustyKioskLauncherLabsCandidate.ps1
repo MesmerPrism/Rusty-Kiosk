@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ne 0) {
 $build = Get-Content -Raw -LiteralPath $buildMetadataPath | ConvertFrom-Json
 if (
   $build.distribution -cne 'LabsStore' -or
-  $build.package -cne 'io.github.mesmerprism.rustykiosk.launcher.labs'
+  $build.package -cne 'io.github.mesmerprism.rustykiosk.launcher.labstore'
 ) {
   throw 'The Labs candidate builder returned the wrong release identity.'
 }
@@ -85,7 +85,7 @@ $summaryPath = Join-Path $candidateDir 'candidate-summary.json'
 $summary | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $summaryPath -Encoding utf8NoBOM
 
 $checklist = @(
-  '# Rusty Kiosk Labs Launcher Candidate',
+  '# Rusty Kiosk Lab Launcher Candidate',
   '',
   "- Package: $($build.package)",
   "- Version: $($build.version_name) ($($build.version_code))",
@@ -96,7 +96,7 @@ $checklist = @(
   '- Maturity: alpha',
   '',
   '1. Create or select the separate Rusty Kiosk Launcher app in Meta Horizon Developer Dashboard.',
-  '2. Upload this APK to the separate Rusty Kiosk Labs Launcher Store app.',
+  '2. Upload this APK to the separate Rusty Kiosk Lab Launcher Store app.',
   '3. Upload the APK in this directory and wait for build availability.',
   '4. Add only the intended Labs testers before broadening availability.',
   '5. Install through My Preview Apps and rerun the trusted-target smoke with:',
