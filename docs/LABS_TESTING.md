@@ -3,7 +3,7 @@
 Rusty Kiosk Labs is a pre-release build for invited Meta Quest testers. The
 current tested pair is:
 
-- Rusty Kiosk Labs `v0.6.6-alpha.8` on the headset;
+- Rusty Kiosk Labs `v0.6.6-alpha.9` on the headset;
 - QuestIonAble File Manager Labs `v0.5.0-alpha.8` on Windows.
 
 The Meta Alpha app is a small launcher. It opens the separately installed
@@ -15,7 +15,7 @@ permissions visible to the wearer.
 
 - [Join the Meta Alpha](https://www.meta.com/s/4SlXf1lVo)
 - [Download the guided Windows Labs installer](https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/download/v0.5.0-alpha.8/QuestIonAbleFileManager-Labs-Setup.exe)
-- [Inspect the exact Kiosk Labs release](https://github.com/MesmerPrism/Rusty-Kiosk/releases/tag/v0.6.6-alpha.8)
+- [Inspect the exact Kiosk Labs release](https://github.com/MesmerPrism/Rusty-Kiosk/releases/tag/v0.6.6-alpha.9)
 - [Inspect the exact File Manager Labs release](https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/tag/v0.5.0-alpha.8)
 
 These exact-version links are intentional. Labs releases are immutable
@@ -47,9 +47,13 @@ permanent Wi-Fi ADB, or a PC connection.
    **Install and provision (USB)**.
 5. Open Rusty Kiosk Labs on the headset. Under **User controls**, confirm that
    setup is ready. Enable the **Accessibility soft guard** only if you want to
-   test Kiosk launch and its Home-button return behavior.
+   test Kiosk launch and its Home-button return behavior. If Horizon blocks the
+   service as a restricted setting, Rusty Kiosk opens its own app-details page;
+   choose **Allow restricted settings** if offered, return, and try again. The
+   guided USB provisioning route authorizes that gate for the exact Labs
+   package, but deliberately does not enable Accessibility for you.
 
-The File Manager installer embeds the exact signed Kiosk Alpha.8 bundle. You do
+The File Manager installer embeds the exact signed Kiosk Alpha.9 bundle. You do
 not need to download or select either Kiosk APK manually.
 
 ## Install the Meta Alpha launcher
