@@ -244,6 +244,9 @@ run should prove:
     provisioning;
 14. Accessibility can be enabled and disabled through the fixed helper while
     every other enabled Accessibility service is preserved;
+    repeat this for an on-device-installed Labs package after the wearer grants
+    **Allow restricted settings**, and require effective service binding rather
+    than only a secure-settings write;
 15. disabling Wi-Fi ADB leaves Accessibility unchanged;
 16. the restart request is off by default, can be enabled and disabled, and
     causes a new request only when enabled;

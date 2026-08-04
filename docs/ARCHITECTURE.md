@@ -70,6 +70,7 @@ and Wi-Fi ADB state after completion.
 | Visible status and consent actions | `RustyKioskActivity` / `UserControlState` |
 | Fixed privileged operations | `setup-helper` / `SetupExecutor` |
 | Effective Accessibility state | Android `AccessibilityManager` readback |
+| Restricted Accessibility admission after an on-device install | Android/Horizon app details + wearer, or exact-package developer-ADB provisioning |
 | Effective Wi-Fi ADB setting | Android `Settings.Global` readback |
 | One-time helper provisioning | serial-scoped host script over USB-C ADB |
 | Debug CLI admission | debug manifest + sender-held `android.permission.DUMP` |
@@ -253,6 +254,7 @@ same generation-bound recovery engine and bounded attempt claims.
 - silent or unattended app installation, installer-prompt approval, downgrade,
   test-only, or automatic runtime-permission grants through the direct link;
 - `WRITE_SECURE_SETTINGS` in the main Rusty Kiosk APK;
+- self-approval or setup-helper approval of Android's restricted-settings gate;
 - raw shell, terminal UI, arbitrary package/component input, unrestricted
   paths, or arbitrary network commands;
 - display-coordinate touch injection as acceptance evidence;
