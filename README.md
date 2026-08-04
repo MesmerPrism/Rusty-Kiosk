@@ -134,7 +134,7 @@ The recommended installation route remains
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
 The current stable published bundle is version `0.6.5`; the current
-co-installable Labs prerelease is `0.6.6-alpha.8`. Version `0.6.4` remains the
+co-installable Labs prerelease is `0.6.6-alpha.9`. Version `0.6.4` remains the
 watchdog-recovery reliability release and `0.6.3` the first published bundle.
 The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are retained as
 pre-publication workflow-failure checkpoints and have no release assets.
