@@ -120,7 +120,6 @@ foreach ($token in @(
     throw "The generation-bound advisory foreground route is missing: $token"
   }
 }
-
 $activitySource = Get-Content -Raw -LiteralPath $activitySourcePath
 foreach ($token in @(
   'RustyKioskPassthroughController',
@@ -129,6 +128,15 @@ foreach ($token in @(
 )) {
   if (-not $activitySource.Contains($token, [StringComparison]::Ordinal)) {
     throw "Spatial activity is missing the passthrough control path: $token"
+  }
+}
+foreach ($token in @(
+  'ACTION_APPLICATION_DETAILS_SETTINGS',
+  'Allow restricted settings',
+  'ACCESSIBILITY_RESTRICTED_SETTINGS_GUIDANCE'
+)) {
+  if (-not $activitySource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The wearer-visible restricted Accessibility recovery route is missing: $token"
   }
 }
 if ($activitySource -match 'skybox|Composition\.glxf|collab_room') {
@@ -629,7 +637,15 @@ foreach ($token in @('ProcessBuilder', 'Runtime.getRuntime', 'java.lang.Process'
 }
 
 $provisionScript = Get-Content -Raw -LiteralPath $provisionScriptPath
-foreach ($token in @('-s $Serial', 'WRITE_SECURE_SETTINGS', 'setup-helper-debug.apk', 'dumpsys package')) {
+foreach ($token in @(
+  '-s $Serial',
+  'WRITE_SECURE_SETTINGS',
+  'ACCESS_RESTRICTED_SETTINGS',
+  'rustyKioskProductChannel',
+  'io.github.mesmerprism.rustykiosk.labs',
+  'setup-helper-debug.apk',
+  'dumpsys package'
+)) {
   if (-not $provisionScript.Contains($token, [StringComparison]::Ordinal)) {
     throw "The serial-scoped provisioning workflow is missing: $token"
   }

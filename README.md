@@ -235,6 +235,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
   -Serial <quest-serial>
 ```
 
+Use `-ProductChannel labs` for the co-installable Labs pair. The developer
+provisioning step also authorizes Android's restricted-settings gate for that
+exact Kiosk package, but it still does not enable Accessibility. If a Kiosk APK
+was installed by the on-device Package Installer instead, Android may require
+the wearer to open the app-details menu and choose **Allow restricted settings**
+before enabling its Accessibility service.
+
 The script grants `WRITE_SECURE_SETTINGS` only to the dedicated, same-signer
 setup helper. It launches Rusty Kiosk but enables neither Wi-Fi ADB nor
 Accessibility.

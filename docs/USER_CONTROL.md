@@ -38,11 +38,20 @@ cancel route while the bounded launch is pending.
      -Serial <quest-serial>
    ```
 
+   Add `-ProductChannel labs` for Rusty Kiosk Labs. This attended developer-ADB
+   step authorizes Android's restricted-settings gate only for the selected
+   Kiosk package; it does not enable Accessibility.
+
 4. Open **User controls**. **Setup: Ready** proves that the helper is installed,
    same-signer authorized, and holds the one-time provisioned settings grant.
 5. Press **Request Wi-Fi ADB** only if wireless debugging is wanted. Horizon may
    show a protected Meta prompt; the wearer must approve or decline it.
-6. Press **Enable Accessibility** only if soft-kiosk launch is wanted.
+6. Press **Enable Accessibility** only if soft-kiosk launch is wanted. If the
+   Kiosk APK came from an on-device installer, Android can block this as a
+   restricted setting. Rusty Kiosk opens its own app-details page; choose
+   **Allow restricted settings** if offered, return, and press **Enable
+   Accessibility** again. A managed-headset policy may instead require its
+   administrator.
 7. Press **Enable direct link** only if the local Windows operator is wanted.
    Enter the displayed address and pairing code on the PC. Wi-Fi ADB is not
    required for this connection.
@@ -118,6 +127,10 @@ component while preserving all other enabled services.
   behavior.
 - An authorized USB-C ADB session may explicitly revoke the helper grant or
   reinstall both APKs.
+- An authorized developer-ADB session may set the exact Kiosk package's
+  `ACCESS_RESTRICTED_SETTINGS` app-op to `allow`; the provisioning and
+  Accessibility helper scripts do this with exact package readback. This does
+  not enable the Accessibility service or approve a managed-device policy.
 - Press **Exit to Meta Home** or use Home while Rusty Kiosk is visible. Both
   routes disarm pending kiosk guard state.
 

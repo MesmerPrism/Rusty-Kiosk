@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityManager
+import android.widget.Toast
 import com.meta.spatial.core.Entity
 import com.meta.spatial.core.Pose
 import com.meta.spatial.core.Quaternion
@@ -802,12 +803,23 @@ class RustyKioskActivity : AppSystemActivity() {
       refreshUserControls(result.message)
       mainHandler.postDelayed(
         {
-          refreshUserControls(result.message)
+          val accessibilityAuthorizationRequired =
+            operation == SetupHelperOperation.ENABLE_ACCESSIBILITY && !isGuardEnabled()
+          val message =
+            if (accessibilityAuthorizationRequired) {
+              ACCESSIBILITY_RESTRICTED_SETTINGS_GUIDANCE
+            } else {
+              result.message
+            }
+          refreshUserControls(message)
           cliRequest?.let { request ->
             recordCliOutcome(
               request,
-              cliOutcome(result.success, true, result.message),
+              cliOutcome(result.success && !accessibilityAuthorizationRequired, true, message),
             )
+          }
+          if (accessibilityAuthorizationRequired && cliRequest == null) {
+            openRestrictedAccessibilitySettings()
           }
         },
         CONTROL_READBACK_SETTLE_MS,
@@ -818,6 +830,24 @@ class RustyKioskActivity : AppSystemActivity() {
         val message = throwable.message ?: "The fixed setup request could not be started."
         refreshUserControls(message)
         cliRequest?.let { request -> recordCliOutcome(request, cliOutcome(false, true, message)) }
+      }
+  }
+
+  private fun openRestrictedAccessibilitySettings() {
+    Toast.makeText(this, ACCESSIBILITY_RESTRICTED_SETTINGS_GUIDANCE, Toast.LENGTH_LONG).show()
+    runCatching {
+        startActivity(
+          Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.parse("package:$packageName"),
+          )
+        )
+      }
+      .onFailure { throwable ->
+        refreshUserControls(
+          "Android blocked Accessibility and app details could not be opened: " +
+            (throwable.message ?: throwable.javaClass.simpleName)
+        )
       }
   }
 
@@ -1026,6 +1056,10 @@ class RustyKioskActivity : AppSystemActivity() {
     const val VIEW_ORIGIN_Z_METERS = 2.0f
     const val RETURN_RESTART_DELAY_MS = 500L
     const val ACCESSIBILITY_DISABLE_SETTLE_MS = 800L
+    const val ACCESSIBILITY_RESTRICTED_SETTINGS_GUIDANCE =
+      "Android blocked this locally installed app's restricted Accessibility setting. " +
+        "In app details, choose Allow restricted settings if offered, return here, and retry. " +
+        "A managed headset may require its administrator."
     const val OPERATOR_BRIDGE_SETTLE_MS = 700L
     const val CONTROL_READBACK_SETTLE_MS = 600L
     const val PASSTHROUGH_READBACK_SETTLE_MS = 750L
