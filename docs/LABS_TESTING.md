@@ -4,7 +4,7 @@ Rusty Kiosk Labs is a pre-release build for invited Meta Quest testers. The
 current tested pair is:
 
 - Rusty Kiosk Labs `v0.6.6-alpha.9` on the headset;
-- QuestIonAble File Manager Labs `v0.5.0-alpha.10` on Windows.
+- QuestIonAble File Manager Labs `v0.5.0-alpha.14` on Windows.
 
 The Meta Alpha app is a small launcher. It opens the separately installed
 Rusty Kiosk Labs core, but it cannot install, update, or provision that core.
@@ -14,9 +14,9 @@ permissions visible to the wearer.
 ## Downloads
 
 - [Join the Meta Alpha](https://www.meta.com/s/4SlXf1lVo)
-- [Download the guided Windows Labs installer](https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/download/v0.5.0-alpha.10/QuestIonAbleFileManager-Labs-Setup.exe)
+- [Download the guided Windows Labs installer](https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/download/v0.5.0-alpha.14/QuestIonAbleFileManager-Labs-Setup.exe)
 - [Inspect the exact Kiosk Labs release](https://github.com/MesmerPrism/Rusty-Kiosk/releases/tag/v0.6.6-alpha.9)
-- [Inspect the exact File Manager Labs release](https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/tag/v0.5.0-alpha.10)
+- [Inspect the exact File Manager Labs release](https://github.com/MesmerPrism/QuestIonAble-File-Manager/releases/tag/v0.5.0-alpha.14)
 
 These exact-version links are intentional. Labs releases are immutable
 prereleases and never replace the stable `latest` download.
