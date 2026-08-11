@@ -110,13 +110,17 @@ export function deriveTags(state) {
 }
 
 export function visibleEntries(state) {
-  const terms = normalize(state.searchQuery).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  const terms = parseSearchTerms(state.searchQuery);
   const selectedTag = state.selectedTag ? normalizeTag(state.selectedTag) : null;
   return state.entries
     .filter((entry) => !selectedTag || entry.tags.map(normalizeTag).includes(selectedTag))
     .filter((entry) => {
       const searchable = [entry.label, entry.packageName ?? "", ...entry.tags].map(normalize);
-      return terms.every((term) => searchable.some((value) => value.includes(term)));
+      return terms.every((term) =>
+        searchable.some((value) =>
+          term.phrase ? normalizeSearchPhrase(value).includes(term.value) : value.includes(term.value),
+        ),
+      );
     })
     .sort(
       (left, right) =>
@@ -223,6 +227,34 @@ function updateSelected(state, update) {
 
 function normalize(value) {
   return String(value).trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function parseSearchTerms(value) {
+  const terms = [];
+  const token = [];
+  let quoted = false;
+  const flush = () => {
+    const normalized = quoted ? normalizeSearchPhrase(token.join("")) : normalize(token.join(""));
+    if (normalized) terms.push({ value: normalized, phrase: quoted });
+    token.length = 0;
+  };
+
+  for (const character of String(value)) {
+    if (character === '"') {
+      flush();
+      quoted = !quoted;
+    } else if (quoted || /[\p{L}\p{N}]/u.test(character)) {
+      token.push(character);
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return terms;
+}
+
+function normalizeSearchPhrase(value) {
+  return normalize(value).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 function normalizeTag(value) {
