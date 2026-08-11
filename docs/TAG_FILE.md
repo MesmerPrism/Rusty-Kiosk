@@ -71,9 +71,11 @@ changes cancels the old request and fails closed instead of switching targets.
    labeled **Not installed**.
 4. Tags added in the panel are saved with both name and package when the
    selected app is installed, making the new record unambiguous.
-5. Search splits on whitespace and requires every term to match the same
-   entry's display name, package name, or tags. Tag filtering includes missing
-   synthetic entries.
+5. Unquoted search splits on separators and requires every term to match the
+   same entry's display name, package name, or tags. Double quotes group one
+   contiguous phrase that must occur within a single field; separators inside
+   the phrase normalize to spaces. Tag filtering includes missing synthetic
+   entries.
 
 The file contains low-rate user organization data only. It never stores APK
 paths, activities, signing data, permissions, commands, or binary payloads.

@@ -31,6 +31,11 @@ const splitFields = { ...ready, searchQuery: "example web" };
 assert.deepEqual(visibleEntries(splitFields).map((entry) => entry.label), ["Orbit Browser"]);
 const separatedTerms = { ...ready, searchQuery: "orbit/onboarding" };
 assert.deepEqual(visibleEntries(separatedTerms).map((entry) => entry.label), ["Orbit Browser"]);
+const quotedLabel = { ...ready, searchQuery: '"orbit browser"' };
+assert.deepEqual(visibleEntries(quotedLabel).map((entry) => entry.label), ["Orbit Browser"]);
+const quotedPackage = { ...ready, searchQuery: '"example/browser"' };
+assert.deepEqual(visibleEntries(quotedPackage).map((entry) => entry.label), ["Orbit Browser"]);
+assert.deepEqual(visibleEntries({ ...ready, searchQuery: '"example web"' }), []);
 assert.deepEqual(visibleEntries({ ...ready, searchQuery: "movement web" }), []);
 assert.deepEqual(visibleEntries({ ...ready, searchQuery: "movement/web" }), []);
 
