@@ -19,7 +19,7 @@ Unit tests cover:
 - tag-file parsing and normalization;
 - package-first and name-only catalogue matching;
 - missing name-only entries remaining visible under their tags;
-- multi-term search across labels, packages, and tags plus tag filtering;
+- separator-tolerant multi-term search across labels, packages, and tags plus tag filtering;
 - retained search, tag-filter, and visible-selection restoration plus explicit
   filter clearing;
 - normal launch disarming before launch;

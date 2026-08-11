@@ -110,7 +110,7 @@ export function deriveTags(state) {
 }
 
 export function visibleEntries(state) {
-  const terms = normalize(state.searchQuery).split(" ").filter(Boolean);
+  const terms = normalize(state.searchQuery).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const selectedTag = state.selectedTag ? normalizeTag(state.selectedTag) : null;
   return state.entries
     .filter((entry) => !selectedTag || entry.tags.map(normalizeTag).includes(selectedTag))

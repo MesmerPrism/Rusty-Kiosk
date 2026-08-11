@@ -29,7 +29,10 @@ const multiTerm = { ...ready, searchQuery: "orbit onboarding" };
 assert.deepEqual(visibleEntries(multiTerm).map((entry) => entry.label), ["Orbit Browser"]);
 const splitFields = { ...ready, searchQuery: "example web" };
 assert.deepEqual(visibleEntries(splitFields).map((entry) => entry.label), ["Orbit Browser"]);
+const separatedTerms = { ...ready, searchQuery: "orbit/onboarding" };
+assert.deepEqual(visibleEntries(separatedTerms).map((entry) => entry.label), ["Orbit Browser"]);
 assert.deepEqual(visibleEntries({ ...ready, searchQuery: "movement web" }), []);
+assert.deepEqual(visibleEntries({ ...ready, searchQuery: "movement/web" }), []);
 
 const tagged = addTag(ready, "  Utilities  ");
 assert.deepEqual(selectedEntry(tagged).tags, ["onboarding", "utilities", "web"]);
