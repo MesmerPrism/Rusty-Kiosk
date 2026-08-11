@@ -229,7 +229,8 @@ internal object CatalogFilter {
     val terms =
       normalizeLookup(searchQuery)
         .takeIf(String::isNotEmpty)
-        ?.split(" ")
+        ?.split(SEARCH_TERM_SEPARATOR)
+        ?.filter(String::isNotEmpty)
         .orEmpty()
     val tag = selectedTag?.let(::normalizeTag)
     return entries
@@ -333,4 +334,5 @@ internal fun normalizeLookup(value: String): String =
 
 internal fun normalizeTag(value: String): String = normalizeLookup(value).take(MAX_TAG_LENGTH)
 
+private val SEARCH_TERM_SEPARATOR = Regex("[^\\p{L}\\p{N}]+")
 private const val MAX_TAG_LENGTH = 40
