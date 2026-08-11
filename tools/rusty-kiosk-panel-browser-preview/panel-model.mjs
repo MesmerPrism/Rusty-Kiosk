@@ -110,17 +110,14 @@ export function deriveTags(state) {
 }
 
 export function visibleEntries(state) {
-  const query = normalize(state.searchQuery);
+  const terms = normalize(state.searchQuery).split(" ").filter(Boolean);
   const selectedTag = state.selectedTag ? normalizeTag(state.selectedTag) : null;
   return state.entries
     .filter((entry) => !selectedTag || entry.tags.map(normalizeTag).includes(selectedTag))
-    .filter(
-      (entry) =>
-        !query ||
-        normalize(entry.label).includes(query) ||
-        normalize(entry.packageName ?? "").includes(query) ||
-        entry.tags.some((tag) => normalize(tag).includes(query)),
-    )
+    .filter((entry) => {
+      const searchable = [entry.label, entry.packageName ?? "", ...entry.tags].map(normalize);
+      return terms.every((term) => searchable.some((value) => value.includes(term)));
+    })
     .sort(
       (left, right) =>
         Number(right.installed) - Number(left.installed) ||

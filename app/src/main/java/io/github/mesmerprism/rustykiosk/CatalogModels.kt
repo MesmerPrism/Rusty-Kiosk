@@ -226,16 +226,20 @@ internal object CatalogFilter {
     searchQuery: String,
     selectedTag: String?,
   ): List<CatalogEntry> {
-    val query = normalizeLookup(searchQuery)
+    val terms =
+      normalizeLookup(searchQuery)
+        .takeIf(String::isNotEmpty)
+        ?.split(" ")
+        .orEmpty()
     val tag = selectedTag?.let(::normalizeTag)
     return entries
       .asSequence()
       .filter { entry -> tag == null || tag in entry.tags }
       .filter { entry ->
-        query.isEmpty() ||
-          normalizeLookup(entry.label).contains(query) ||
-          normalizeLookup(entry.packageName.orEmpty()).contains(query) ||
-          entry.tags.any { normalizeLookup(it).contains(query) }
+        val searchable =
+          listOf(normalizeLookup(entry.label), normalizeLookup(entry.packageName.orEmpty())) +
+            entry.tags.map(::normalizeLookup)
+        terms.all { term -> searchable.any { value -> value.contains(term) } }
       }
       .sortedWith(
         compareByDescending<CatalogEntry> { it.installed }

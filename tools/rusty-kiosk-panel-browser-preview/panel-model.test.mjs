@@ -25,6 +25,11 @@ assert.equal(selectedEntry(missing).installed, false);
 
 const searched = { ...ready, searchQuery: "io.example" };
 assert.deepEqual(visibleEntries(searched).map((entry) => entry.label), ["Movement Demo"]);
+const multiTerm = { ...ready, searchQuery: "orbit onboarding" };
+assert.deepEqual(visibleEntries(multiTerm).map((entry) => entry.label), ["Orbit Browser"]);
+const splitFields = { ...ready, searchQuery: "example web" };
+assert.deepEqual(visibleEntries(splitFields).map((entry) => entry.label), ["Orbit Browser"]);
+assert.deepEqual(visibleEntries({ ...ready, searchQuery: "movement web" }), []);
 
 const tagged = addTag(ready, "  Utilities  ");
 assert.deepEqual(selectedEntry(tagged).tags, ["onboarding", "utilities", "web"]);

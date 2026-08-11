@@ -32,7 +32,7 @@ Its optional Accessibility service is a foreground watchdog:
   color by default, and an optional contour-revealing color LUT;
 - launchable-app discovery for ordinary Android, 2D, Leanback, and Quest VR
   front doors;
-- installed-app search by label, package, or tag;
+- multi-term installed-app search across labels, packages, and tags;
 - tag filtering;
 - search text, active tag filter, and selected visible app retained across
   fresh Kiosk returns until the wearer changes or clears them;
