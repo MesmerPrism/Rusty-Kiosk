@@ -194,6 +194,15 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 Use `$meta-quest-workflow` before any headset, ADB, APK install/launch, logcat,
 screenshot, or physical-button validation. Keep raw device evidence private.
 
+## Reusable utility examples
+
+Start at `examples/README.md` for boot/wearer, BLE phone control, and WebSocket
+control compositions. These are documentation examples, not additions to any
+Kiosk release. Reusable Android adapters belong to Rusty Quest; an integrating
+app selects its own lifecycle, permissions, policy, identity, and effects.
+Keep the main app, setup helper, and fixed-target Launcher contracts separate.
+Follow `examples/AGENTS.md` when changing the catalogue.
+
 ## Checks
 
 The complete repository gate is required on every pull request and push to
