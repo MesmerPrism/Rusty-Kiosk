@@ -21,8 +21,11 @@ session, Arm, Save, or experiment rules into a shared controller.
   and application policy in their owning app.
 - **Receipts:** bind request identity and connection generation, distinguish
   write/notification delivery from accepted command and observed effect, and
-  make timeout or panel closure explicit. A missing receipt leaves the result
-  unresolved even if a later state observation suggests an effect occurred.
+  make timeout or panel closure explicit. A notification from an earlier
+  connection generation cannot confirm a request made after reconnect, even
+  when it arrives while the new request is pending. A missing matching effect
+  receipt leaves the result unresolved, even if a later state observation
+  suggests an effect occurred.
 
 Quest owns reusable Android BLE/GATT mechanics once an independent consumer or
 neutral harness supports extraction. The phone page may remain an app-owned

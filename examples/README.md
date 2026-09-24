@@ -29,6 +29,14 @@ they do not become the runtime controller. In particular, host-side APK/ADB
 operations do not replace Android component lifecycle or on-device package
 installation contracts. A standalone Connection Hub is one placement choice;
 an embedded broker may be appropriate under the same owner contracts.
+Hostess can project host checks, while QFM handles exact host-side APK/ADB
+effects; neither proves an application's command took effect.
+
+For the WebSocket composition, the Hub listener can remain active after a
+provider Activity stops and unregisters its surfaces. The provider's effect
+executor may no longer be available. Treat a pending action as unresolved
+until its bound provider receipt and separately observed app state establish
+the result; a transport acknowledgment or accepted command is insufficient.
 
 For every future runnable example, record the exact owner source revision,
 selected modules, dependencies and licence, package/signing identity,
