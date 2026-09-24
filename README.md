@@ -25,6 +25,11 @@ Its optional Accessibility service is a foreground watchdog:
 5. The watchdog is inactive in Rusty Kiosk, so Home then opens Meta Home
    normally.
 
+For reusable Quest utility composition, see the
+[documentation-only example catalogue](examples/README.md). Its boot/wearer,
+BLE phone-control, and WebSocket-control guidance is separate from the Kiosk
+products and their release builds.
+
 ## What the first example includes
 
 - one Spatial SDK native Android panel;

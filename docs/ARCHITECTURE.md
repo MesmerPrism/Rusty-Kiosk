@@ -18,11 +18,16 @@ Ship two same-signer APKs with deliberately separate authority:
   signature-protected fixed-operation broadcast from the main app.
 
 The separate native 2D `launcher` implementation has no authority in either
-APK. It is released under two exact package identities because Meta Store apps
-and Quest Private Apps occupy separate distribution namespaces. The Store and
-Business builds use the same source, launcher signer, target package, target
-signer pin, manifest capabilities, and handoff behavior. Their package identity
-is the only intentional runtime difference.
+APK. It has three exact release identities: Stable Store, Labs Store, and Quest
+Private App / Business. The Store and Business builds target the stable Kiosk
+package; the Labs Store build targets the separate co-installable Labs package.
+All three share the same source, launcher signer, closed manifest capabilities,
+and handoff behavior. Each build pins its intended target package and signer;
+distribution and target identity do not grant additional runtime authority.
+
+The [reusable utility example catalogue](../examples/README.md) documents
+separate consumer compositions. It does not add boot, BLE, WebSocket, or other
+capabilities to the main app, setup helper, or fixed-target Launcher.
 
 The main APK never receives secure-settings authority. The helper exposes no
 shell, terminal, free-form string operation, package/component choice, file
