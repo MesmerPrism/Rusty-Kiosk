@@ -5,6 +5,14 @@ Treat this as a transport and interaction example: a purpose-built app supplies
 its own command vocabulary and effects. Do not move application-specific
 session, Arm, Save, or experiment rules into a shared controller.
 
+The [public Quest BLE link test](https://mesmerprism.com/quest-ble-test/)
+provides a small runnable phone page for the Rusty Quest rendezvous diagnostic.
+Its [source at the reviewed revision](https://github.com/MesmerPrism/MesmerPrism.github.io/tree/480d11228d0451e6350d39386c64de7224615833/quest-ble-test)
+selects a nearby Quest through Web Bluetooth, reads an offer and status, and
+optionally sends one authenticated test proposal. It does not send application
+commands or establish an application effect. Its UUIDs and wire format belong
+to that diagnostic; copy neither into a different app's control protocol.
+
 ## Integration record
 
 - **Roles and permissions:** name the phone/browser central and Quest GATT
