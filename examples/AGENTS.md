@@ -1,8 +1,9 @@
 # Utility Example Agent Notes
 
-The [catalogue](README.md) is documentation for separate consumers. It does
-not build or release with Rusty Kiosk. Follow the owning Quest, Manifold, and
-application contracts before implementing any linked composition.
+The [catalogue](README.md) indexes separate consumers. Its standalone autoboot
+example builds in its own Android project; it is not a Kiosk release asset.
+Follow the owning Quest, Manifold, and application contracts before
+implementing any linked composition.
 
 Do not copy transport or command authority into an example. Keep package,
 signer, feature, marker, and build identities distinct. Never expand the main

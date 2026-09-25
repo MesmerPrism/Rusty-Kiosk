@@ -1063,6 +1063,19 @@ try {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }
   }
+  $exampleTasks = @('testDebugUnitTest', 'lintDebug')
+  $exampleManifest = Get-Content -Raw -LiteralPath (
+    Join-Path $repoRoot 'examples\quest-autoboot\src\main\AndroidManifest.xml')
+  if ($exampleManifest -notmatch '(?s)<receiver\s+android:name="\.BootEvents"\s+android:exported="false"' -or
+      $exampleManifest -notmatch '(?s)<receiver\s+android:name="\.RetryEvent"\s+android:exported="false"' -or
+      $exampleManifest -notmatch '(?s)<provider\s+android:name="\.OperatorProvider"[^>]+android:permission="android\.permission\.DUMP"') {
+    throw 'Standalone autoboot receiver/provider manifest boundary changed.'
+  }
+  if (-not $SkipAssemble) { $exampleTasks += 'assembleDebug' }
+  & .\gradlew.bat -p examples/quest-autoboot @exampleTasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Standalone Quest autoboot example gate failed with exit code $LASTEXITCODE."
+  }
   git diff --check
   if ($LASTEXITCODE -ne 0) {
     throw 'git diff --check failed.'
