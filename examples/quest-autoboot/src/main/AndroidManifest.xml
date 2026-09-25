@@ -24,7 +24,7 @@
                 <category android:name="com.oculus.intent.category.2D" />
             </intent-filter>
         </activity>
-        <receiver android:name=".BootEvents" android:exported="true">
+        <receiver android:name=".BootEvents" android:exported="false">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>
         </receiver>
         <receiver android:name=".RetryEvent" android:exported="false" />

@@ -19,6 +19,8 @@ boot. Missing or changed targets stop without another selection or fallback.
 The example records `launch-requested` when it calls Android `startActivity`;
 that does not prove the target became foreground or ready. Android background
 launch acceptance still depends on the installed OS.
+The boot and retry receivers are non-exported; Android's system boot broadcast
+still reaches the manifest receiver. This has not yet been verified on Quest.
 
 The only manifest permissions are `RECEIVE_BOOT_COMPLETED` and `WAKE_LOCK`.
 There is no Wi-Fi ADB, secure-settings grant, network listener, Accessibility,
