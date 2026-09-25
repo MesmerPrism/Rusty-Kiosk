@@ -1,14 +1,15 @@
 # Reusable Quest utility compositions
 
-This catalogue helps an application select reusable Quest capabilities. It is
-documentation only: no example APK, library, manifest permission, or service is
-included in Rusty Kiosk releases. An example demonstrates a composition; the
-owner library holds reusable implementation; the consuming app owns its
+This catalogue helps an application select reusable Quest capabilities. Its
+standalone autoboot example is a separate build: no example APK, library,
+manifest permission, or service is included in Rusty Kiosk releases. An example
+demonstrates a composition; reusable extracted modules belong to their owning
+libraries, while the consuming app owns its
 selected capabilities, lifecycle, policy, and effects.
 
 | Composition | Start here | Current status |
 | --- | --- | --- |
-| Boot and wearer-aware launch | [Integration notes](boot-and-wearer.md) | Design guidance from a bounded private prototype; no public reusable implementation or device acceptance claimed here. |
+| Boot and wearer-aware launch | [Integration notes](boot-and-wearer.md) and [standalone example](quest-autoboot/README.md) | Public example source with host-testable policy; Quest boot and target-readiness acceptance remain unproven. |
 | BLE phone control | [Integration notes](ble-phone-control.md) and [public BLE link test](https://mesmerprism.com/quest-ble-test/) | The link test exercises one bounded rendezvous exchange; application commands and a reusable GATT adapter remain separate work. |
 | WebSocket control | [Rusty Quest Connection Hub](https://github.com/MesmerPrism/rusty-quest/blob/1ea0d3b392c7d2fce079f2265d383832df64b04b/docs/CONNECTION_HUB.md) and its [Spatial Video provider example](https://github.com/MesmerPrism/rusty-quest/blob/1ea0d3b392c7d2fce079f2265d383832df64b04b/apps/spatial-video-control-example-android/AGENTS.md) | Existing owner source; link to it rather than copying it into Kiosk. |
 

@@ -10,6 +10,8 @@ The gate checks public-boundary terms, both APK manifests, Kotlin unit tests,
 browser/native panel contracts, Android lint, release CLI exclusion, and debug
 assembly for both APKs. It also checks the separate native 2D launcher policy,
 manifest, Java tests, lint, and debug assembly.
+It separately runs the standalone Quest autoboot example's unit tests, lint,
+and debug assembly; that example remains outside Kiosk releases.
 The same complete gate runs in GitHub Actions for every pull request and push
 to `main`; release publication additionally rebuilds and verifies the signed
 release pair.

@@ -26,9 +26,8 @@ Its optional Accessibility service is a foreground watchdog:
    normally.
 
 For reusable Quest utility composition, see the
-[documentation-only example catalogue](examples/README.md). Its boot/wearer,
-BLE phone-control, and WebSocket-control guidance is separate from the Kiosk
-products and their release builds.
+[example catalogue](examples/README.md). Its separate autoboot source and
+BLE/WebSocket integration guidance are outside Kiosk product release builds.
 
 ## What the first example includes
 

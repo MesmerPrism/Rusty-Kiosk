@@ -1063,6 +1063,12 @@ try {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }
   }
+  $exampleTasks = @('testDebugUnitTest', 'lintDebug')
+  if (-not $SkipAssemble) { $exampleTasks += 'assembleDebug' }
+  & .\gradlew.bat -p examples/quest-autoboot @exampleTasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Standalone Quest autoboot example gate failed with exit code $LASTEXITCODE."
+  }
   git diff --check
   if ($LASTEXITCODE -ne 0) {
     throw 'git diff --check failed.'

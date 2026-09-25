@@ -197,8 +197,8 @@ screenshot, or physical-button validation. Keep raw device evidence private.
 ## Reusable utility examples
 
 Start at `examples/README.md` for boot/wearer, BLE phone control, and WebSocket
-control compositions. These are documentation examples, not additions to any
-Kiosk release. Reusable Android adapters belong to Rusty Quest; an integrating
+control compositions. The standalone autoboot example has its own build; no
+example is included in a Kiosk release. Reusable Android adapters belong to Rusty Quest; an integrating
 app selects its own lifecycle, permissions, policy, identity, and effects.
 Keep the main app, setup helper, and fixed-target Launcher contracts separate.
 Follow `examples/AGENTS.md` when changing the catalogue.
