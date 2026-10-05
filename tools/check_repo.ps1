@@ -608,6 +608,9 @@ $setupSource = Get-Content -Raw -LiteralPath $setupSourcePath
 foreach ($pattern in @(
   'android.permission.WRITE_SECURE_SETTINGS',
   'android.permission.RECEIVE_BOOT_COMPLETED',
+  'android.permission.ACCESS_NETWORK_STATE',
+  'android:permission="android.permission.BIND_JOB_SERVICE"',
+  '.BootWifiRequestService',
   'android:protectionLevel="signature"',
   'android:permission="${setupControlPermission}"'
 )) {

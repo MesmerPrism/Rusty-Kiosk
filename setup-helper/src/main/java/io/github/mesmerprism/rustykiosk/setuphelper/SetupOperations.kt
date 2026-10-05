@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.Settings
 
 internal enum class SetupOperation(val wireName: String) {
@@ -31,6 +32,7 @@ internal object SetupContract {
   const val EXTRA_HELPER_READY = "helper_ready"
   const val EXTRA_REQUEST_AFTER_BOOT = "request_after_boot"
   const val EXTRA_MESSAGE = "message"
+  const val EXTRA_LAST_BOOT_REQUEST = "last_boot_request"
   val ACCESSIBILITY_COMPONENT: String =
     "${BuildConfig.KIOSK_PACKAGE}/io.github.mesmerprism.rustykiosk.KioskAccessibilityService"
   const val WIFI_ADB_SETTING = "adb_wifi_enabled"
@@ -56,6 +58,7 @@ internal data class SetupResult(
   val helperReady: Boolean,
   val requestAfterBoot: Boolean,
   val message: String,
+  val lastBootRequest: String? = null,
 )
 
 internal class SetupExecutor(private val context: Context) {
@@ -116,6 +119,7 @@ internal class SetupExecutor(private val context: Context) {
   }
 
   private fun disableWifiAdb(operation: SetupOperation): SetupResult {
+    cancelPendingBootRequest("Wi-Fi ADB was disabled; pending boot request cancelled.")
     check(Settings.Global.putInt(resolver, SetupContract.WIFI_ADB_SETTING, 0))
     val disabled = Settings.Global.getInt(resolver, SetupContract.WIFI_ADB_SETTING, 0) != 1
     return result(
@@ -156,6 +160,7 @@ internal class SetupExecutor(private val context: Context) {
 
   private fun setRequestAfterBoot(operation: SetupOperation, enabled: Boolean): SetupResult {
     check(preferences.edit().putBoolean(KEY_REQUEST_AFTER_BOOT, enabled).commit())
+    if (!enabled) cancelPendingBootRequest("Restart request was revoked; pending boot request cancelled.")
     return result(
       operation,
       requestAfterBoot() == enabled,
@@ -175,6 +180,42 @@ internal class SetupExecutor(private val context: Context) {
 
   fun requestAfterBoot(): Boolean = preferences.getBoolean(KEY_REQUEST_AFTER_BOOT, false)
 
+  fun observeBoot() {
+    BootWifiRequestJob.cancel(context)
+    bootHandler().onBoot(bootCount(), SystemClock.elapsedRealtime())
+  }
+
+  fun dispatchBootRequest(expectedBootCount: Int, expectedBootElapsed: Long, wifiReady: Boolean) {
+    val receipt = BootRequestReceipt.decode(preferences.getString(KEY_LAST_BOOT_REQUEST, null)) ?: return
+    if (receipt.bootCount != expectedBootCount || receipt.elapsedRealtimeMs != expectedBootElapsed) return
+    bootHandler().onDeferred(receipt, bootCount(), SystemClock.elapsedRealtime(), wifiReady)
+  }
+
+  private fun bootCount() =
+    runCatching { Settings.Global.getInt(resolver, Settings.Global.BOOT_COUNT, -1) }.getOrDefault(-1)
+
+  private fun cancelPendingBootRequest(message: String) {
+    BootWifiRequestJob.cancel(context)
+    val receipt = BootRequestReceipt.decode(preferences.getString(KEY_LAST_BOOT_REQUEST, null)) ?: return
+    if (receipt.outcome == "waiting_for_wifi") recordBootReceipt(receipt.copy(outcome = "cancelled", message = message))
+  }
+
+  private fun recordBootReceipt(receipt: BootRequestReceipt) {
+    check(preferences.edit().putString(KEY_LAST_BOOT_REQUEST, receipt.encode()).commit())
+  }
+
+  private fun bootHandler() = BootRequestHandler(
+      requestEnabled = ::requestAfterBoot,
+      hasAuthority = ::hasWriteSecureSettings,
+      request = { execute(SetupOperation.REQUEST_WIFI_ADB) },
+      readSettings = {
+        runCatching { Settings.Global.getInt(resolver, Settings.Global.ADB_ENABLED) == 1 }.getOrNull() to
+          runCatching { Settings.Global.getInt(resolver, SetupContract.WIFI_ADB_SETTING) == 1 }.getOrNull()
+      },
+      record = ::recordBootReceipt,
+      schedule = { receipt -> BootWifiRequestJob.schedule(context, receipt) },
+    )
+
   private fun hasWriteSecureSettings(): Boolean =
     context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) ==
       PackageManager.PERMISSION_GRANTED
@@ -186,11 +227,13 @@ internal class SetupExecutor(private val context: Context) {
       helperReady = hasWriteSecureSettings(),
       requestAfterBoot = requestAfterBoot(),
       message = message,
+      lastBootRequest = preferences.getString(KEY_LAST_BOOT_REQUEST, null),
     )
 
   private companion object {
     const val PREFERENCES = "rusty_kiosk_setup"
     const val KEY_REQUEST_AFTER_BOOT = "request_wifi_adb_after_boot"
+    const val KEY_LAST_BOOT_REQUEST = "last_boot_request"
   }
 }
 
@@ -220,6 +263,7 @@ class SetupControlReceiver : BroadcastReceiver() {
         putBoolean(SetupContract.EXTRA_HELPER_READY, result.helperReady)
         putBoolean(SetupContract.EXTRA_REQUEST_AFTER_BOOT, result.requestAfterBoot)
         putString(SetupContract.EXTRA_MESSAGE, result.message)
+        putString(SetupContract.EXTRA_LAST_BOOT_REQUEST, result.lastBootRequest)
       }
     )
   }
@@ -233,7 +277,6 @@ class SetupControlReceiver : BroadcastReceiver() {
 class BootRequestReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
-    val executor = SetupExecutor(context)
-    if (executor.requestAfterBoot()) executor.execute(SetupOperation.REQUEST_WIFI_ADB)
+    SetupExecutor(context).observeBoot()
   }
 }

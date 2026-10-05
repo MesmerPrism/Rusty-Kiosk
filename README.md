@@ -228,7 +228,7 @@ Wi-Fi ADB, Accessibility, the direct PC link, and local APK installation are
 independent opt-ins. Rusty Kiosk does not enable any of them automatically.
 The main APK never holds `WRITE_SECURE_SETTINGS`, and neither APK contains a
 shell, terminal UI, raw command surface, or arbitrary intent/path bridge. The
-setup helper remains network-free.
+setup helper opens no network connection.
 
 For a new headset, enable developer USB debugging outside Rusty Kiosk, connect
 USB-C, then install and provision both APKs in one serial-scoped step:

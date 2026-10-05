@@ -12,11 +12,16 @@
         android:name="android.permission.WRITE_SECURE_SETTINGS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="false"
         android:label="${setupLabel}"
         android:supportsRtl="true">
+        <service
+            android:name=".BootWifiRequestService"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
         <receiver
             android:name=".SetupControlReceiver"
             android:enabled="true"

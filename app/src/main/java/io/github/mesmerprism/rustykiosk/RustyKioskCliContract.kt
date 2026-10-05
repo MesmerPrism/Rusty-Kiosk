@@ -449,6 +449,7 @@ internal class RustyKioskCliStore(
         .put("setup_helper_installed", controls.setupHelperInstalled)
         .put("setup_helper_ready", controls.setupHelperReady)
         .put("request_wifi_adb_after_boot", controls.requestWifiAfterBoot)
+        .put("last_boot_request", controls.lastBootRequest?.toJson() ?: JSONObject.NULL)
         .put("accessibility_enabled", controls.accessibilityEnabled)
         .put("passthrough_style", controls.passthroughStyle.wireName)
         .put("system_passthrough_enabled", controls.systemPassthroughEnabled)
