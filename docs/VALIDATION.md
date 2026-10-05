@@ -45,6 +45,8 @@ Unit tests cover:
 - production boot-handler opt-out, missing authority, failed and successful
   deferred requests, exception capture, unavailable readback, scheduling rejection,
   expiry, revocation during the wait, stale boot rejection, and bounded receipt parsing;
+- durable pre-effect consumption, commit-failure rejection, and no replay after
+  process interruption before or after the Settings effect;
 - boot evidence retained independently in manual and status result projections;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.

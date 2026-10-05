@@ -14,15 +14,23 @@ class BootRequestHandlerTest {
     var failRequest = false
     var throwRequest = false
     var throwReadback = false
+    var failClaimCommit = false
+    var dieAfterClaimCommit = false
+    var dieDuringRequest = false
     var receipt: BootRequestReceipt? = null
     val handler = BootRequestHandler({ enabled }, { authority }, {
       requested++
+      if (dieDuringRequest) throw AssertionError("Simulated process death after effect")
       if (throwRequest) throw SecurityException("private error text")
       SetupResult(SetupOperation.REQUEST_WIFI_ADB, !failRequest, true, true, "Request made; approval may be pending.")
     }, {
       if (throwReadback) throw SecurityException()
       true to false
-    }, { receipt = it }, { scheduled++; scheduleAccepted })
+    }, {
+      if (it.outcome == "dispatch_started" && failClaimCommit) throw IllegalStateException("Commit failed")
+      receipt = it
+      if (it.outcome == "dispatch_started" && dieAfterClaimCommit) throw AssertionError("Simulated process death before effect")
+    }, { scheduled++; scheduleAccepted })
     fun boot() = handler.onBoot(9, 42_000)
     fun dispatch(wifi: Boolean = true, boot: Int = 9, now: Long = 60_000) =
       handler.onDeferred(receipt!!, boot, now, wifi)
@@ -110,5 +118,33 @@ class BootRequestHandlerTest {
     assertNull(f.receipt!!.adbEnabled)
     assertNull(f.receipt!!.wifiSettingEnabled)
     assertTrue(JSONObject(f.receipt!!.encode()).isNull("wifi_setting_enabled"))
+  }
+
+  @Test fun interruptionAfterPersistedClaimBeforeEffectCannotReplay() {
+    val f = Fixture().apply { dieAfterClaimCommit = true; boot() }
+    assertTrue(runCatching { f.dispatch() }.isFailure)
+    assertEquals("dispatch_started", f.receipt!!.outcome)
+    assertEquals(0, f.requested)
+    f.dieAfterClaimCommit = false
+    f.dispatch()
+    assertEquals(0, f.requested)
+    assertEquals("dispatch_started", f.receipt!!.outcome)
+  }
+
+  @Test fun interruptionAfterEffectCannotReplayItsConsumedClaim() {
+    val f = Fixture().apply { dieDuringRequest = true; boot() }
+    assertTrue(runCatching { f.dispatch() }.isFailure)
+    assertEquals("dispatch_started", f.receipt!!.outcome)
+    assertEquals(1, f.requested)
+    f.dieDuringRequest = false
+    f.dispatch()
+    assertEquals(1, f.requested)
+  }
+
+  @Test fun failedClaimCommitPreventsSettingsRequest() {
+    val f = Fixture().apply { failClaimCommit = true; boot(); dispatch() }
+    assertEquals(0, f.requested)
+    assertEquals("failed", f.receipt!!.outcome)
+    assertNull(f.receipt!!.dispatchElapsedRealtimeMs)
   }
 }

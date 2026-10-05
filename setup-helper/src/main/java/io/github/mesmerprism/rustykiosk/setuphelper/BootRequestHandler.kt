@@ -68,6 +68,10 @@ internal class BootRequestHandler(
         !hasAuthority() -> { outcome = "no_authority"; message = "Setup helper needs its USB-C provisioning grant." }
         !wifiReady -> { outcome = "network_unavailable"; message = "Assigned Wi-Fi network was no longer connected; no request made." }
         else -> {
+          // Consume the attempt durably before crossing the Settings effect boundary.
+          // A process death leaves completion unknown and must never replay it.
+          record(receipt.copy(outcome = "dispatch_started", dispatchElapsedRealtimeMs = nowMs,
+            wifiConnected = true, message = "Boot request attempt claimed; completion unknown until its final receipt."))
           dispatched = nowMs
           val result = request()
           outcome = if (result.success) "requested" else "failed"

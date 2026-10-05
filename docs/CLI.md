@@ -127,7 +127,10 @@ first observed boot. Otherwise it contains `boot_count`, `elapsed_realtime_ms`,
 `outcome`, `adb_enabled`, `wifi_setting_enabled`, a bounded `message`,
 `dispatch_elapsed_realtime_ms`, and `wifi_connected`. Outcomes are `opted_out`,
 `no_authority`, `waiting_for_wifi`, `requested`, `failed`, `expired`, `cancelled`,
-or `network_unavailable`. Dispatch time is null until a request actually runs;
+`network_unavailable`, or `dispatch_started`. Dispatch time records the durable
+pre-effect claim; `dispatch_started` means completion is unknown, not a completed
+Settings write. It is not replayed after process interruption. Dispatch time
+is null before that claim;
 readbacks may be null when unavailable. This retained observation is not an
 ADB listener receipt. Manual commands preserve completed evidence; revoking
 pending work updates its outcome to cancelled. Adapter versions that omit

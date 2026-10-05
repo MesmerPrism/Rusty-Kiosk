@@ -50,7 +50,7 @@ internal data class BootRequestStatus(
         "Invalid boot elapsed time."
       }
       val outcome = json.get("outcome")
-      require(outcome in setOf("opted_out", "no_authority", "waiting_for_wifi", "requested", "failed", "expired", "cancelled", "network_unavailable")) { "Invalid boot outcome." }
+      require(outcome in setOf("opted_out", "no_authority", "waiting_for_wifi", "dispatch_started", "requested", "failed", "expired", "cancelled", "network_unavailable")) { "Invalid boot outcome." }
       fun setting(key: String): Boolean? {
         val result = json.get(key)
         require(result == JSONObject.NULL || result is Boolean) { "Invalid boot setting readback." }

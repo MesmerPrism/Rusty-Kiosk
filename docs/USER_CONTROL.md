@@ -71,7 +71,9 @@ Horizon still decides whether and how to present approval.
   Wi-Fi observation, and independent `adb_enabled` / `adb_wifi_enabled` setting
   readback. Unknown readback stays unknown. Outcomes include `waiting_for_wifi`,
   `opted_out`, `no_authority`, `requested`, `failed`, `expired`, `cancelled`, or
-  `network_unavailable`. Manual operations preserve completed boot evidence;
+  `network_unavailable`, or `dispatch_started`. The latter means an attempt was
+  durably claimed but completion is unknown; it is never retried automatically.
+  Manual operations preserve completed boot evidence;
   revocation cancels and updates a pending observation. An older helper reports
   no receipt; that is not evidence that
   a boot receiver ran.
@@ -112,6 +114,8 @@ the request; Android may dispatch the expiry callback later under Doze, but
 that late callback cannot enable ADB. A lost network at dispatch is recorded
 without requesting. A trusted network may let Horizon restore its approved
 transport; an untrusted network may still need visible wearer approval.
+This deferred implementation has not been physically qualified after reboot.
+It does not establish fully unattended Wi-Fi ADB restoration.
 
 ## Revocation
 

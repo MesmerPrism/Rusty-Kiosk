@@ -65,6 +65,14 @@ time and observed Wi-Fi availability. The job is non-persisted and non-periodic;
 its deadline terminates an unavailable-network attempt instead of bypassing
 the network guard. Returning from the fixed operation finishes it without
 retry. Explicit Wi-Fi disablement or restart opt-out cancels pending work.
+The attempt is synchronously committed as `dispatch_started` before changing
+any Settings value. If that commit fails, the request does not run. A process
+death before the final receipt leaves completion unknown and the consumed
+attempt is never replayed, even if Android restarts the job.
+
+The deferred implementation has host validation but no physical reboot
+qualification. It does not establish unattended Wi-Fi ADB recovery; protected
+approval behavior and an authenticated external connection remain device gates.
 
 Android specifies that a network constraint requires `ACCESS_NETWORK_STATE`
 on Android 14, that the assigned network may be null at deadline execution,
