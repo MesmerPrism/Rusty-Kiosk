@@ -38,7 +38,9 @@ Assert-ExactProperties $candidate.app @(
 Assert-ExactProperties $candidate.apk @(
   'name','bytes','sha256','signer_sha256','signer_policy_sha256'
 ) 'Candidate APK'
-Assert-ExactProperties $captureReceipt @('schema','result','target','capture','flows','screenshots') 'Capture receipt'
+Assert-ExactProperties $captureReceipt @(
+  'schema','result','preferences_restored','public_asset_package','target','capture','flows','screenshots'
+) 'Capture receipt'
 Assert-ExactProperties $captureReceipt.target @(
   'package','version_name','version_code','debuggable','apk_bytes','apk_sha256','signer_sha256'
 ) 'Capture target'
@@ -91,6 +93,8 @@ if ($receipt.schema -cne 'rusty.kiosk.launcher_lite.device_validation.v1' -or
 }
 if ($captureReceipt.schema -cne 'rusty.kiosk.launcher_lite.store_capture.v1' -or
     $captureReceipt.result -cne 'pass' -or
+    $captureReceipt.preferences_restored -cne 'exact-after-controller-fence' -or
+    $captureReceipt.public_asset_package -cne 'com.oculus.browser' -or
     $captureReceipt.target.package -cne $candidate.app.package -or
     $captureReceipt.target.version_name -cne $candidate.app.version_name -or
     [int64]$captureReceipt.target.version_code -ne [int64]$candidate.app.version_code -or
