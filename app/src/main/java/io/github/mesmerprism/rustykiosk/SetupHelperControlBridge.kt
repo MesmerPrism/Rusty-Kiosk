@@ -34,9 +34,13 @@ internal data class SetupHelperResult(
   val requestAfterBoot: Boolean,
   val message: String,
   val lastBootRequest: BootRequestStatus? = null,
+  val authoritativeReply: Boolean = false,
 )
 
 internal object SetupHelperProtocol {
+  fun bootRequestForCache(previous: String?, result: SetupHelperResult): String? =
+    if (result.authoritativeReply) result.lastBootRequest?.toJson()?.toString() else previous
+
   const val HELPER_PACKAGE = "io.github.mesmerprism.rustykiosk.setuphelper"
   const val CONTROL_PERMISSION = "io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"
   const val ACTION_CONTROL = "io.github.mesmerprism.rustykiosk.setuphelper.action.CONTROL"
@@ -94,6 +98,7 @@ internal object SetupHelperProtocol {
       requestAfterBoot = requestAfterBoot,
       message = message.orEmpty().ifBlank { "Setup helper returned no message." },
       lastBootRequest = BootRequestStatus.parse(lastBootRequest),
+      authoritativeReply = true,
     )
   }
 }
@@ -221,7 +226,8 @@ internal class SetupHelperResultStore(context: Context) {
       .putBoolean(KEY_HELPER_READY, result.helperReady)
       .putBoolean(KEY_REQUEST_AFTER_BOOT, result.requestAfterBoot)
       .putString(KEY_MESSAGE, result.message)
-      .putString(KEY_LAST_BOOT_REQUEST, result.lastBootRequest?.toJson()?.toString())
+      .putString(KEY_LAST_BOOT_REQUEST, SetupHelperProtocol.bootRequestForCache(
+        preferences.getString(KEY_LAST_BOOT_REQUEST, null), result))
       .putLong(KEY_LAST_RESULT_AT, System.currentTimeMillis())
       .apply()
   }

@@ -1,6 +1,7 @@
 package io.github.mesmerprism.rustykiosk
 
 import org.json.JSONObject
+import org.json.JSONTokener
 
 /** Helper-owned boot evidence; setting readback never proves an ADB listener. */
 internal data class BootRequestStatus(
@@ -10,6 +11,8 @@ internal data class BootRequestStatus(
   val adbEnabled: Boolean?,
   val wifiSettingEnabled: Boolean?,
   val message: String,
+  val dispatchElapsedRealtimeMs: Long? = null,
+  val wifiConnected: Boolean? = null,
 ) {
   val summary: String
     get() {
@@ -25,13 +28,21 @@ internal data class BootRequestStatus(
     .put("adb_enabled", adbEnabled ?: JSONObject.NULL)
     .put("wifi_setting_enabled", wifiSettingEnabled ?: JSONObject.NULL)
     .put("message", message)
+    .put("dispatch_elapsed_realtime_ms", dispatchElapsedRealtimeMs ?: JSONObject.NULL)
+    .put("wifi_connected", wifiConnected ?: JSONObject.NULL)
 
   companion object {
     fun parse(value: String?): BootRequestStatus? {
       if (value == null) return null // Older helper versions have no boot receipt.
       require(value.length <= 2048) { "Boot receipt exceeds its bound." }
-      val json = JSONObject(value)
-      require(json.length() == 6) { "Unexpected boot receipt fields." }
+      val tokenizer = JSONTokener(value)
+      val json = tokenizer.nextValue()
+      require(json is JSONObject && tokenizer.nextClean() == '\u0000') { "Incomplete boot receipt framing." }
+      val baseFields = setOf("boot_count", "elapsed_realtime_ms", "outcome", "adb_enabled", "wifi_setting_enabled", "message")
+      val fields = json.keys().asSequence().toSet()
+      require(fields == baseFields || fields == baseFields + setOf("dispatch_elapsed_realtime_ms", "wifi_connected")) {
+        "Unexpected boot receipt fields."
+      }
       val count = json.get("boot_count")
       val elapsed = json.get("elapsed_realtime_ms")
       require(count is Int && count >= -1) { "Invalid boot count." }
@@ -39,7 +50,7 @@ internal data class BootRequestStatus(
         "Invalid boot elapsed time."
       }
       val outcome = json.get("outcome")
-      require(outcome in setOf("opted_out", "no_authority", "requested", "failed")) { "Invalid boot outcome." }
+      require(outcome in setOf("opted_out", "no_authority", "waiting_for_wifi", "requested", "failed", "expired", "cancelled", "network_unavailable")) { "Invalid boot outcome." }
       fun setting(key: String): Boolean? {
         val result = json.get(key)
         require(result == JSONObject.NULL || result is Boolean) { "Invalid boot setting readback." }
@@ -47,8 +58,12 @@ internal data class BootRequestStatus(
       }
       val message = json.get("message")
       require(message is String && message.length <= 160) { "Invalid boot message." }
+      val dispatch = if (json.has("dispatch_elapsed_realtime_ms")) json.get("dispatch_elapsed_realtime_ms") else JSONObject.NULL
+      require(dispatch == JSONObject.NULL || dispatch is Number && dispatch.toLong() >= elapsed.toLong() &&
+        dispatch.toString().matches(Regex("[0-9]+"))) { "Invalid boot dispatch time." }
+      val connected = if (json.has("wifi_connected")) setting("wifi_connected") else null
       return BootRequestStatus(count, elapsed.toLong(), outcome as String, setting("adb_enabled"),
-        setting("wifi_setting_enabled"), message)
+        setting("wifi_setting_enabled"), message, (dispatch as? Number)?.toLong(), connected)
     }
   }
 }

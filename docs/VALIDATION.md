@@ -43,7 +43,8 @@ Unit tests cover:
 - exact-component Accessibility enable/disable list construction;
 - preservation of other enabled Accessibility services;
 - production boot-handler opt-out, missing authority, failed and successful
-  requests, exception capture, unavailable readback, and bounded receipt parsing;
+  deferred requests, exception capture, unavailable readback, scheduling rejection,
+  expiry, revocation during the wait, stale boot rejection, and bounded receipt parsing;
 - boot evidence retained independently in manual and status result projections;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
@@ -180,8 +181,13 @@ For reboot diagnostics, refresh setup status and retain `last_boot_request`
 after the actual reboot. Require the current Android boot count and an observed
 outcome; null means no receipt, not successful boot delivery. An opted-out boot
 must record `opted_out` without changing settings. A provisioned, opted-in boot
-must distinguish the request from any missing authority or failure. Manual
-requests and opt-in changes must preserve that boot receipt. Then separately
+must first record `waiting_for_wifi`, then distinguish actual connected-network
+dispatch from missing authority, expiry, revocation or failure. Verify dispatch
+time is at least the boot delivery time and `wifi_connected=true` at a request.
+Manual requests must preserve completed boot evidence. Disable the restart
+preference or Wi-Fi ADB while waiting and require no later request. An offline
+boot must expire without a Settings request even when Android dispatches its
+deadline callback without a network. Then separately
 attempt an authenticated external ADB connection without issuing a host
 re-enable command. Neither `requested` nor a setting value of On passes this
 transport check. Protected Meta approval remains a visible wearer action, and

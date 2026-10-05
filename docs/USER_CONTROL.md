@@ -67,10 +67,13 @@ Horizon still decides whether and how to present approval.
 - **Last boot request** appears in the status message after **Refresh setup
   status**, and is also refreshed on app resume. The helper retains only its
   latest real `BOOT_COMPLETED` observation: Android boot count (or unknown),
-  elapsed time at delivery, `opted_out`, `no_authority`, `requested`, or `failed`,
-  and independent `adb_enabled` / `adb_wifi_enabled` setting readback. Unknown
-  readback stays unknown. Manual requests and preference changes preserve this
-  boot evidence. An older helper reports no receipt; that is not evidence that
+  elapsed time at delivery and at deferred dispatch, request outcome, connected
+  Wi-Fi observation, and independent `adb_enabled` / `adb_wifi_enabled` setting
+  readback. Unknown readback stays unknown. Outcomes include `waiting_for_wifi`,
+  `opted_out`, `no_authority`, `requested`, `failed`, `expired`, `cancelled`, or
+  `network_unavailable`. Manual operations preserve completed boot evidence;
+  revocation cancels and updates a pending observation. An older helper reports
+  no receipt; that is not evidence that
   a boot receiver ran.
 - **Accessibility Enabled / Disabled** is effective `AccessibilityManager`
   readback for Rusty Kiosk's exact service.
@@ -101,11 +104,21 @@ connects to the rebooted headset without a host re-enable command. If Horizon
 asks for approval, the wearer must provide it visibly; retain that limitation
 separately from the boot delivery receipt.
 
+Boot delivery can precede Wi-Fi association. The helper therefore waits for
+Android to assign a connected infrastructure Wi-Fi network to one one-shot
+job, then rechecks the preference and provisioning grant before requesting.
+It opens no connection and does not poll or retry. A ten-minute window bounds
+the request; Android may dispatch the expiry callback later under Doze, but
+that late callback cannot enable ADB. A lost network at dispatch is recorded
+without requesting. A trusted network may let Horizon restore its approved
+transport; an untrusted network may still need visible wearer approval.
+
 ## Revocation
 
 - Press **Disable Accessibility**. When the helper is unavailable, the active
   service retains its Android `disableSelf()` recovery path.
-- Press **Disable Wi-Fi ADB**. This does not change Accessibility.
+- Press **Disable Wi-Fi ADB**. This cancels the current pending boot request
+  without changing Accessibility or the preference for the next boot.
 - Press **Stop asking after restart** before disabling Wi-Fi ADB if both should
   stay off after the next boot.
 - Press **Disable direct link** to stop PC access without changing ADB,

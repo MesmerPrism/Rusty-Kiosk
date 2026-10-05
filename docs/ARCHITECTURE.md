@@ -13,7 +13,7 @@ Ship two same-signer APKs with deliberately separate authority:
   consumes an optional authenticated foreground-loss advisory from that exact
   target. Accessibility remains the fallback and the sole Meta Home and
   Triple-Home authority.
-- `setup-helper` is non-launchable and has no network permission. It may be
+- `setup-helper` is non-launchable and has no Internet permission. It may be
   granted `WRITE_SECURE_SETTINGS` once over USB-C and accepts only an explicit,
   signature-protected fixed-operation broadcast from the main app.
 
@@ -38,7 +38,8 @@ path, endpoint, or generic intent. Both APKs must use the same signing key.
 - enable or disable the preference to request Wi-Fi ADB after boot.
 
 The helper preserves all other enabled Accessibility components. Its boot
-receiver runs only when the wearer opted in. A request can cause Horizon OS to
+receiver records delivery and schedules a single Wi-Fi constrained request only
+when the wearer opted in and the settings grant remains available. A request can cause Horizon OS to
 show its protected Wi-Fi ADB approval surface, but neither APK can approve it.
 
 Results return through an ordered broadcast callback and contain only the
@@ -48,11 +49,29 @@ and Wi-Fi ADB state after completion.
 
 Every real boot broadcast, including an opted-out boot, records one bounded
 helper-private observation through `BootRequestHandler`. The existing status
-operation returns this retained receipt; manual fixed operations preserve it.
+operation returns this retained receipt; manual fixed operations preserve
+completed boot evidence. Explicit revocation marks pending evidence cancelled.
 The main app validates the closed receipt shape, retains the latest helper
 reply, and projects the same boot outcome into visible status and the typed
 CLI. Android boot count and monotonic delivery time identify the observation;
 setting readback remains separate from external ADB connection evidence.
+
+The helper declares only `ACCESS_NETWORK_STATE` for network observation; it
+has no `INTERNET` permission or socket. `BootWifiRequestService`, protected by
+Android's `BIND_JOB_SERVICE`, revalidates the job's assigned infrastructure Wi-Fi
+network and a usable IP address, boot identity, opt-in, grant and a ten-minute
+window before the existing fixed request. It records the separate dispatch
+time and observed Wi-Fi availability. The job is non-persisted and non-periodic;
+its deadline terminates an unavailable-network attempt instead of bypassing
+the network guard. Returning from the fixed operation finishes it without
+retry. Explicit Wi-Fi disablement or restart opt-out cancels pending work.
+
+Android specifies that a network constraint requires `ACCESS_NETWORK_STATE`
+on Android 14, that the assigned network may be null at deadline execution,
+and that override deadlines may relax constraints. The live checks therefore
+remain mandatory even after Android dispatches the job. See
+[JobInfo.Builder](https://developer.android.com/reference/android/app/job/JobInfo.Builder)
+and [JobParameters](https://developer.android.com/reference/android/app/job/JobParameters).
 
 ## Authority
 

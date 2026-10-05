@@ -124,10 +124,15 @@ With the current helper, `status` and `check-setup-helper` obtain its latest
 boot evidence through the same fixed status operation as the visible refresh
 control. `state.last_boot_request` is null for an older helper or before the
 first observed boot. Otherwise it contains `boot_count`, `elapsed_realtime_ms`,
-`outcome`, `adb_enabled`, `wifi_setting_enabled`, and a bounded `message`.
-Outcomes are `opted_out`, `no_authority`, `requested`, or `failed`. Setting
+`outcome`, `adb_enabled`, `wifi_setting_enabled`, a bounded `message`,
+`dispatch_elapsed_realtime_ms`, and `wifi_connected`. Outcomes are `opted_out`,
+`no_authority`, `waiting_for_wifi`, `requested`, `failed`, `expired`, `cancelled`,
+or `network_unavailable`. Dispatch time is null until a request actually runs;
 readbacks may be null when unavailable. This retained observation is not an
-ADB listener receipt; manual commands do not replace it.
+ADB listener receipt. Manual commands preserve completed evidence; revoking
+pending work updates its outcome to cancelled. Adapter versions that omit
+unknown response fields may not expose this new field; the owner debug wrapper
+reads the complete matching app-private JSON receipt.
 
 Passthrough commands return the same state receipt as the panel. Acceptance
 requires `system_passthrough_enabled=true`; `passthrough_style` reports

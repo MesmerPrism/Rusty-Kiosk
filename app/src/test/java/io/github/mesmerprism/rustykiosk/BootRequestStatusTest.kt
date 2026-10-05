@@ -35,11 +35,21 @@ class BootRequestStatusTest {
       assertTrue(runCatching { BootRequestStatus.parse(json.toString()) }.isFailure)
     }
     assertTrue(runCatching { BootRequestStatus.parse("x".repeat(2049)) }.isFailure)
+    assertTrue(runCatching { BootRequestStatus.parse(receipt.toJson().toString() + " trailing") }.isFailure)
+    assertTrue(runCatching { BootRequestStatus.parse(receipt.toJson().toString() + " {}") }.isFailure)
   }
 
   @Test fun unknownBootCountAndReadbackRemainExplicit() {
     val json = receipt.toJson().put("boot_count", -1).put("wifi_setting_enabled", JSONObject.NULL)
     assertTrue(BootRequestStatus.parse(json.toString())!!.summary.contains("boot unknown"))
     assertNull(BootRequestStatus.parse(json.toString())!!.wifiSettingEnabled)
+  }
+
+  @Test fun communicationFailurePreservesEvidenceButAuthoritativeOldHelperClearsIt() {
+    val previous = receipt.toJson().toString()
+    val syntheticFailure = SetupHelperResult(1, SetupHelperOperation.STATUS, false, false, false, "Timeout")
+    assertEquals(previous, SetupHelperProtocol.bootRequestForCache(previous, syntheticFailure))
+    val oldHelper = SetupHelperProtocol.parseValues(1, SetupHelperOperation.STATUS, 1, "status", true, true, false, "Ready")
+    assertNull(SetupHelperProtocol.bootRequestForCache(previous, oldHelper))
   }
 }

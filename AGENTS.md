@@ -45,10 +45,16 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - The main Rusty Kiosk APK never declares `WRITE_SECURE_SETTINGS`. Only the
   separately installed, same-signer setup helper may receive that one-time
   USB-C-provisioned authority.
-- The setup helper has no launcher UI, network permission, terminal, or generic
+- The setup helper has no launcher UI, Internet permission, terminal, or generic
   command surface. It accepts only the reviewed fixed-operation enum, changes
   only Rusty Kiosk's exact Accessibility component, and preserves every other
   enabled Accessibility service.
+- The helper may observe network state only for one non-persisted, Wi-Fi
+  constrained boot-request job. It never opens a socket, polls connectivity,
+  retries perpetually, or starts a foreground service. Recheck boot identity,
+  opt-in, grant, connected Wi-Fi and a ten-minute expiry before the fixed
+  request. Deadline execution must never bypass these live checks. Disabling
+  the restart preference or Wi-Fi ADB cancels a pending request.
 - Accessibility disablement must retain the active service's `disableSelf()`
   route for recovery when the setup helper is absent.
 - Request-after-restart is a visible, reversible opt-in. A Wi-Fi ADB request may
