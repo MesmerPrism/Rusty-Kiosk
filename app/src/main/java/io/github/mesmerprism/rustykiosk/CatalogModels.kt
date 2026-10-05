@@ -104,6 +104,7 @@ internal data class UserControlState(
   val setupHelperInstalled: Boolean = false,
   val setupHelperReady: Boolean = false,
   val requestWifiAfterBoot: Boolean = false,
+  val lastBootRequest: BootRequestStatus? = null,
   val wirelessDebuggingEnabled: Boolean = false,
   val accessibilityEnabled: Boolean = false,
   val operatorBridgeEnabled: Boolean = false,

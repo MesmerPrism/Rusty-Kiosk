@@ -56,6 +56,7 @@ $artifacts = foreach ($name in $expectedNames) {
 
 $sourceFiles = @(
   'app/src/main/java/io/github/mesmerprism/rustykiosk/CatalogModels.kt',
+  'app/src/main/java/io/github/mesmerprism/rustykiosk/BootRequestStatus.kt',
   'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskPanel.kt',
   'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskPanelContract.kt',
   'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskTheme.kt'

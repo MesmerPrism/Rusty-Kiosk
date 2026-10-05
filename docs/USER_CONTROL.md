@@ -64,6 +64,14 @@ Horizon still decides whether and how to present approval.
   setting after every resume and helper completion.
 - **Request after restart On / Off** is returned by the helper's private
   preference; it does not claim that Meta approved the transport.
+- **Last boot request** appears in the status message after **Refresh setup
+  status**, and is also refreshed on app resume. The helper retains only its
+  latest real `BOOT_COMPLETED` observation: Android boot count (or unknown),
+  elapsed time at delivery, `opted_out`, `no_authority`, `requested`, or `failed`,
+  and independent `adb_enabled` / `adb_wifi_enabled` setting readback. Unknown
+  readback stays unknown. Manual requests and preference changes preserve this
+  boot evidence. An older helper reports no receipt; that is not evidence that
+  a boot receiver ran.
 - **Accessibility Enabled / Disabled** is effective `AccessibilityManager`
   readback for Rusty Kiosk's exact service.
 - **Direct link Off / Starting / Ready / Error** combines the wearer's persisted
@@ -84,6 +92,14 @@ The helper accepts only:
 No request contains a user-supplied command, component, package, path, endpoint,
 or argument. Accessibility mutations add or remove only Rusty Kiosk's exact
 component while preserving all other enabled services.
+
+The restart preference requests wireless debugging; it does not recreate
+privileged shell authority or silently approve Horizon's protected prompt.
+`requested` and a setting readback of On are not listener or connection proof.
+Accept reboot recovery only after an already authorized external ADB client
+connects to the rebooted headset without a host re-enable command. If Horizon
+asks for approval, the wearer must provide it visibly; retain that limitation
+separately from the boot delivery receipt.
 
 ## Revocation
 

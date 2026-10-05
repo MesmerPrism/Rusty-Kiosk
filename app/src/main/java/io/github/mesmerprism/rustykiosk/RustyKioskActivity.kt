@@ -309,7 +309,8 @@ class RustyKioskActivity : AppSystemActivity() {
     when (request.command) {
       RustyKioskCliCommand.STATUS -> {
         refreshCatalogue("cli-status")
-        cliOutcome(true, true, "Current Rusty Kiosk state recorded.")
+        if (setupHelperClient.isInstalled()) requestSetupOperationFromCli(request, SetupHelperOperation.STATUS)
+        else cliOutcome(true, true, "Current Rusty Kiosk state recorded.")
       }
       RustyKioskCliCommand.SHOW_CONTROLS -> {
         state = state.copy(userControlsOpen = true)
@@ -640,6 +641,7 @@ class RustyKioskActivity : AppSystemActivity() {
       setupHelperInstalled = installed,
       setupHelperReady = ready,
       requestWifiAfterBoot = stored.requestAfterBoot,
+      lastBootRequest = stored.lastBootRequest,
       wirelessDebuggingEnabled =
         Settings.Global.getInt(contentResolver, WIFI_ADB_SETTING, 0) == 1,
       accessibilityEnabled = isGuardEnabled(),
@@ -651,13 +653,13 @@ class RustyKioskActivity : AppSystemActivity() {
       operatorBridgeError = bridge.lastError,
       operationInProgress = stored.pendingOperation?.wireName,
       message =
-        messageOverride
+        (messageOverride
           ?: stored.message
           ?: if (installed) {
             "Wi-Fi ADB, Accessibility, direct PC access, and local installs are separate opt-ins."
           } else {
             "Install both Rusty Kiosk APKs and provision the setup helper once over USB-C."
-          },
+          }) + (stored.lastBootRequest?.let { " ${it.summary}" } ?: ""),
     )
   }
 

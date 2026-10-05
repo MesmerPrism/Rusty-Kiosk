@@ -120,6 +120,15 @@ an app operation while Meta's protected approval remains pending; call `status`
 after the wearer responds and require `wifi_adb_enabled` to match the expected
 state.
 
+With the current helper, `status` and `check-setup-helper` obtain its latest
+boot evidence through the same fixed status operation as the visible refresh
+control. `state.last_boot_request` is null for an older helper or before the
+first observed boot. Otherwise it contains `boot_count`, `elapsed_realtime_ms`,
+`outcome`, `adb_enabled`, `wifi_setting_enabled`, and a bounded `message`.
+Outcomes are `opted_out`, `no_authority`, `requested`, or `failed`. Setting
+readbacks may be null when unavailable. This retained observation is not an
+ADB listener receipt; manual commands do not replace it.
+
 Passthrough commands return the same state receipt as the panel. Acceptance
 requires `system_passthrough_enabled=true`; `passthrough_style` reports
 `natural` or `contour-lut`, and `passthrough_lut_applied` confirms that the

@@ -46,6 +46,14 @@ request id, fixed operation, success, helper readiness, restart preference, and
 a bounded message. The main app independently reads effective Accessibility
 and Wi-Fi ADB state after completion.
 
+Every real boot broadcast, including an opted-out boot, records one bounded
+helper-private observation through `BootRequestHandler`. The existing status
+operation returns this retained receipt; manual fixed operations preserve it.
+The main app validates the closed receipt shape, retains the latest helper
+reply, and projects the same boot outcome into visible status and the typed
+CLI. Android boot count and monotonic delivery time identify the observation;
+setting readback remains separate from external ADB connection evidence.
+
 ## Authority
 
 | Concern | Owner |

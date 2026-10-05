@@ -42,6 +42,9 @@ Unit tests cover:
 - fixed setup-helper result parsing and fail-closed request matching;
 - exact-component Accessibility enable/disable list construction;
 - preservation of other enabled Accessibility services;
+- production boot-handler opt-out, missing authority, failed and successful
+  requests, exception capture, unavailable readback, and bounded receipt parsing;
+- boot evidence retained independently in manual and status result projections;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
@@ -172,6 +175,17 @@ run should prove:
 17. after restart or a later manual request, Meta approval remains visible and
     attended; the panel reports only effective setting state;
 18. **Exit to Meta Home** disarms pending guard state and opens Meta Home.
+
+For reboot diagnostics, refresh setup status and retain `last_boot_request`
+after the actual reboot. Require the current Android boot count and an observed
+outcome; null means no receipt, not successful boot delivery. An opted-out boot
+must record `opted_out` without changing settings. A provisioned, opted-in boot
+must distinguish the request from any missing authority or failure. Manual
+requests and opt-in changes must preserve that boot receipt. Then separately
+attempt an authenticated external ADB connection without issuing a host
+re-enable command. Neither `requested` nor a setting value of On passes this
+transport check. Protected Meta approval remains a visible wearer action, and
+an approval-dependent recovery must not be reported as fully unattended.
 
 Run app actions through `tools/Invoke-RustyKioskCli.ps1`; display-coordinate
 touch injection is not accepted. `focus-search` and `focus-tag-editor` must

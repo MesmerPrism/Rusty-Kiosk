@@ -33,6 +33,7 @@ internal data class SetupHelperResult(
   val helperReady: Boolean,
   val requestAfterBoot: Boolean,
   val message: String,
+  val lastBootRequest: BootRequestStatus? = null,
 )
 
 internal object SetupHelperProtocol {
@@ -47,6 +48,7 @@ internal object SetupHelperProtocol {
   const val EXTRA_HELPER_READY = "helper_ready"
   const val EXTRA_REQUEST_AFTER_BOOT = "request_after_boot"
   const val EXTRA_MESSAGE = "message"
+  const val EXTRA_LAST_BOOT_REQUEST = "last_boot_request"
 
   fun parse(
     requestId: Long,
@@ -63,6 +65,7 @@ internal object SetupHelperProtocol {
       helperReady = extras.getBoolean(EXTRA_HELPER_READY, false),
       requestAfterBoot = extras.getBoolean(EXTRA_REQUEST_AFTER_BOOT, false),
       message = extras.getString(EXTRA_MESSAGE),
+      lastBootRequest = extras.getString(EXTRA_LAST_BOOT_REQUEST),
     )
   }
 
@@ -75,6 +78,7 @@ internal object SetupHelperProtocol {
     helperReady: Boolean,
     requestAfterBoot: Boolean,
     message: String?,
+    lastBootRequest: String? = null,
   ): SetupHelperResult {
     require(returnedRequestId == requestId) {
       "Setup helper returned a mismatched request id."
@@ -89,6 +93,7 @@ internal object SetupHelperProtocol {
       helperReady = helperReady,
       requestAfterBoot = requestAfterBoot,
       message = message.orEmpty().ifBlank { "Setup helper returned no message." },
+      lastBootRequest = BootRequestStatus.parse(lastBootRequest),
     )
   }
 }
@@ -193,6 +198,7 @@ internal data class StoredSetupHelperResult(
   val helperReady: Boolean,
   val requestAfterBoot: Boolean,
   val message: String?,
+  val lastBootRequest: BootRequestStatus? = null,
 )
 
 internal class SetupHelperResultStore(context: Context) {
@@ -215,6 +221,7 @@ internal class SetupHelperResultStore(context: Context) {
       .putBoolean(KEY_HELPER_READY, result.helperReady)
       .putBoolean(KEY_REQUEST_AFTER_BOOT, result.requestAfterBoot)
       .putString(KEY_MESSAGE, result.message)
+      .putString(KEY_LAST_BOOT_REQUEST, result.lastBootRequest?.toJson()?.toString())
       .putLong(KEY_LAST_RESULT_AT, System.currentTimeMillis())
       .apply()
   }
@@ -236,6 +243,7 @@ internal class SetupHelperResultStore(context: Context) {
       helperReady = preferences.getBoolean(KEY_HELPER_READY, false),
       requestAfterBoot = preferences.getBoolean(KEY_REQUEST_AFTER_BOOT, false),
       message = preferences.getString(KEY_MESSAGE, null),
+      lastBootRequest = runCatching { BootRequestStatus.parse(preferences.getString(KEY_LAST_BOOT_REQUEST, null)) }.getOrNull(),
     )
   }
 
@@ -247,5 +255,6 @@ internal class SetupHelperResultStore(context: Context) {
     const val KEY_REQUEST_AFTER_BOOT = "request_after_boot"
     const val KEY_MESSAGE = "message"
     const val KEY_LAST_RESULT_AT = "last_result_at"
+    const val KEY_LAST_BOOT_REQUEST = "last_boot_request"
   }
 }

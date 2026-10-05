@@ -31,6 +31,7 @@ kotlin {
     kotlin.srcDir(productionSources)
     kotlin.include(
       "CatalogModels.kt",
+      "BootRequestStatus.kt",
       "RustyKioskPanel.kt",
       "RustyKioskPanelContract.kt",
       "RustyKioskTheme.kt",
