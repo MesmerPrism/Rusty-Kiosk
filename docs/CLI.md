@@ -256,3 +256,9 @@ armed; the third must report `disarm_and_return` with the guard off. The receive
 and its manifest entry exist only in `src/debug`, accept no value or intent
 choice, and write a bounded app-private receipt. This proves watchdog routing;
 it does not open Meta Home or replace a physical Meta-button witness.
+
+## Lite exclusion
+
+The full Kiosk CLI and release operator/provider contracts do not apply to
+`launcher-lite`. Lite is a wearer-operated standalone launcher; the hybrid
+candidate adds no CLI, operator provider, direct link or helper command.

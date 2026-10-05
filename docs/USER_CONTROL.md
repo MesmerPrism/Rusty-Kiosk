@@ -182,3 +182,10 @@ It does not establish fully unattended Wi-Fi ADB restoration.
   management plane.
 - Accessibility retrieves no UI content and performs no clicks, gestures,
   global actions, or Meta Home interception.
+
+## Standalone Lite controls
+
+The hybrid Lite candidate uses visible window/immersive mode selection and
+ordinary app launch. Both modes use the same local model. A mode switch clears
+pending Wi-Fi remediation; it cannot continue an old pending launch in a new
+host. Lite has no full-Kiosk setup helper, Wi-Fi ADB or Accessibility controls.

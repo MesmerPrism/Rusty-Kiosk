@@ -7,6 +7,14 @@ import org.junit.Test
 
 class AppLaunchOptionsValidationPolicyTest {
   @Test
+  fun schemaVersionRejectsLongValuesBeforeNarrowing() {
+    assertEquals(1, AppLaunchOptionsValidationPolicy.validateSchemaVersion(1L))
+    listOf(0L, -1L, 2L, 4_294_967_297L, Long.MIN_VALUE, Long.MAX_VALUE).forEach { value ->
+      assertTrue(runCatching { AppLaunchOptionsValidationPolicy.validateSchemaVersion(value) }.isFailure)
+    }
+  }
+
+  @Test
   fun acceptsExactBoundedRows() {
     val options =
       AppLaunchOptionsValidationPolicy.validateRows(

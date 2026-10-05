@@ -1,0 +1,15 @@
+{
+  "schema": "rusty.kiosk.launcher_release_signer_policy.v1",
+  "package": "io.github.mesmerprism.rustykiosk.launcher",
+  "signer_sha256": "23bb7bb81143a81f216118af35960aaee2468e9880b94e07574cac0a9239dcf6",
+  "provenance": {
+    "candidate_schema": "rusty.kiosk.launcher.meta_alpha_candidate.v1",
+    "source_commit": "a77259b97c644005830a4ecf719314718e32d00c",
+    "source_tree": "b8fdd1227321d0daf076207721cb85f7c987b33c",
+    "apk_version_name": "0.1.0",
+    "apk_version_code": 1,
+    "apk_sha256": "345df078750273004d5db13f8b7253cf7af063bf40d5926f99164e744b768842",
+    "meta_application_id": "1241943475671333"
+  },
+  "rotation_policy": "separate-reviewed-policy-revision"
+}

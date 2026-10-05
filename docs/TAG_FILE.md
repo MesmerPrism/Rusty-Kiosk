@@ -87,3 +87,9 @@ Base64 chunks, caps the complete file at 256 KiB, verifies SHA-256, validates
 the schema, and atomically activates a valid replacement. The directory watcher
 hotloads that replacement without restarting Rusty Kiosk. Host tools must not
 supply or infer a device path or treat the tag file as a command channel.
+
+## Lite storage boundary
+
+This external tag-file protocol belongs to full Kiosk. Launcher Lite retains
+its own existing app-private favorites, tags and Wi-Fi preference keys; the
+hybrid update does not migrate them into this file or grant external editing.

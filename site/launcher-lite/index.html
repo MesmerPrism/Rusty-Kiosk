@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rusty Launcher Lite · Mesmer Prism</title>
+  <link rel="canonical" href="https://mesmerprism.com/Rusty-Kiosk/launcher-lite/">
+  <meta name="description" content="Rusty Launcher Lite is a standalone, lightweight app library for Meta Quest.">
+  <meta name="theme-color" content="#f4efe7">
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to main content</a>
+  <header class="site-header">
+    <div class="shell header-row">
+      <div class="brand-row">
+        <a class="site-name" href="https://mesmerprism.com/">Mesmer Prism</a>
+        <span class="brand-separator" aria-hidden="true">/</span>
+        <a class="product-name" href="./">Rusty Launcher Lite</a>
+      </div>
+      <nav class="site-nav" aria-label="Launcher Lite navigation">
+        <a href="#features">Features</a>
+        <a href="#help">Help</a>
+        <a href="https://mesmerprism.com/privacy/rusty-launcher-lite/">Privacy</a>
+        <a href="https://github.com/MesmerPrism/Rusty-Kiosk">Source</a>
+      </nav>
+    </div>
+  </header>
+  <main id="content" class="shell">
+    <section class="hero">
+      <p class="product-context">For Meta Quest</p>
+      <h1>One lightweight place to find and launch your apps.</h1>
+      <p class="lead">Rusty Launcher Lite is a standalone native 2D app library. Browse launchable apps already installed on your headset, search by name or tag, keep favorites, and open app details before launching.</p>
+      <p class="availability">No companion app, Developer Mode, ADB, PC, account, subscription, or setup is required.</p>
+    </section>
+    <aside class="requirements">
+      <h2>What you need</h2>
+      <ul>
+        <li>A supported Meta Quest headset</li>
+        <li>Apps already installed on that headset</li>
+      </ul>
+    </aside>
+    <p class="availability">The source includes an unpublished 0.3.0 hybrid update candidate with window and immersive presentations; Store availability and headset validation are separate.</p>
+    <section id="features" class="section">
+      <div class="section-heading">
+        <h2>Useful on its own</h2>
+        <p>Everything here works immediately after installing Launcher Lite.</p>
+      </div>
+      <div class="feature-list">
+        <article><h3>Browse and search</h3><p>See apps that publish a normal launchable front door. Search by app name, package, or a local tag.</p></article>
+        <article><h3>Favorites and tags</h3><p>Keep a shorter favorites view and add or remove bounded local tags. State stays on your headset.</p></article>
+        <article><h3>Wi-Fi preflight</h3><p>Optionally prefer Wi-Fi on or off for an app. Lite explains a mismatch and can open standard Wi-Fi settings; it never changes Wi-Fi itself.</p></article>
+      </div>
+    </section>
+    <section id="help" class="section">
+      <div class="section-heading"><h2>Help</h2></div>
+      <div class="details-list">
+        <details><summary>Why is an installed app absent?</summary><p>Launcher Lite can show only enabled, exported activities that Android returns for its fixed launcher queries. Some system or private activities intentionally do not publish a public front door.</p></details>
+        <details><summary>Where are favorites and tags stored?</summary><p>They stay in Launcher Lite's app-private data on this headset. Clear the app's data or uninstall it to remove them.</p></details>
+        <details><summary>Does Launcher Lite change Wi-Fi?</summary><p>No. It only reads whether ordinary Wi-Fi is on. When a preference is unmet, you may cancel or open Android's standard Wi-Fi settings.</p></details>
+        <details><summary>Do I need the full Rusty Kiosk?</summary><p>No. The full Kiosk is an optional separate project for advanced lab workflows. Launcher Lite does not install it and never requires it.</p></details>
+      </div>
+      <p class="support-links">For support or a bug report, use the <a href="https://github.com/MesmerPrism/Rusty-Kiosk/issues">public issue tracker</a>.</p>
+    </section>
+  </main>
+  <footer class="site-footer"><div class="shell footer-row"><p>Rusty Launcher Lite is free software under AGPL-3.0-or-later.</p><p>Independent and not affiliated with or endorsed by Meta.</p></div></footer>
+</body>
+</html>

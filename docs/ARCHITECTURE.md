@@ -304,3 +304,17 @@ same generation-bound recovery engine and bounded attempt claims.
   component launcher, or background app-management plane;
 - fleet discovery, multi-device scheduling, online relays, or remote management;
 - high-rate media, tracking, mesh, or rendering data in the tag file.
+
+## Standalone Lite presentation boundary
+
+The separate `launcher-lite` module preserves the published standalone Store
+identity. Its window Activity and Spatial SDK Activity share `LitePanelController`
+and the native layout; the hosts own presentation only. Local catalogue,
+favorites, tags and preference storage remain Lite-owned. A small shared
+`shared/catalog-search` source supplies search semantics to both full Kiosk
+and Lite without importing the full app or its permissions. The candidate has
+read-only Wi-Fi plus SDK permissions and no network/installer/helper/guard
+or app-owned background plane. ISDK 0.13.2 contributes only its internal
+non-exported `ChannelBrokerService`; no other service, receiver or provider is
+admitted. Legacy `launcher` Labs Store and Business handoffs remain
+separate. See [Launcher Lite](LAUNCHER_LITE.md).
