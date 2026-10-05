@@ -105,6 +105,8 @@ foreach ($controlToken in @(
   'RustyKioskPanelControls.TAG_FILTERS',
   'RustyKioskPanelControls.APP_LIST',
   'RustyKioskPanelControls.APP_DETAILS',
+  'RustyKioskPanelControls.LAUNCH_OPTIONS',
+  'RustyKioskPanelControls.LAUNCH_OPTION_LAUNCH',
   'RustyKioskPanelControls.NORMAL_LAUNCH',
   'RustyKioskPanelControls.KIOSK_LAUNCH',
   'RustyKioskPanelControls.USER_CONTROL_STATUS',

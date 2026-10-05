@@ -16,8 +16,11 @@ param(
     'filter-tag',
     'add-tag',
     'remove-tag',
+    'set-launch-requirement',
+    'cancel-pending-launch',
     'launch-normal',
     'launch-kiosk',
+    'launch-option',
     'check-setup-helper',
     'request-wifi-adb',
     'enable-wifi-adb-after-boot',
@@ -44,13 +47,16 @@ $resultPath = 'files/cli/last-result.json'
 $adbPath = (Get-Command adb -ErrorAction Stop).Source
 $requestId = [Guid]::NewGuid().ToString('N')
 
-$valueCommands = @('set-search', 'select', 'filter-tag', 'add-tag', 'remove-tag')
-$requiredValueCommands = @('select', 'add-tag', 'remove-tag')
+$valueCommands = @('set-search', 'select', 'filter-tag', 'add-tag', 'remove-tag', 'set-launch-requirement', 'launch-option')
+$requiredValueCommands = @('select', 'add-tag', 'remove-tag', 'set-launch-requirement', 'launch-option')
 if ($Command -notin $valueCommands -and $PSBoundParameters.ContainsKey('Value')) {
   throw "Command '$Command' does not accept -Value."
 }
 if ($Command -in $requiredValueCommands -and [string]::IsNullOrWhiteSpace($Value)) {
   throw "Command '$Command' requires -Value."
+}
+if ($Command -eq 'set-launch-requirement' -and $Value -notin @('any', 'wifi-on', 'wifi-off')) {
+  throw "Command 'set-launch-requirement' requires exactly any, wifi-on, or wifi-off."
 }
 
 $state = (& $adbPath -s $Serial get-state 2>&1).Trim()

@@ -52,6 +52,66 @@ internal data class TagRecord(
   val tags: Set<String>,
 )
 
+/** Dedicated launch policy. Ordinary searchable tags never imply or modify this value. */
+internal enum class AppLaunchRequirement(
+  val wireName: String,
+  val handler: ActiveRequirementHandlerId?,
+) {
+  ANY("any", null),
+  WIFI_ON("wifi-on", ActiveRequirementHandlerId.WIFI_ON),
+  WIFI_OFF("wifi-off", ActiveRequirementHandlerId.WIFI_OFF);
+
+  companion object {
+    fun parseStrict(value: String): AppLaunchRequirement =
+      entries.singleOrNull { it.wireName == value }
+        ?: throw IllegalArgumentException("Unknown app launch requirement.")
+
+    fun fromHandlers(handlers: Set<ActiveRequirementHandlerId>): AppLaunchRequirement =
+      when (handlers) {
+        emptySet<ActiveRequirementHandlerId>() -> ANY
+        setOf(ActiveRequirementHandlerId.WIFI_ON) -> WIFI_ON
+        setOf(ActiveRequirementHandlerId.WIFI_OFF) -> WIFI_OFF
+        else -> throw IllegalArgumentException("Conflicting app launch requirements.")
+      }
+  }
+}
+
+internal enum class ActiveRequirementHandlerId(val wireName: String) {
+  WIFI_ON("wifi-on"),
+  WIFI_OFF("wifi-off");
+
+  companion object {
+    fun parseStrict(value: String): ActiveRequirementHandlerId =
+      entries.singleOrNull { it.wireName == value }
+        ?: throw IllegalArgumentException("Unknown active requirement handler.")
+  }
+}
+
+internal data class TagAppDefinition(
+  val record: TagRecord,
+  val launchRequirement: AppLaunchRequirement = AppLaunchRequirement.ANY,
+)
+
+internal data class TagFileDocument(
+  val schema: String,
+  val apps: List<TagAppDefinition>,
+  val documentDigest: String,
+) {
+  val records: List<TagRecord>
+    get() = apps.map(TagAppDefinition::record)
+
+  fun requirementFor(entry: CatalogEntry): AppLaunchRequirement {
+    if (schema != "rusty.kiosk.app_tags.v2") return AppLaunchRequirement.ANY
+    val definition = entry.packageName?.let { packageName ->
+      apps.singleOrNull { it.record.packageName == packageName }
+    } ?: apps.singleOrNull {
+      it.record.packageName == null &&
+        normalizeLookup(it.record.name) == normalizeLookup(entry.label)
+    }
+    return definition?.launchRequirement ?: AppLaunchRequirement.ANY
+  }
+}
+
 internal data class CatalogEntry(
   val key: String,
   val label: String,
@@ -60,6 +120,7 @@ internal data class CatalogEntry(
   val installed: Boolean,
   val tags: Set<String>,
   val source: String,
+  val launchRequirement: AppLaunchRequirement = AppLaunchRequirement.ANY,
 ) {
   val launchable: Boolean
     get() = installed && target != null
@@ -85,6 +146,11 @@ internal data class KioskUiState(
   val userControls: UserControlState = UserControlState(),
   val searchFocusRequest: Long = 0L,
   val tagFocusRequest: Long = 0L,
+  val pendingRequirementLaunchId: String? = null,
+  val pendingRequirementMessage: String? = null,
+  val selectedLaunchOptions: AppLaunchOptionsUiState = AppLaunchOptionsUiState(),
+  val lastDispatchedOptionId: String? = null,
+  val lastDispatchedOptionPackage: String? = null,
 ) {
   val tags: List<String>
     get() = entries.flatMap { it.tags }.distinct().sorted()
@@ -161,16 +227,24 @@ internal object CatalogFilter {
     searchQuery: String,
     selectedTag: String?,
   ): List<CatalogEntry> {
-    val query = normalizeLookup(searchQuery)
+    val terms = parseCatalogSearchTerms(searchQuery)
     val tag = selectedTag?.let(::normalizeTag)
     return entries
       .asSequence()
       .filter { entry -> tag == null || tag in entry.tags }
       .filter { entry ->
-        query.isEmpty() ||
-          normalizeLookup(entry.label).contains(query) ||
-          normalizeLookup(entry.packageName.orEmpty()).contains(query) ||
-          entry.tags.any { normalizeLookup(it).contains(query) }
+        val searchable =
+          listOf(normalizeLookup(entry.label), normalizeLookup(entry.packageName.orEmpty())) +
+            entry.tags.map(::normalizeLookup)
+        terms.all { term ->
+          searchable.any { value ->
+            if (term.phrase) {
+              normalizeSearchPhrase(value).contains(term.value)
+            } else {
+              value.contains(term.value)
+            }
+          }
+        }
       }
       .sortedWith(
         compareByDescending<CatalogEntry> { it.installed }
@@ -181,7 +255,46 @@ internal object CatalogFilter {
   }
 }
 
+private data class CatalogSearchTerm(
+  val value: String,
+  val phrase: Boolean,
+)
+
+private fun parseCatalogSearchTerms(value: String): List<CatalogSearchTerm> {
+  val terms = mutableListOf<CatalogSearchTerm>()
+  val token = StringBuilder()
+  var quoted = false
+
+  fun flush() {
+    val normalized =
+      if (quoted) normalizeSearchPhrase(token.toString()) else normalizeLookup(token.toString())
+    if (normalized.isNotEmpty()) terms += CatalogSearchTerm(normalized, phrase = quoted)
+    token.clear()
+  }
+
+  value.forEach { character ->
+    when {
+      character == '"' -> {
+        flush()
+        quoted = !quoted
+      }
+      quoted || character.isLetterOrDigit() -> token.append(character)
+      else -> flush()
+    }
+  }
+  flush()
+  return terms
+}
+
+private fun normalizeSearchPhrase(value: String): String =
+  SEARCH_TERM_SEPARATOR.replace(normalizeLookup(value), " ").trim()
+
 internal object CatalogAssembler {
+  fun assemble(snapshot: InstalledSnapshot, document: TagFileDocument): List<CatalogEntry> =
+    assemble(snapshot, document.records).map { entry ->
+      entry.copy(launchRequirement = document.requirementFor(entry))
+    }
+
   fun assemble(snapshot: InstalledSnapshot, tagRecords: List<TagRecord>): List<CatalogEntry> {
     val entries =
       snapshot.launchableApps
@@ -259,4 +372,5 @@ internal fun normalizeLookup(value: String): String =
 
 internal fun normalizeTag(value: String): String = normalizeLookup(value).take(MAX_TAG_LENGTH)
 
+private val SEARCH_TERM_SEPARATOR = Regex("[^\\p{L}\\p{N}]+")
 private const val MAX_TAG_LENGTH = 40

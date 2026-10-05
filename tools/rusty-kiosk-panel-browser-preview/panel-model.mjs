@@ -7,6 +7,21 @@ const baseEntries = [
     launchable: true,
     tags: ["onboarding", "web"],
     source: "android-launcher",
+    launchRequirement: "any",
+    launchOptions: [
+      {
+        schemaVersion: 1,
+        optionId: "playlist.preview-loop",
+        displayLabel: "Gallery loop",
+        description: "Loop two saved profiles for 5s",
+      },
+      {
+        schemaVersion: 1,
+        optionId: "option.preview-once",
+        displayLabel: "Gallery once",
+        description: "Run one saved profile",
+      },
+    ],
   },
   {
     key: "package:io.example.movement",
@@ -16,6 +31,8 @@ const baseEntries = [
     launchable: true,
     tags: ["demo", "movement"],
     source: "quest-vr",
+    launchRequirement: "wifi-on",
+    launchOptions: [],
   },
   {
     key: "package:com.example.gallery",
@@ -25,6 +42,8 @@ const baseEntries = [
     launchable: false,
     tags: ["utilities"],
     source: "tag-file-installed-package",
+    launchRequirement: "any",
+    launchOptions: [],
   },
   {
     key: "missing-name:training library",
@@ -34,6 +53,8 @@ const baseEntries = [
     launchable: false,
     tags: ["onboarding"],
     source: "tag-file",
+    launchRequirement: "any",
+    launchOptions: [],
   },
 ];
 
@@ -89,17 +110,18 @@ export function deriveTags(state) {
 }
 
 export function visibleEntries(state) {
-  const query = normalize(state.searchQuery);
+  const terms = parseSearchTerms(state.searchQuery);
   const selectedTag = state.selectedTag ? normalizeTag(state.selectedTag) : null;
   return state.entries
     .filter((entry) => !selectedTag || entry.tags.map(normalizeTag).includes(selectedTag))
-    .filter(
-      (entry) =>
-        !query ||
-        normalize(entry.label).includes(query) ||
-        normalize(entry.packageName ?? "").includes(query) ||
-        entry.tags.some((tag) => normalize(tag).includes(query)),
-    )
+    .filter((entry) => {
+      const searchable = [entry.label, entry.packageName ?? "", ...entry.tags].map(normalize);
+      return terms.every((term) =>
+        searchable.some((value) =>
+          term.phrase ? normalizeSearchPhrase(value).includes(term.value) : value.includes(term.value),
+        ),
+      );
+    })
     .sort(
       (left, right) =>
         Number(right.installed) - Number(left.installed) ||
@@ -129,6 +151,11 @@ export function removeTag(state, value) {
   }));
 }
 
+export function setLaunchRequirement(state, value) {
+  if (!["any", "wifi-on", "wifi-off"].includes(value)) return state;
+  return updateSelected(state, (entry) => ({ ...entry, launchRequirement: value }));
+}
+
 export function importPreviewState(value) {
   if (!value || value.schema !== "rusty.kiosk.browser_preview_state.v1") {
     throw new Error("Unsupported Rusty Kiosk preview state.");
@@ -149,6 +176,17 @@ export function importPreviewState(value) {
         ? [...new Set(entry.tags.map(normalizeTag).filter(Boolean))].slice(0, 24)
         : [],
       source: String(entry.source ?? "imported").slice(0, 80),
+      launchRequirement: ["wifi-on", "wifi-off"].includes(entry.launchRequirement)
+        ? entry.launchRequirement
+        : "any",
+      launchOptions: Array.isArray(entry.launchOptions)
+        ? entry.launchOptions.slice(0, 64).map((option) => ({
+            schemaVersion: Number(option.schemaVersion) === 1 ? 1 : 0,
+            optionId: String(option.optionId ?? "").slice(0, 160),
+            displayLabel: String(option.displayLabel ?? "").slice(0, 96),
+            description: String(option.description ?? "").slice(0, 160),
+          }))
+        : [],
     })),
     searchQuery: String(value.searchQuery ?? "").slice(0, 120),
     selectedTag: value.selectedTag == null ? null : normalizeTag(String(value.selectedTag)),
@@ -189,6 +227,34 @@ function updateSelected(state, update) {
 
 function normalize(value) {
   return String(value).trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+
+function parseSearchTerms(value) {
+  const terms = [];
+  const token = [];
+  let quoted = false;
+  const flush = () => {
+    const normalized = quoted ? normalizeSearchPhrase(token.join("")) : normalize(token.join(""));
+    if (normalized) terms.push({ value: normalized, phrase: quoted });
+    token.length = 0;
+  };
+
+  for (const character of String(value)) {
+    if (character === '"') {
+      flush();
+      quoted = !quoted;
+    } else if (quoted || /[\p{L}\p{N}]/u.test(character)) {
+      token.push(character);
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return terms;
+}
+
+function normalizeSearchPhrase(value) {
+  return normalize(value).replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 function normalizeTag(value) {

@@ -20,6 +20,15 @@ $setupManifestPath = Join-Path $repoRoot 'setup-helper\src\main\AndroidManifest.
 $setupSourcePath = Join-Path $repoRoot 'setup-helper\src\main\java\io\github\mesmerprism\rustykiosk\setuphelper\SetupOperations.kt'
 $cliContractPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskCliContract.kt'
 $operatorProviderPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskOperatorProvider.kt'
+$operatorBridgeServicePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeService.kt'
+$operatorBridgeSettingsPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeSettings.kt'
+$operatorBridgeAuthPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeAuth.kt'
+$operatorSessionStorePath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\OperatorBridgeSessionStore.kt'
+$installCommitmentPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskInstallCommitment.kt'
+$installerPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\RustyKioskInstaller.kt'
+$activeRequirementPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ActiveLaunchRequirement.kt'
+$activeRequirementAndroidPath = Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ActiveLaunchRequirementAndroid.kt'
+$directBootstrapContractPath = Join-Path $repoRoot 'references\rusty-kiosk-direct-usb-bootstrap-contract.v2.json'
 $foregroundSignalProviderPath =
   Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\ForegroundSignalProvider.kt'
 $foregroundSignalAdmissionPath =
@@ -31,10 +40,33 @@ $foregroundSignalClientPath =
 $foregroundSignalDocPath = Join-Path $repoRoot 'docs\FOREGROUND_SIGNAL.md'
 $architecturePath = Join-Path $repoRoot 'docs\ARCHITECTURE.md'
 $readmePath = Join-Path $repoRoot 'README.md'
+$agentNotesPath = Join-Path $repoRoot 'AGENTS.md'
+$releaseVersionModulePath = Join-Path $repoRoot 'tools\RustyKiosk.ReleaseVersion.psm1'
+$releaseStagePath = Join-Path $repoRoot 'tools\Stage-ReleaseBundle.ps1'
+$labsOwnerMetadataModulePath = Join-Path $repoRoot 'tools\RustyKiosk.LabsOwnerMetadata.psm1'
+$labsOwnerMetadataValidatorPath = Join-Path $repoRoot 'tools\Test-KioskLabsOwnerMetadata.ps1'
+$labsReleaseReadbackModulePath =
+  Join-Path $repoRoot 'tools\RustyKiosk.LabsReleaseReadback.psm1'
+$labsReleaseReadbackTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-LabsReleaseReadback.ps1'
+$releaseWorkflowStructureTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-ReleaseWorkflowStructure.ps1'
+$appLaunchOptionsBoundaryTestPath =
+  Join-Path $repoRoot 'tools\checks\Test-AppLaunchOptionsBoundary.ps1'
+$labsReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release-labs.yml'
+$stableReleaseWorkflowPath = Join-Path $repoRoot '.github\workflows\release.yml'
+$ciWorkflowPath = Join-Path $repoRoot '.github\workflows\ci.yml'
+$labsLauncherCandidatePath =
+  Join-Path $repoRoot 'tools\Prepare-RustyKioskLauncherLabsCandidate.ps1'
+$releaseSignerPolicyPath = Join-Path $repoRoot 'release\kiosk-release-signer-policy.v1.json'
+$appBuildPath = Join-Path $repoRoot 'app\build.gradle.kts'
+$setupHelperBuildPath = Join-Path $repoRoot 'setup-helper\build.gradle.kts'
 $foregroundSignalContractPath =
   Join-Path $repoRoot 'foreground-signal-client\src\main\java\io\github\mesmerprism\rustykiosk\foregroundsignal\ForegroundSignalContract.java'
 $foregroundSignalManifestPath =
   Join-Path $repoRoot 'foreground-signal-client\src\main\AndroidManifest.xml'
+$foregroundSignalBuildPath =
+  Join-Path $repoRoot 'foreground-signal-client\build.gradle.kts'
 $cliDebugManifestPath = Join-Path $repoRoot 'app\src\debug\AndroidManifest.xml'
 $cliActivityPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskCliActivity.kt'
 $guardCliReceiverPath = Join-Path $repoRoot 'app\src\debug\java\io\github\mesmerprism\rustykiosk\RustyKioskGuardCliReceiver.kt'
@@ -88,7 +120,6 @@ foreach ($token in @(
     throw "The generation-bound advisory foreground route is missing: $token"
   }
 }
-
 $activitySource = Get-Content -Raw -LiteralPath $activitySourcePath
 foreach ($token in @(
   'RustyKioskPassthroughController',
@@ -97,6 +128,15 @@ foreach ($token in @(
 )) {
   if (-not $activitySource.Contains($token, [StringComparison]::Ordinal)) {
     throw "Spatial activity is missing the passthrough control path: $token"
+  }
+}
+foreach ($token in @(
+  'ACTION_APPLICATION_DETAILS_SETTINGS',
+  'Allow restricted settings',
+  'ACCESSIBILITY_RESTRICTED_SETTINGS_GUIDANCE'
+)) {
+  if (-not $activitySource.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The wearer-visible restricted Accessibility recovery route is missing: $token"
   }
 }
 if ($activitySource -match 'skybox|Composition\.glxf|collab_room') {
@@ -125,7 +165,7 @@ if ($manifest -match 'android\.app\.role\.HOME|android\.intent\.category\.HOME')
 if ($manifest -match 'android\.permission\.WRITE_SECURE_SETTINGS') {
   throw 'The main Rusty Kiosk APK must not receive broad secure-settings authority.'
 }
-if ($manifest -notmatch 'io\.github\.mesmerprism\.rustykiosk\.permission\.SETUP_CONTROL') {
+if ($manifest -notmatch '\$\{setupControlPermission\}') {
   throw 'The main app is missing its same-signer setup control permission.'
 }
 if ($manifest -match 'com\.termux|RUN_COMMAND') {
@@ -136,10 +176,10 @@ if ($manifest -match 'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
 }
 foreach ($pattern in @(
   'RustyKioskOperatorProvider',
-  'io.github.mesmerprism.rustykiosk.operator',
+  '${operatorAuthority}',
   'android:permission="android.permission.DUMP"',
   'ForegroundSignalProvider',
-  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  '${foregroundSignalAuthority}',
   'io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL',
   'tools:node="remove"'
 )) {
@@ -157,6 +197,7 @@ $architecture = Get-Content -Raw -LiteralPath $architecturePath
 $readme = Get-Content -Raw -LiteralPath $readmePath
 $foregroundSignalContract = Get-Content -Raw -LiteralPath $foregroundSignalContractPath
 $foregroundSignalManifest = Get-Content -Raw -LiteralPath $foregroundSignalManifestPath
+$foregroundSignalBuild = Get-Content -Raw -LiteralPath $foregroundSignalBuildPath
 foreach ($token in @(
   'Binder.getCallingUid()',
   'callingPackage',
@@ -234,12 +275,28 @@ if (
 }
 foreach ($token in @(
   'io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL',
-  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  '${foregroundSignalProviderAuthority}',
   'android:value="2"'
 )) {
   if (-not $foregroundSignalManifest.Contains($token, [StringComparison]::Ordinal)) {
     throw "The foreground-signal capability manifest is missing: $token"
   }
+}
+foreach ($token in @(
+  'rustyKioskProductChannel',
+  'orElse("stable")',
+  'it == "stable" || it == "labs"',
+  'io.github.mesmerprism.rustykiosk.foreground-signal',
+  'io.github.mesmerprism.rustykiosk.labs.foreground-signal',
+  'buildConfigField("String", "PROVIDER_AUTHORITY"'
+)) {
+  if (-not $foregroundSignalBuild.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The channel-bound foreground-signal client build is missing: $token"
+  }
+}
+if (-not $foregroundSignalContract.Contains(
+    'BuildConfig.PROVIDER_AUTHORITY', [StringComparison]::Ordinal)) {
+  throw 'The foreground-signal client contract must use the build-bound provider authority.'
 }
 if (
   $foregroundSignalContract.Contains('LEGACY_PROTOCOL', [StringComparison]::Ordinal) -or
@@ -266,6 +323,16 @@ $cliActivity = Get-Content -Raw -LiteralPath $cliActivityPath
 $guardCliReceiver = Get-Content -Raw -LiteralPath $guardCliReceiverPath
 $cliContract = Get-Content -Raw -LiteralPath $cliContractPath
 $operatorProvider = Get-Content -Raw -LiteralPath $operatorProviderPath
+$operatorBridgeService = Get-Content -Raw -LiteralPath $operatorBridgeServicePath
+$operatorBridgeSettings = Get-Content -Raw -LiteralPath $operatorBridgeSettingsPath
+$operatorBridgeAuth = Get-Content -Raw -LiteralPath $operatorBridgeAuthPath
+$operatorSessionStore = Get-Content -Raw -LiteralPath $operatorSessionStorePath
+$installCommitment = Get-Content -Raw -LiteralPath $installCommitmentPath
+$installer = Get-Content -Raw -LiteralPath $installerPath
+$activeRequirement = Get-Content -Raw -LiteralPath $activeRequirementPath
+$activeRequirementSurface = $activeRequirement + (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'app\src\main\java\io\github\mesmerprism\rustykiosk\CatalogModels.kt'))
+$activeRequirementAndroid = Get-Content -Raw -LiteralPath $activeRequirementAndroidPath
+$directBootstrapContract = Get-Content -Raw -LiteralPath $directBootstrapContractPath | ConvertFrom-Json
 $cliScript = Get-Content -Raw -LiteralPath $cliScriptPath
 foreach ($token in @('RustyKioskCliProtocol.parse', 'RustyKioskCliStore(this).enqueue')) {
   if (-not $cliActivity.Contains($token, [StringComparison]::Ordinal)) {
@@ -273,7 +340,7 @@ foreach ($token in @('RustyKioskCliProtocol.parse', 'RustyKioskCliStore(this).en
   }
 }
 foreach ($token in @(
-  'rusty.kiosk.host_operator.v2',
+  'rusty.kiosk.host_operator.v4',
   'METHOD_TAG_READ',
   'METHOD_TAG_WRITE_BEGIN',
   'METHOD_TAG_WRITE_CHUNK',
@@ -284,6 +351,169 @@ foreach ($token in @(
 )) {
   if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
     throw "The bounded host tag-transfer contract is missing: $token"
+  }
+}
+if ($directBootstrapContract.schema -ne 'rusty.kiosk.direct_usb_bootstrap_contract.v2' -or
+    $directBootstrapContract.host_provider_schema -ne 'rusty.kiosk.host_operator.v4' -or
+    $directBootstrapContract.bootstrap_result_schema -ne 'rusty.kiosk.direct_usb_bootstrap.v2' -or
+    $directBootstrapContract.direct_operator_schema -ne 'rusty.kiosk.direct_operator.v2' -or
+    $directBootstrapContract.enable.operation_id_transport -ne 'content-provider-arg' -or
+    $directBootstrapContract.disable.operation_id_transport -ne 'content-provider-arg' -or
+    $directBootstrapContract.disable.extras.expected_bridge_generation -ne 'long' -or
+    $directBootstrapContract.disable.extras.session_id -ne 'string' -or
+    $directBootstrapContract.authenticated_status_confirmation.required_fields.bridge_generation -ne 'exact-bootstrap-long' -or
+    $directBootstrapContract.authenticated_status_confirmation.required_fields.session_id -ne 'exact-bootstrap-session-id' -or
+    $directBootstrapContract.recover_disable.operation_id_transport -ne 'content-provider-arg' -or
+    $directBootstrapContract.recover_disable.returns_session_secret -ne $false -or
+    $directBootstrapContract.recover_disable.returns_pairing_code -ne $false -or
+    $directBootstrapContract.cleanup_ownership.secret_retained -ne $false -or
+    $directBootstrapContract.cleanup_ownership.successful_cleanup_consumes_after_stopped_readback -ne $true -or
+    $directBootstrapContract.operation_replay.scope -ne 'app-private-bootstrap-issuance-epoch' -or
+    $directBootstrapContract.operation_replay.max_operation_ids -ne 4096 -or
+    $directBootstrapContract.operation_replay.eviction -ne 'none' -or
+    $directBootstrapContract.operation_replay.saturation -ne 'fail-closed-until-new-bootstrap-issuance-epoch' -or
+    $directBootstrapContract.operation_replay.bridge_generation_change_clears_ids -ne $false -or
+    $directBootstrapContract.operation_replay.stored_state_schema -ne 'rusty.kiosk.operator_session_state.v1' -or
+    $directBootstrapContract.operation_replay.array_initialization -ne 'fresh-state-only' -or
+    $directBootstrapContract.direct_install.copy_rule -ne 'same-opened-handle-count-and-digest-verified-before-packageinstaller-commit' -or
+    $directBootstrapContract.direct_install.abandon_failure_present_or_unknown -ne 'cleanup-required-incomplete' -or
+    $directBootstrapContract.direct_install.cleanup_retry_starts_second_install -ne $false -or
+    $directBootstrapContract.direct_install.cleanup_retry_binding -ne 'exact-ordered-name-bytes-sha256-and-canonical-sha256' -or
+    $directBootstrapContract.direct_install.stored_receipt_schema -ne 'rusty.kiosk.local_install_state.v2' -or
+    $directBootstrapContract.direct_install.damaged_existing_receipt -ne 'fail-closed-without-new-session' -or
+    $directBootstrapContract.direct_install.stored_binding_exported_in_public_receipt -ne $false -or
+    $directBootstrapContract.status_returns_secret -ne $false -or
+    $directBootstrapContract.persistent_pairing_code_exported -ne $false) {
+  throw 'The Kiosk/QFM Direct USB bootstrap fixture does not match the fixed v2 wire contract.'
+}
+foreach ($token in @('DIRECT_BOOTSTRAP_SCHEMA', 'operationIdArg', 'EXTRA_SESSION_ID', 'EXTRA_EXPECTED_BRIDGE_GENERATION')) {
+  if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The provider implementation does not match the checked Direct USB fixture: $token"
+  }
+}
+foreach ($token in @('.put("bridge_generation", snapshot.bridgeGeneration)', '.put("session_id", auth.sessionId')) {
+  if (-not $operatorBridgeService.Contains($token, [StringComparison]::Ordinal)) {
+    throw "Authenticated Direct status cannot confirm the bootstrap binding: $token"
+  }
+}
+foreach ($token in @(
+  'METHOD_REQUEST_STATUS',
+  'METHOD_CANCEL',
+  'METHOD_DIRECT_STATUS',
+  'METHOD_DIRECT_ENABLE',
+  'METHOD_DIRECT_DISABLE',
+  'METHOD_DIRECT_RECOVER_DISABLE',
+  'session_secret_base64',
+  'enabled_by_request',
+  'expected_bridge_generation'
+)) {
+  if (-not $operatorProvider.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The v4 host operator lifecycle/bootstrap contract is missing: $token"
+  }
+}
+foreach ($token in @(
+  'SESSION_SECRET_BYTES = 32',
+  'MAX_CONCURRENT_SESSIONS',
+  'MAX_ISSUES_PER_WINDOW',
+  'MAX_OPERATION_IDS_PER_EPOCH = 4096',
+  'OperatorBridgeOperationLedgerPolicy',
+  'requireEpoch',
+  'return current + operationId',
+  'OperatorBridgeStateShapePolicy',
+  'STATE_SCHEMA = "rusty.kiosk.operator_session_state.v1"',
+  'root.getJSONArray(KEY_ISSUED_OPERATIONS)',
+  'The bootstrap session and operation ledger could not be persisted.',
+  'bridge_generation',
+  'issued_operations',
+  'first_used_at_ms',
+  'last_revoked_at_ms',
+  'last_observed_wall_ms',
+  'cleanup_ownerships',
+  'enabled_by_request'
+)) {
+  if (-not $operatorSessionStore.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The bounded ephemeral direct-session policy is missing: $token"
+  }
+}
+if ($operatorSessionStore.Contains('root.optJSONArray(KEY_ISSUED_OPERATIONS) ?: JSONArray()', [StringComparison]::Ordinal)) {
+  throw 'The durable operation replay ledger must not reset a present wrong-type field to empty.'
+}
+foreach ($token in @(
+  'copyVerified',
+  'MessageDigest.getInstance("SHA-256")',
+  'commitment.bytes',
+  'commitment.sha256',
+  'RustyKioskInstallCommitmentManifestPolicy',
+  'canonicalSha256',
+  'matchesBoundManifest'
+)) {
+  if (-not $installCommitment.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The immutable direct-install commitment boundary is missing: $token"
+  }
+}
+if (-not $installer.Contains('RustyKioskInstallProcessLock.monitor', [StringComparison]::Ordinal)) {
+  throw 'The process-wide direct-install request-id boundary is missing.'
+}
+foreach ($token in @(
+  'cleanup-required',
+  'retryCleanupIfRequired',
+  'installer.mySessions',
+  'cleanupConfirmed',
+  'RustyKioskInstallReceiptRead.Damaged',
+  'rusty.kiosk.local_install_state.v2',
+  'commitment_sha256',
+  'toStoredJson',
+  'An interrupted temporary install receipt exists.',
+  'incomingCommitments'
+)) {
+  if (-not $installer.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fail-closed PackageInstaller cleanup boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'OperatorRequestProcessLock.monitor',
+  '.putLong(KEY_ACTIVE_EXPIRES_AT_MS, expiresAt)',
+  'canClaim(now, activeEnqueued, activeExpiry)'
+)) {
+  if (-not $cliContract.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The process-wide request lifecycle/expiry boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'running_generation',
+  'OperatorBridgeActionPolicy.isTransitionConverged',
+  'EXTRA_EXPECTED_GENERATION'
+)) {
+  if (-not $operatorBridgeSettings.Contains($token, [StringComparison]::Ordinal) -and
+      -not $operatorBridgeService.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The generation-bound Direct Link service boundary is missing: $token"
+  }
+}
+foreach ($token in @(
+  'HEADER_SESSION_ID',
+  'recordAuthenticatedSessionUse',
+  'PATH_KIOSK_REQUEST_STATUS',
+  'PATH_KIOSK_CANCEL'
+)) {
+  if (-not $operatorBridgeService.Contains($token, [StringComparison]::Ordinal) -and
+      -not $cliContract.Contains($token, [StringComparison]::Ordinal) -and
+      -not $operatorBridgeAuth.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The authenticated Direct Link lifecycle projection is missing: $token"
+  }
+}
+foreach ($token in @('ANY("any"', 'WIFI_ON("wifi-on"', 'WIFI_OFF("wifi-off"', 'PendingRequirementLaunch')) {
+  if (-not $activeRequirementSurface.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The dedicated three-state launch requirement is missing: $token"
+  }
+}
+foreach ($token in @('WifiManager::class.java', 'isWifiEnabled', 'Settings.ACTION_WIFI_SETTINGS')) {
+  if (-not $activeRequirementAndroid.Contains($token, [StringComparison]::Ordinal)) {
+    throw "The fixed ordinary-Wi-Fi preflight/remediation boundary is missing: $token"
+  }
+}
+foreach ($forbidden in @('setWifiEnabled', 'adb_wifi_enabled', 'ACTION_WIFI_ADD_NETWORKS')) {
+  if ($activeRequirementAndroid.Contains($forbidden, [StringComparison]::Ordinal)) {
+    throw "Active app requirements must not mutate or confuse ordinary Wi-Fi with Wi-Fi ADB: $forbidden"
   }
 }
 foreach ($token in @('EXTRA_VALUE_BASE64', 'Base64.decode')) {
@@ -382,7 +612,7 @@ foreach ($pattern in @(
   'android:permission="android.permission.BIND_JOB_SERVICE"',
   '.BootWifiRequestService',
   'android:protectionLevel="signature"',
-  'android:permission="io.github.mesmerprism.rustykiosk.permission.SETUP_CONTROL"'
+  'android:permission="${setupControlPermission}"'
 )) {
   if ($setupManifest -notmatch [Regex]::Escape($pattern)) {
     throw "The dedicated setup helper manifest is missing: $pattern"
@@ -410,7 +640,15 @@ foreach ($token in @('ProcessBuilder', 'Runtime.getRuntime', 'java.lang.Process'
 }
 
 $provisionScript = Get-Content -Raw -LiteralPath $provisionScriptPath
-foreach ($token in @('-s $Serial', 'WRITE_SECURE_SETTINGS', 'setup-helper-debug.apk', 'dumpsys package')) {
+foreach ($token in @(
+  '-s $Serial',
+  'WRITE_SECURE_SETTINGS',
+  'ACCESS_RESTRICTED_SETTINGS',
+  'rustyKioskProductChannel',
+  'io.github.mesmerprism.rustykiosk.labs',
+  'setup-helper-debug.apk',
+  'dumpsys package'
+)) {
   if (-not $provisionScript.Contains($token, [StringComparison]::Ordinal)) {
     throw "The serial-scoped provisioning workflow is missing: $token"
   }
@@ -426,7 +664,7 @@ $launcherTrustManifest =
 $launcherTrustProvenance = Get-Content -Raw -LiteralPath $launcherTrustProvenancePath
 $launcherActivity = Get-Content -Raw -LiteralPath $launcherActivityPath
 foreach ($token in @(
-  'io.github.mesmerprism.rustykiosk',
+  '${kioskTargetPackage}',
   'com.oculus.intent.category.2D',
   'android.intent.category.LAUNCHER',
   'android.hardware.vr.headtracking',
@@ -454,6 +692,7 @@ if (@([regex]::Matches($launcherManifest, '<package\s+android:name=')).Count -ne
 }
 foreach ($token in @(
   'io.github.mesmerprism.rustykiosk.launcher',
+  'io.github.mesmerprism.rustykiosk.launcher.labstore',
   'io.github.mesmerprism.rustykiosk.launcher.business',
   'RUSTY_KIOSK_LAUNCHER_DISTRIBUTION',
   'rusty-kiosk-v0.6.4-bundle-manifest.json',
@@ -527,6 +766,113 @@ foreach ($token in @(
   }
 }
 
+$agentNotes = Get-Content -Raw -LiteralPath $agentNotesPath
+$releaseVersionModule = Get-Content -Raw -LiteralPath $releaseVersionModulePath
+$releaseStage = Get-Content -Raw -LiteralPath $releaseStagePath
+$labsOwnerMetadataModule = Get-Content -Raw -LiteralPath $labsOwnerMetadataModulePath
+$labsOwnerMetadataValidator = Get-Content -Raw -LiteralPath $labsOwnerMetadataValidatorPath
+$labsReleaseReadbackModule = Get-Content -Raw -LiteralPath $labsReleaseReadbackModulePath
+$labsReleaseWorkflow = Get-Content -Raw -LiteralPath $labsReleaseWorkflowPath
+$stableReleaseWorkflow = Get-Content -Raw -LiteralPath $stableReleaseWorkflowPath
+$ciWorkflow = Get-Content -Raw -LiteralPath $ciWorkflowPath
+$labsLauncherCandidate = Get-Content -Raw -LiteralPath $labsLauncherCandidatePath
+$releaseSignerPolicy = Get-Content -Raw -LiteralPath $releaseSignerPolicyPath
+$appBuild = Get-Content -Raw -LiteralPath $appBuildPath
+$setupHelperBuild = Get-Content -Raw -LiteralPath $setupHelperBuildPath
+foreach ($contract in @(
+  @{ Text = $releaseVersionModule; Token = 'alpha N must be 1..98'; Name = 'closed alpha version resolver' },
+  @{ Text = $releaseVersionModule; Token = '$minor * 10000L'; Name = 'release version-code derivation' },
+  @{ Text = $releaseVersionModule; Token = '$patch * 100L'; Name = 'release version-code derivation' },
+  @{ Text = $releaseVersionModule; Token = 'else { 99L }'; Name = 'stable suffix reservation' },
+  @{ Text = $appBuild; Token = 'requestedReleaseVersion ?: "0.6.5"'; Name = 'app stable fallback' },
+  @{ Text = $appBuild; Token = 'rustyKioskReleaseVersion'; Name = 'app release version input' },
+  @{ Text = $setupHelperBuild; Token = 'requestedReleaseVersion ?: "0.5.0"'; Name = 'helper stable fallback' },
+  @{ Text = $setupHelperBuild; Token = 'rustyKioskReleaseVersion'; Name = 'helper release version input' },
+  @{ Text = $releaseStage; Token = "'separate-coinstallable'"; Name = 'bundle identity mode' },
+  @{ Text = $releaseStage; Token = 'Get-ApkIdentity'; Name = 'APK identity inspection' },
+  @{ Text = $releaseStage; Token = 'source_tree = $SourceTree'; Name = 'source-tree binding' },
+  @{ Text = $labsOwnerMetadataModule; Token = "'rusty.kiosk.labs_release_owner_metadata.v2'"; Name = 'Labs owner schema' },
+  @{ Text = $labsOwnerMetadataModule; Token = "role = 'complete-product'"; Name = 'explicit complete-product authority' },
+  @{ Text = $labsOwnerMetadataModule; Token = 'Assert-ExactProperties'; Name = 'closed Labs owner metadata shape' },
+  @{ Text = $labsOwnerMetadataValidator; Token = 'Assert-RustyKioskLabsOwnerMetadata'; Name = 'dedicated Labs owner validator' },
+  @{ Text = $labsReleaseWorkflow; Token = 'environment: android-labs-release'; Name = 'protected Labs environment' },
+  @{ Text = $labsReleaseWorkflow; Token = '--prerelease'; Name = 'prerelease publication' },
+  @{ Text = $labsReleaseWorkflow; Token = '--draft'; Name = 'draft-first Labs publication' },
+  @{ Text = $labsReleaseWorkflow; Token = '$draftRelease = Assert-RustyKioskLabsReleaseReadback'; Name = 'pre-promotion Labs evidence' },
+  @{ Text = $labsReleaseWorkflow; Token = '$liveRelease = Assert-RustyKioskLabsReleaseReadback'; Name = 'post-promotion Labs evidence' },
+  @{ Text = $labsReleaseWorkflow; Token = "'rusty-kiosk-labs-owner-release.json'"; Name = 'exact Labs owner asset inventory' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Get-TagSnapshot'; Name = 'bounded pre/post tag and tree readback' },
+  @{ Text = $labsReleaseReadbackModule; Token = 'ReleaseId = [int64]$Release.id'; Name = 'release-ID promotion binding' },
+  @{ Text = $labsReleaseWorkflow; Token = 'gh api --paginate --slurp'; Name = 'authenticated draft enumeration' },
+  @{ Text = $labsReleaseWorkflow; Token = 'releases/$($draftRelease.ReleaseId)'; Name = 'release-ID promotion route' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Published Labs tag route differs from the promoted release ID.'; Name = 'post-promotion tag-to-ID readback' },
+  @{ Text = $labsReleaseReadbackModule; Token = 'untagged-[0-9a-f]{20}'; Name = 'GitHub draft download-route shape' },
+  @{ Text = $labsReleaseReadbackModule; Token = '$Release.target_commitish -cne $SourceRevision'; Name = 'release target source binding' },
+  @{ Text = $labsReleaseReadbackModule; Token = '$Release.html_url'; Name = 'release route owner binding' },
+  @{ Text = $labsReleaseWorkflow; Token = '$env:INPUT_VERSION'; Name = 'untrusted dispatch input data binding' },
+  @{ Text = $labsReleaseWorkflow; Token = '--untracked-files=all'; Name = 'signing checkout dirt closure' },
+  @{ Text = $labsReleaseWorkflow; Token = 'refs/remotes/origin/main'; Name = 'release tag protected-main ancestry' },
+  @{ Text = $labsReleaseWorkflow; Token = 'authenticated releases and drafts'; Name = 'same-tag draft absence closure' },
+  @{ Text = $labsReleaseWorkflow; Token = 'preserve it for owner review'; Name = 'failed-draft evidence preservation' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Latest-release readback was malformed or selected the Labs tag.'; Name = 'not-latest readback' },
+  @{ Text = $labsReleaseWorkflow; Token = '$PSNativeCommandUseErrorActionPreference = $false'; Name = 'Labs expected-404 native exit handling' },
+  @{ Text = $labsReleaseWorkflow; Token = '$global:LASTEXITCODE = 0'; Name = 'Labs expected-404 step result reset' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Remove-Item Env:ORG_GRADLE_PROJECT_rustyKioskReleaseVersion'; Name = 'Labs build projection cleanup' },
+  @{ Text = $labsReleaseWorkflow; Token = 'Remove-Item Env:ORG_GRADLE_PROJECT_rustyKioskProductChannel'; Name = 'Labs channel projection cleanup' },
+  @{ Text = $labsReleaseWorkflow; Token = 'refs/tags/$($release.Tag)'; Name = 'exact alpha-maturity tag binding' },
+  @{ Text = $labsReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'Labs signer policy' },
+  @{ Text = $stableReleaseWorkflow; Token = "!contains(github.ref_name, '-')"; Name = 'Stable/Labs workflow isolation' },
+  @{ Text = $stableReleaseWorkflow; Token = 'environment: android-stable-release'; Name = 'protected stable environment' },
+  @{ Text = $stableReleaseWorkflow; Token = '$env:INPUT_VERSION'; Name = 'stable untrusted dispatch input data binding' },
+  @{ Text = $stableReleaseWorkflow; Token = '--untracked-files=all'; Name = 'stable signing checkout dirt closure' },
+  @{ Text = $stableReleaseWorkflow; Token = 'refs/remotes/origin/main'; Name = 'stable tag protected-main ancestry' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Remote stable tag'; Name = 'stable authoritative remote tag peel' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Could not positively prove'; Name = 'stable release absence proof' },
+  @{ Text = $stableReleaseWorkflow; Token = 'authenticated stable releases and drafts'; Name = 'stable same-tag draft absence closure' },
+  @{ Text = $stableReleaseWorkflow; Token = '$prePublicationTag = Get-TagSnapshot'; Name = 'stable pre-publication tag readback' },
+  @{ Text = $stableReleaseWorkflow; Token = '$postPublicationTag = Get-TagSnapshot'; Name = 'stable post-publication tag readback' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Stable Git source identity drifted across publication.'; Name = 'stable tag and tree drift rejection' },
+  @{ Text = $stableReleaseWorkflow; Token = '$PSNativeCommandUseErrorActionPreference = $false'; Name = 'stable expected-404 native exit handling' },
+  @{ Text = $stableReleaseWorkflow; Token = '$global:LASTEXITCODE = 0'; Name = 'stable expected-404 step result reset' },
+  @{ Text = $stableReleaseWorkflow; Token = 'Published stable asset readback failed'; Name = 'stable publication readback' },
+  @{ Text = $stableReleaseWorkflow; Token = '$published.target_commitish -cne $env:RELEASE_SOURCE_REVISION'; Name = 'stable release source binding' },
+  @{ Text = $stableReleaseWorkflow; Token = '$remote[0].browser_download_url -cne'; Name = 'stable exact asset download route' },
+  @{ Text = $stableReleaseWorkflow; Token = 'kiosk-release-signer-policy.v1.json'; Name = 'stable signer policy' },
+  @{ Text = $ciWorkflow; Token = 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'; Name = 'pinned CI checkout action' },
+  @{ Text = $ciWorkflow; Token = 'actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95'; Name = 'pinned CI Java action' },
+  @{ Text = $ciWorkflow; Token = 'persist-credentials: false'; Name = 'credential-free CI checkout' },
+  @{ Text = $ciWorkflow; Token = 'runs-on: windows-2025'; Name = 'bounded CI runner generation' },
+  @{ Text = $ciWorkflow; Token = 'timeout-minutes: 45'; Name = 'bounded CI runtime' },
+  @{ Text = $labsLauncherCandidate; Token = "distribution_track = 'meta-store-app'"; Name = 'Labs launcher Meta Store track' },
+  @{ Text = $labsLauncherCandidate; Token = 'separate Rusty Kiosk Lab Launcher Store app'; Name = 'separate Labs Store identity' },
+  @{ Text = $releaseSignerPolicy; Token = '423d20004c79dd140c692e31aa80369cd3677b1ae2688dbd75011a4c83a0f1fb'; Name = 'authorized signer pin' },
+  @{ Text = $releaseSignerPolicy; Token = 'e0fe76729adb13c247a45f9f45e5990ce6610a2859818dfd135a2b8304715fc2'; Name = 'signer-policy provenance' },
+  @{ Text = $agentNotes; Token = 'separate-coinstallable'; Name = 'agent Labs ownership' },
+  @{ Text = $readme; Token = 'uninstall-labs-without-changing-stable'; Name = 'public Labs exit semantics' }
+)) {
+  if (-not $contract.Text.Contains($contract.Token, [StringComparison]::Ordinal)) {
+    throw "The $($contract.Name) contract is missing: $($contract.Token)"
+  }
+}
+& $labsReleaseReadbackTestPath
+& $releaseWorkflowStructureTestPath
+if ($labsLauncherCandidate.Contains(
+    'meta-store-separate-app', [StringComparison]::Ordinal)) {
+  throw 'The Labs launcher candidate conflates Store transport with app identity.'
+}
+if ($labsReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)' -or
+    $stableReleaseWorkflow -match '\$\{\{\s*inputs\.(signer|certificate)') {
+  throw 'A workflow input must not authorize the production Kiosk signer.'
+}
+if ($labsReleaseWorkflow -match "'\$\{\{\s*(inputs\.version|github\.(ref|ref_name))\s*\}\}'" -or
+    $stableReleaseWorkflow -match "'\$\{\{\s*(inputs\.version|github\.(ref|ref_name))\s*\}\}'") {
+  throw 'Untrusted release trigger text must enter PowerShell only through step environment data.'
+}
+if ($labsReleaseWorkflow -match '(?m)^\s*cache:\s*gradle\s*$' -or
+    $stableReleaseWorkflow -match '(?m)^\s*cache:\s*gradle\s*$') {
+  throw 'Signing workflows must not restore a mutable shared Gradle cache.'
+}
+
 $publicFiles =
   Get-ChildItem -LiteralPath $repoRoot -Recurse -File |
     Where-Object {
@@ -555,14 +901,14 @@ foreach ($file in $publicFiles) {
 Push-Location $repoRoot
 $priorLauncherDistribution = $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION
 try {
-  foreach ($invalidDistribution in @('store', 'business', 'Unknown', ' Store', '')) {
+  foreach ($invalidDistribution in @('store', 'labsstore', 'business', 'Unknown', ' Store', '')) {
     $selectorRejected = $false
     try {
       & .\tools\Build-RustyKioskLauncherRelease.ps1 `
         -Distribution $invalidDistribution | Out-Null
     } catch {
       $selectorRejected =
-        $_.Exception.Message -ceq 'Distribution must be exactly Store or Business.'
+        $_.Exception.Message -ceq 'Distribution must be exactly Store, LabsStore, or Business.'
     }
     if (-not $selectorRejected) {
       throw "The launcher release selector accepted '$invalidDistribution'."
@@ -582,6 +928,10 @@ try {
   }
 
   $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
+  & pwsh -NoProfile -ExecutionPolicy Bypass -File $appLaunchOptionsBoundaryTestPath
+  if ($LASTEXITCODE -ne 0) {
+    throw "App launch-options boundary gate failed with exit code $LASTEXITCODE."
+  }
   & pwsh -NoProfile -ExecutionPolicy Bypass `
     -File .\tools\Test-RustyKioskPanelPreview.ps1
   if ($LASTEXITCODE -ne 0) {
@@ -627,6 +977,64 @@ try {
       '<uses-permission|<service|<provider|<receiver|QUERY_ALL_PACKAGES|com\.oculus\.intent\.category\.VR"') {
     throw 'Forbidden authority leaked into the native 2D launcher release manifest.'
   }
+  $stableKioskReleaseText = Get-Content -Raw -LiteralPath $releaseManifest.FullName
+  if ($stableKioskReleaseText -notmatch '<manifest[^>]+package="io\.github\.mesmerprism\.rustykiosk"' -or
+      $stableKioskReleaseText -notmatch 'android:authorities="io\.github\.mesmerprism\.rustykiosk\.operator"' -or
+      @([regex]::Matches(
+          $stableKioskReleaseText,
+          'android:authorities="io\.github\.mesmerprism\.rustykiosk\.foreground-signal"'
+        )).Count -lt 2 -or
+      $stableKioskReleaseText -match
+        'android:authorities="io\.github\.mesmerprism\.rustykiosk\.labs\.foreground-signal"') {
+    throw 'The default build no longer resolves the exact stable Kiosk identity.'
+  }
+
+  & .\gradlew.bat -PrustyKioskProductChannel=labs `
+    :app:processReleaseMainManifest `
+    :setup-helper:processReleaseMainManifest `
+    --rerun-tasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Labs core release-manifest gate failed with exit code $LASTEXITCODE."
+  }
+  $labsKioskReleaseText = Get-Content -Raw -LiteralPath $releaseManifest.FullName
+  $setupHelperReleaseManifest =
+    Get-ChildItem -Path .\setup-helper\build\intermediates -Recurse -Filter AndroidManifest.xml |
+      Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
+      Select-Object -First 1
+  if ($null -eq $setupHelperReleaseManifest) {
+    throw 'The Labs setup-helper release-manifest gate produced no manifest.'
+  }
+  $labsHelperReleaseText = Get-Content -Raw -LiteralPath $setupHelperReleaseManifest.FullName
+  if ($labsKioskReleaseText -notmatch '<manifest[^>]+package="io\.github\.mesmerprism\.rustykiosk\.labs"' -or
+      $labsKioskReleaseText -notmatch 'android:authorities="io\.github\.mesmerprism\.rustykiosk\.labs\.operator"' -or
+      @([regex]::Matches(
+          $labsKioskReleaseText,
+          'android:authorities="io\.github\.mesmerprism\.rustykiosk\.labs\.foreground-signal"'
+        )).Count -lt 2 -or
+      $labsKioskReleaseText -match
+        'android:authorities="io\.github\.mesmerprism\.rustykiosk\.foreground-signal"' -or
+      $labsKioskReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs\.permission\.SETUP_CONTROL' -or
+      $labsHelperReleaseText -notmatch '<manifest[^>]+package="io\.github\.mesmerprism\.rustykiosk\.setuphelper\.labs"' -or
+      $labsHelperReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs\.permission\.SETUP_CONTROL' -or
+      $labsHelperReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.setuphelper\.labs\.action\.CONTROL') {
+    throw 'The Labs core/helper identities are not isolated from stable.'
+  }
+
+  $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'LabsStore'
+  & .\gradlew.bat :launcher:processReleaseMainManifest --rerun-tasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Labs launcher release-manifest gate failed with exit code $LASTEXITCODE."
+  }
+  $launcherLabsReleaseText = Get-Content -Raw -LiteralPath $launcherReleaseManifest.FullName
+  $launcherLabsReleasePackage =
+    [regex]::Match(
+      $launcherLabsReleaseText,
+      '<manifest[^>]+\bpackage="([^"]+)"'
+    ).Groups[1].Value
+  if ($launcherLabsReleasePackage -cne 'io.github.mesmerprism.rustykiosk.launcher.labstore' -or
+      $launcherLabsReleaseText -notmatch 'io\.github\.mesmerprism\.rustykiosk\.labs') {
+    throw 'The Labs launcher is not fixed to the Labs core identity.'
+  }
 
   $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Business'
   & .\gradlew.bat :launcher:processReleaseMainManifest --rerun-tasks
@@ -657,6 +1065,19 @@ try {
     if ($LASTEXITCODE -ne 0) {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }
+  }
+  $exampleTasks = @('testDebugUnitTest', 'lintDebug')
+  $exampleManifest = Get-Content -Raw -LiteralPath (
+    Join-Path $repoRoot 'examples\quest-autoboot\src\main\AndroidManifest.xml')
+  if ($exampleManifest -notmatch '(?s)<receiver\s+android:name="\.BootEvents"\s+android:exported="false"' -or
+      $exampleManifest -notmatch '(?s)<receiver\s+android:name="\.RetryEvent"\s+android:exported="false"' -or
+      $exampleManifest -notmatch '(?s)<provider\s+android:name="\.OperatorProvider"[^>]+android:permission="android\.permission\.DUMP"') {
+    throw 'Standalone autoboot receiver/provider manifest boundary changed.'
+  }
+  if (-not $SkipAssemble) { $exampleTasks += 'assembleDebug' }
+  & .\gradlew.bat -p examples/quest-autoboot @exampleTasks
+  if ($LASTEXITCODE -ne 0) {
+    throw "Standalone Quest autoboot example gate failed with exit code $LASTEXITCODE."
   }
   git diff --check
   if ($LASTEXITCODE -ne 0) {

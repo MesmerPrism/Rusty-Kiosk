@@ -6,11 +6,17 @@ separate capabilities.
 Each setting has an effective-state readback, requires an explicit action before
 it changes, and has a visible off route.
 
+The app catalogue also has one explicit per-app launch requirement: **Any**,
+**Wi-Fi on**, or **Wi-Fi off**. It is not a passive tag and applies equally to
+Normal and Kiosk launch. Rusty Kiosk only reads ordinary Wi-Fi. When unmet it
+opens Android Wi-Fi settings, never toggles Wi-Fi or Wi-Fi ADB, and shows a
+cancel route while the bounded launch is pending.
+
 ## Components
 
 - The main Spatial APK is unprivileged and never declares
   `WRITE_SECURE_SETTINGS`.
-- The dedicated setup-helper APK is non-launchable, has no network permission,
+- The dedicated setup-helper APK is non-launchable, has no Internet permission,
   and is signed with the same key as the main APK.
 - The helper can receive `WRITE_SECURE_SETTINGS` once from an attended USB-C ADB
   session. It then accepts only the signature-protected fixed-operation enum.
@@ -32,11 +38,20 @@ it changes, and has a visible off route.
      -Serial <quest-serial>
    ```
 
+   Add `-ProductChannel labs` for Rusty Kiosk Labs. This attended developer-ADB
+   step authorizes Android's restricted-settings gate only for the selected
+   Kiosk package; it does not enable Accessibility.
+
 4. Open **User controls**. **Setup: Ready** proves that the helper is installed,
    same-signer authorized, and holds the one-time provisioned settings grant.
 5. Press **Request Wi-Fi ADB** only if wireless debugging is wanted. Horizon may
    show a protected Meta prompt; the wearer must approve or decline it.
-6. Press **Enable Accessibility** only if soft-kiosk launch is wanted.
+6. Press **Enable Accessibility** only if soft-kiosk launch is wanted. If the
+   Kiosk APK came from an on-device installer, Android can block this as a
+   restricted setting. Rusty Kiosk opens its own app-details page; choose
+   **Allow restricted settings** if offered, return, and press **Enable
+   Accessibility** again. A managed-headset policy may instead require its
+   administrator.
 7. Press **Enable direct link** only if the local Windows operator is wanted.
    Enter the displayed address and pairing code on the PC. Wi-Fi ADB is not
    required for this connection.
@@ -81,6 +96,9 @@ Horizon still decides whether and how to present approval.
   readback for Rusty Kiosk's exact service.
 - **Direct link Off / Starting / Ready / Error** combines the wearer's persisted
   opt-in with the local listener's effective state and address.
+- The persistent pairing code is masked whenever the panel is created or the
+  code changes. **Show pairing code** reveals it locally until **Hide** or the
+  next panel/code transition; typed host status never exports it.
 - **Local APK installer needs permission / wearer allowed** is Android
   `canRequestPackageInstalls()` readback, not an install-success claim.
 - **Meta Home Available** reflects the normal Home path and explicit exit.
@@ -130,11 +148,22 @@ It does not establish fully unattended Wi-Fi ADB restoration.
   credential; rotation also disables the link until re-enabled.
 - Revoke Rusty Kiosk's per-app installer permission in Android settings to stop
   future local install sessions.
+- An authorized USB bootstrap may disable the link only when its exact
+  operation ID, ephemeral session ID, and bridge generation still match and it
+  originally enabled the listener. A pre-existing wearer-enabled listener is
+  not cleanup-owned by that host run. Cleanup ownership is non-secret and
+  outlives the five-minute network credential for at most 24 hours. If the
+  original response was lost, the DUMP-only recovery route uses only that
+  operation ID to disable or re-dispatch STOP and returns no credentials.
 - Uninstall the setup helper to remove the in-headset settings route. Browsing,
   tagging, normal launch, and an already running main app remain ordinary app
   behavior.
 - An authorized USB-C ADB session may explicitly revoke the helper grant or
   reinstall both APKs.
+- An authorized developer-ADB session may set the exact Kiosk package's
+  `ACCESS_RESTRICTED_SETTINGS` app-op to `allow`; the provisioning and
+  Accessibility helper scripts do this with exact package readback. This does
+  not enable the Accessibility service or approve a managed-device policy.
 - Press **Exit to Meta Home** or use Home while Rusty Kiosk is visible. Both
   routes disarm pending kiosk guard state.
 

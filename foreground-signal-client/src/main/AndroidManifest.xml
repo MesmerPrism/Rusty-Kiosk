@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <queries>
         <provider
-            android:authorities="io.github.mesmerprism.rustykiosk.foreground-signal" />
+            android:authorities="${foregroundSignalProviderAuthority}" />
     </queries>
 
     <application>

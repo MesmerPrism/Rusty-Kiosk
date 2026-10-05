@@ -29,6 +29,7 @@ internal data class PackageInstallationIdentity(
   val signingIdentity: String,
   val lastUpdateTime: Long,
   val versionCode: Long,
+  val uid: Int,
 )
 
 internal class PackageSigningIdentityResolver(context: Context) {
@@ -56,6 +57,7 @@ internal class PackageSigningIdentityResolver(context: Context) {
             signingIdentity = signingIdentity,
             lastUpdateTime = packageInfo.lastUpdateTime.takeIf { it > 0L } ?: return null,
             versionCode = packageInfo.longVersionCode,
+            uid = packageInfo.applicationInfo.uid,
           )
         } else {
           val packageInfo =
@@ -70,6 +72,7 @@ internal class PackageSigningIdentityResolver(context: Context) {
             signingIdentity = signingIdentity,
             lastUpdateTime = packageInfo.lastUpdateTime.takeIf { it > 0L } ?: return null,
             versionCode = packageInfo.versionCode.toLong(),
+            uid = packageInfo.applicationInfo.uid,
           )
         }
       }

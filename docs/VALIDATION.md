@@ -10,6 +10,8 @@ The gate checks public-boundary terms, both APK manifests, Kotlin unit tests,
 browser/native panel contracts, Android lint, release CLI exclusion, and debug
 assembly for both APKs. It also checks the separate native 2D launcher policy,
 manifest, Java tests, lint, and debug assembly.
+It separately runs the standalone Quest autoboot example's unit tests, lint,
+and debug assembly; that example remains outside Kiosk releases.
 The same complete gate runs in GitHub Actions for every pull request and push
 to `main`; release publication additionally rebuilds and verifies the signed
 release pair.
@@ -19,7 +21,7 @@ Unit tests cover:
 - tag-file parsing and normalization;
 - package-first and name-only catalogue matching;
 - missing name-only entries remaining visible under their tags;
-- search plus tag filtering;
+- separator-tolerant multi-term and contiguous quoted-phrase search across labels, packages, and tags plus tag filtering;
 - retained search, tag-filter, and visible-selection restoration plus explicit
   filter clearing;
 - normal launch disarming before launch;
@@ -50,6 +52,23 @@ Unit tests cover:
 - boot evidence retained independently in manual and status result projections;
 - natural identity and contour-band passthrough LUT mapping;
 - typed CLI parsing, payload bounds, value rules, and unknown-command rejection.
+- strict legacy/v2 launch-requirement migration; passive-tag independence;
+  conflict/unknown rejection; both-mode Wi-Fi preflight; cancellation, expiry,
+  settings-return debounce, process-restart cancellation, app disappearance,
+  and point-of-use target/install/document revalidation;
+- provider-v4 process-wide transition locking, original-expiry transfer,
+  first-terminal tombstones, concurrent enqueue, cancel/consume, and
+  expiry/record races;
+- Direct USB session entropy, bootstrap-issuance-epoch-scoped non-evicting one-time
+  operation IDs, ledger saturation/malformed/epoch mismatch rejection, issuance rate/concurrency
+  bounds, monotonic-wall-clock issuance, capability/generation/expiry/revocation
+  rules, raw-byte HMAC, generation-bound crossed START/STOP rejection, long-run
+  non-secret cleanup ownership, lost-response STOP recovery, immutable direct
+  install byte commitments, abandonment failure/absence readback and cleanup-only
+  retry states, and the checked Kiosk/QFM bootstrap wire fixture;
+- exact stored replay-array types, fresh-only initialization, strict private
+  install-receipt schema/damage admission, ordered cleanup commitment binding,
+  canonical digest tamper rejection, and concurrent single-winner admission;
 - launcher missing-package, wrong-signer, missing-front-door, and trusted-ready
   decisions;
 - deterministic lowercase SHA-256 certificate digest formatting.
@@ -57,6 +76,11 @@ Unit tests cover:
 The static guard checks additionally require Rusty Kiosk to disarm itself when
 its own package becomes foreground and prohibit Accessibility UI-tree access,
 global actions, gestures, and Android HOME-role declarations.
+They hold app-provided launch options to the derived provider authority,
+exclusive package UID, signer/install identity, existing catalogue front door,
+full pre/post-query binding equality, bounded timeout fuse, strict cursor shape,
+option-digest continuity, one fixed extra, normal task flags, disarmed guard,
+dispatch-only receipt naming, and non-duplicated browser control identity.
 They require the exported foreground provider to remain call-only, v2-only,
 and bound to the armed package, exclusive UID, protocol metadata, launch-time
 signing lineage, installation/update identity, and current readback. The client
@@ -64,7 +88,7 @@ module must remain engine-neutral and the main Kiosk application must not
 advertise itself as a client.
 They also reject `WRITE_SECURE_SETTINGS` in the main Rusty Kiosk manifest,
 require the service-owned `disableSelf()` path, and require the separate helper
-to remain signature-protected, non-launchable, non-networked, and fixed-operation
+to remain signature-protected, non-launchable, without Internet permission, and fixed-operation
 only. The serial-scoped provisioning script is checked for both APKs and the
 one-time helper grant.
 The static guard additionally requires the exported CLI activity to remain in
@@ -86,7 +110,63 @@ pwsh -NoProfile -File .\tools\Test-ReleasePipeline.ps1
 
 The test generates a one-day local key under ignored `artifacts/`, builds both
 release APKs with that key, verifies their certificate digests match, stages the
-five-file public bundle contract, and removes the temporary key and bundle.
+six-file public Labs release inventory, and removes the temporary key and
+bundle. The sixth asset, `rusty-kiosk-labs-owner-release.json`, has the exact
+`rusty.kiosk.labs_release_owner_metadata.v2` schema and explicitly identifies
+`rusty-kiosk.apk` as the `complete-product` primary artifact. It hash-binds the
+exact closed-shape bundle manifest and its co-installable identity mode, package,
+signer, version name/code, and isolated uninstall exit policy. Its strict validator
+rejects every wrong or missing authority field and all expanded nested shapes,
+then cross-checks the APK hash/bytes and manifest evidence. It also verifies
+the closed stable/Labs product channels and alpha-maturity tag grammar, alpha
+ordinal and version-code boundaries, unchanged legacy build defaults, exact
+APK package/version identities, wrong-channel/version/signer rejection, and
+byte-identical manifest restaging. It then builds and inspects a numeric stable
+candidate, including suffix 99, unchanged package identities, common signer,
+stable product-channel metadata, and consumer-compatible filenames. This is synthetic
+pipeline evidence, not production-signer or GitHub-publication evidence.
+
+## Stable and Labs publication gates
+
+Stable publication accepts only an existing exact `vX.Y.Z` tag. Initial Labs
+publication accepts only an existing exact `vX.Y.Z-alpha.N` tag with `N` from
+1 through 98, publishes it as a prerelease, and verifies that it did not become
+the repository's latest release. Both routes bind the checked-out commit and
+tree, inspect the two APK package/version/code identities, compare their common
+signer to the public Kiosk signer trust anchor, create a previously absent
+release, and read back the closed asset set, byte sizes, and GitHub SHA-256
+digests. Both workflows accept trigger values only through environment data,
+require the exact tag commit to be reachable from freshly fetched `main`,
+reject tracked or untracked checkout dirt before signing and staging, avoid
+shared Gradle caches, and enter their distinct protected release environments.
+Both enumerate authenticated drafts before creation so a prior failed same-tag
+attempt cannot be duplicated. Stable reads the exact remote tag peel, commit,
+and tree immediately before and after publication. Labs uses a draft-first boundary: the
+exact six assets and release
+identity are read back before promotion, and all six draft URLs must share one
+bounded `untagged-<20 lowercase hex>` GitHub route derived from the release's
+exact HTML route. The same evidence is then
+read back from the live prerelease with exact final tag URLs. Release ID, asset
+IDs, target commit, the bounded tag peel, source commit, and source tree must
+remain unchanged across promotion. Any
+failed draft or live release is preserved for explicit owner incident handling;
+the workflow never deletes or replaces same-tag evidence. The Labs route
+accepts only an authoritative no-latest 404 or a different canonical stable
+latest tag.
+
+Both workflows read the authorized signer only from
+`release/kiosk-release-signer-policy.v1.json`. The checked-in v0.6.4 release
+manifest URL and digest establish that policy's provenance. A signer change is
+a separately reviewed policy revision, never a tag, dispatch, APK, or staging
+input. Manual dispatch is a recovery path for an existing exact tag:
+`gh workflow run <workflow> --ref <tag> -f version=<version>`. A default-branch
+dispatch is expected to fail.
+
+Labs uses distinct core, helper, permission/action, provider-authority, and
+Store-launcher identities. A device gate must prove stable and Labs can be
+installed together, each launcher opens only its matching core, wrong signers
+fail closed, and uninstalling Labs leaves stable unchanged. Alpha ordinals are
+maturity/version-code evidence only; they do not define the product channel.
 
 The standard host gate runs the interactive browser model and verifies that
 the production native panel, shared geometry/control contract, browser
@@ -172,12 +252,28 @@ run should prove:
     provisioning;
 14. Accessibility can be enabled and disabled through the fixed helper while
     every other enabled Accessibility service is preserved;
+    repeat this for an on-device-installed Labs package after the wearer grants
+    **Allow restricted settings**, and require effective service binding rather
+    than only a secure-settings write;
 15. disabling Wi-Fi ADB leaves Accessibility unchanged;
 16. the restart request is off by default, can be enabled and disabled, and
     causes a new request only when enabled;
 17. after restart or a later manual request, Meta approval remains visible and
     attended; the panel reports only effective setting state;
 18. **Exit to Meta Home** disarms pending guard state and opens Meta Home.
+19. set each selected-app requirement through both visible and typed controls;
+    prove a passive `wifi-on` tag alone has no effect;
+20. for both Normal and Kiosk modes, prove matching ordinary Wi-Fi launches,
+    mismatch opens fixed Android Wi-Fi settings without target/guard mutation,
+    unchanged return waits without reopening, changed return launches once, and
+    cancel/expiry/app update prevents launch;
+21. bootstrap Direct Link through the exact-serial provider-v4 host route,
+    retain the secret only in memory, poll pending startup, confirm exact session
+    ID + bridge generation through authenticated status, exercise status/result/
+    exact cancel, then disable only when `enabled_by_request=true` and exact
+    ownership still matches. Also exercise operation-ID-only lost-response
+    recovery after the five-minute secret expiry, require stopped readback, and
+    prove a staged APK replacement cannot satisfy its committed size/SHA-256.
 
 For reboot diagnostics, refresh setup status and retain `last_boot_request`
 after the actual reboot. Require the current Android boot count and an observed

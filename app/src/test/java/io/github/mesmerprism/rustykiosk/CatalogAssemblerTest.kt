@@ -94,5 +94,16 @@ class CatalogAssemblerTest {
     assertEquals("Motion App", CatalogFilter.apply(entries, "example.motion", null).single().label)
     assertEquals("Quiet App", CatalogFilter.apply(entries, "calm", null).single().label)
     assertEquals("Motion App", CatalogFilter.apply(entries, "", "movement").single().label)
+    assertEquals("Motion App", CatalogFilter.apply(entries, "motion movement", null).single().label)
+    assertEquals("Quiet App", CatalogFilter.apply(entries, "quiet calm", null).single().label)
+    assertEquals("Motion App", CatalogFilter.apply(entries, "example-motion", null).single().label)
+    assertEquals("Quiet App", CatalogFilter.apply(entries, "quiet/calm", null).single().label)
+    assertEquals("Motion App", CatalogFilter.apply(entries, "\"example motion\"", null).single().label)
+    assertEquals("Motion App", CatalogFilter.apply(entries, "\"example/motion\"", null).single().label)
+    assertEquals("Quiet App", CatalogFilter.apply(entries, "\"quiet app\"", null).single().label)
+    assertTrue(CatalogFilter.apply(entries, "motion calm", null).isEmpty())
+    assertTrue(CatalogFilter.apply(entries, "motion/calm", null).isEmpty())
+    assertTrue(CatalogFilter.apply(entries, "\"quiet calm\"", null).isEmpty())
+    assertTrue(CatalogFilter.apply(entries, "\"example movement\"", null).isEmpty())
   }
 }

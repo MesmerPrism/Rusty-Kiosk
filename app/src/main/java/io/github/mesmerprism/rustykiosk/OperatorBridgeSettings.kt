@@ -11,70 +11,197 @@ import java.util.Collections
 internal data class OperatorBridgeSnapshot(
   val enabled: Boolean,
   val running: Boolean,
+  val transitionConverged: Boolean,
   val endpoint: String?,
   val pairingCode: String,
   val installerAllowed: Boolean,
   val lastError: String?,
+  val bridgeGeneration: Long,
 )
+
+internal enum class OperatorBridgeRequestedAction { START, STOP }
+
+internal object OperatorBridgeActionPolicy {
+  fun shouldApply(
+    action: OperatorBridgeRequestedAction,
+    expectedGeneration: Long,
+    currentGeneration: Long,
+    enabled: Boolean,
+  ): Boolean = expectedGeneration > 0L && expectedGeneration == currentGeneration &&
+    enabled == (action == OperatorBridgeRequestedAction.START)
+
+  fun isEffectivelyRunning(
+    enabled: Boolean,
+    currentGeneration: Long,
+    recordedRunning: Boolean,
+    runningGeneration: Long,
+  ): Boolean = enabled && recordedRunning && currentGeneration > 0L &&
+    runningGeneration == currentGeneration
+
+  fun isTransitionConverged(
+    enabled: Boolean,
+    currentGeneration: Long,
+    recordedRunning: Boolean,
+    runningGeneration: Long,
+  ): Boolean = currentGeneration > 0L && runningGeneration == currentGeneration &&
+    recordedRunning == enabled
+
+  fun canApplyOwnedDisable(
+    enabled: Boolean,
+    currentGeneration: Long,
+    expectedGeneration: Long,
+    ownershipMatches: Boolean,
+  ): Boolean = enabled && currentGeneration > 0L &&
+    currentGeneration == expectedGeneration && ownershipMatches
+}
+
+internal object OperatorBridgePairingCodePresentation {
+  fun render(pairingCode: String, visible: Boolean): String =
+    if (visible) pairingCode else pairingCode.map { if (it == '-') '-' else '•' }.joinToString("")
+}
+
+/** Serializes wearer and provider bridge-generation transitions across their separate adapters. */
+internal object OperatorBridgeTransitionLock {
+  val monitor = Any()
+}
 
 internal class OperatorBridgeSettings(context: Context) {
   private val appContext = context.applicationContext
   private val preferences =
     appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
-  fun snapshot(): OperatorBridgeSnapshot =
+  fun snapshot(): OperatorBridgeSnapshot = synchronized(STATE_LOCK) {
+    val enabled = preferences.getBoolean(KEY_ENABLED, false)
+    val generation = generationLocked()
     OperatorBridgeSnapshot(
-      enabled = preferences.getBoolean(KEY_ENABLED, false),
+      enabled = enabled,
       running = preferences.getBoolean(KEY_RUNNING, false),
+      transitionConverged = OperatorBridgeActionPolicy.isTransitionConverged(
+        enabled,
+        generation,
+        preferences.getBoolean(KEY_RUNNING, false),
+        preferences.getLong(KEY_RUNNING_GENERATION, 0L),
+      ),
       endpoint = preferredIpv4()?.let { "http://$it:$PORT" },
       pairingCode = pairingCode(),
       installerAllowed = appContext.packageManager.canRequestPackageInstalls(),
       lastError = preferences.getString(KEY_LAST_ERROR, null),
+      bridgeGeneration = generation,
     )
+  }
 
-  fun setEnabled(enabled: Boolean) {
-    recordEnabled(enabled)
+  /** Returns true only when this request changed a wearer-disabled bridge to enabled. */
+  fun setEnabled(enabled: Boolean): Boolean = synchronized(OperatorBridgeTransitionLock.monitor) {
+    setEnabledLocked(enabled)
+  }
+
+  /** Fails closed if another wearer/provider transition advanced the expected generation. */
+  fun setEnabledIfGeneration(enabled: Boolean, expectedGeneration: Long): Boolean =
+    synchronized(OperatorBridgeTransitionLock.monitor) {
+      if (expectedGeneration <= 0L || generation() != expectedGeneration) {
+        return@synchronized false
+      }
+      setEnabledLocked(enabled)
+      true
+    }
+
+  private fun setEnabledLocked(enabled: Boolean): Boolean {
+    val transition = synchronized(STATE_LOCK) {
+      val wasEnabled = preferences.getBoolean(KEY_ENABLED, false)
+      val previousGeneration = generationLocked()
+      val nextGeneration = if (enabled == wasEnabled) {
+        previousGeneration
+      } else {
+        nextGeneration(previousGeneration)
+      }
+      if (enabled != wasEnabled) {
+        OperatorBridgeSessionStore(appContext).revokeGeneration(previousGeneration)
+      }
+      preferences.edit()
+        .putBoolean(KEY_ENABLED, enabled)
+        .putLong(KEY_GENERATION, nextGeneration)
+        .commit()
+      Pair(enabled && !wasEnabled, nextGeneration)
+    }
     if (enabled) {
       ContextCompat.startForegroundService(
         appContext,
-        Intent(appContext, OperatorBridgeService::class.java).setAction(OperatorBridgeService.ACTION_START),
+        bridgeIntent(OperatorBridgeService.ACTION_START, transition.second),
       )
     } else {
       appContext.startService(
-        Intent(appContext, OperatorBridgeService::class.java).setAction(OperatorBridgeService.ACTION_STOP)
+        bridgeIntent(OperatorBridgeService.ACTION_STOP, transition.second),
+      )
+    }
+    return transition.first
+  }
+
+  fun ensureStartedIfEnabled() {
+    val generation = synchronized(STATE_LOCK) {
+      generationLocked().takeIf { preferences.getBoolean(KEY_ENABLED, false) }
+    }
+    if (generation != null) {
+      ContextCompat.startForegroundService(
+        appContext,
+        bridgeIntent(OperatorBridgeService.ACTION_START, generation),
       )
     }
   }
 
-  fun recordEnabled(enabled: Boolean) {
-    preferences.edit().putBoolean(KEY_ENABLED, enabled).commit()
-  }
+  fun requestStopIfDisabled(expectedGeneration: Long): Boolean =
+    synchronized(OperatorBridgeTransitionLock.monitor) {
+      val disabledAtExpectedGeneration = synchronized(STATE_LOCK) {
+        expectedGeneration > 0L && generationLocked() == expectedGeneration &&
+          !preferences.getBoolean(KEY_ENABLED, false)
+      }
+      if (!disabledAtExpectedGeneration) return@synchronized false
+      appContext.startService(bridgeIntent(OperatorBridgeService.ACTION_STOP, expectedGeneration))
+      true
+    }
 
-  fun ensureStartedIfEnabled() {
-    if (preferences.getBoolean(KEY_ENABLED, false)) setEnabled(true)
-  }
-
-  fun rotatePairingCode(): String {
+  fun rotatePairingCode(): String = synchronized(OperatorBridgeTransitionLock.monitor) {
     val code = generatePairingCode()
-    preferences.edit().putString(KEY_PAIRING_CODE, code).commit()
+    synchronized(STATE_LOCK) {
+      preferences.edit().putString(KEY_PAIRING_CODE, code).commit()
+    }
     setEnabled(false)
-    return code
+    code
   }
 
-  fun pairingCode(): String =
+  fun pairingCode(): String = synchronized(STATE_LOCK) {
     preferences.getString(KEY_PAIRING_CODE, null)
       ?: generatePairingCode().also { generated ->
         preferences.edit().putString(KEY_PAIRING_CODE, generated).commit()
       }
+  }
 
-  fun recordRunning(running: Boolean, error: String? = null) {
+  fun recordRunning(expectedGeneration: Long, running: Boolean, error: String? = null): Boolean =
+    synchronized(STATE_LOCK) {
+      if (expectedGeneration != generationLocked() ||
+        (running && !preferences.getBoolean(KEY_ENABLED, false))
+      ) return@synchronized false
     preferences.edit()
       .putBoolean(KEY_RUNNING, running)
+      .putLong(KEY_RUNNING_GENERATION, expectedGeneration)
       .apply {
         if (error == null) remove(KEY_LAST_ERROR) else putString(KEY_LAST_ERROR, error.take(240))
       }
       .commit()
   }
+
+  fun generation(): Long = synchronized(STATE_LOCK) { generationLocked() }
+
+  fun generationAfterTransition(current: Long): Long = nextGeneration(current)
+
+  private fun generationLocked(): Long =
+    preferences.getLong(KEY_GENERATION, 1L).coerceAtLeast(1L)
+
+  private fun bridgeIntent(action: String, expectedGeneration: Long): Intent =
+    Intent(appContext, OperatorBridgeService::class.java)
+      .setAction(action)
+      .putExtra(OperatorBridgeService.EXTRA_EXPECTED_GENERATION, expectedGeneration)
+
+  private fun nextGeneration(current: Long): Long = if (current == Long.MAX_VALUE) 1L else current + 1L
 
   private fun generatePairingCode(): String {
     val bytes = ByteArray(16).also(SecureRandom()::nextBytes)
@@ -113,8 +240,11 @@ internal class OperatorBridgeSettings(context: Context) {
     private const val PREFERENCES = "rusty_kiosk_operator_bridge"
     private const val KEY_ENABLED = "enabled"
     private const val KEY_RUNNING = "running"
+    private const val KEY_RUNNING_GENERATION = "running_generation"
     private const val KEY_PAIRING_CODE = "pairing_code"
     private const val KEY_LAST_ERROR = "last_error"
+    private const val KEY_GENERATION = "bridge_generation"
     private const val CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+    private val STATE_LOCK = Any()
   }
 }

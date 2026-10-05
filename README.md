@@ -7,6 +7,9 @@ offers normal or soft-kiosk launch.
 
 New-user setup and behavior are explained on the
 [Rusty Kiosk onboarding site](https://mesmerprism.com/Rusty-Kiosk/).
+Friends testing the co-installable pre-release should instead follow the
+[Labs tester setup](docs/LABS_TESTING.md), which binds the exact Meta Alpha,
+guided Windows installer, and Kiosk Labs release.
 
 The project is intentionally not a Home replacement or managed-device kiosk.
 Its optional Accessibility service is a foreground watchdog:
@@ -22,6 +25,10 @@ Its optional Accessibility service is a foreground watchdog:
 5. The watchdog is inactive in Rusty Kiosk, so Home then opens Meta Home
    normally.
 
+For reusable Quest utility composition, see the
+[example catalogue](examples/README.md). Its separate autoboot source and
+BLE/WebSocket integration guidance are outside Kiosk product release builds.
+
 ## What the first example includes
 
 - one Spatial SDK native Android panel;
@@ -29,11 +36,16 @@ Its optional Accessibility service is a foreground watchdog:
   color by default, and an optional contour-revealing color LUT;
 - launchable-app discovery for ordinary Android, 2D, Leanback, and Quest VR
   front doors;
-- installed-app search by label, package, or tag;
+- separator-tolerant multi-term and quoted-phrase installed-app search across labels, packages, and tags;
 - tag filtering;
 - search text, active tag filter, and selected visible app retained across
   fresh Kiosk returns until the wearer changes or clears them;
 - tag editing from the panel;
+- an explicit per-app **Any / Wi-Fi on / Wi-Fi off** launch requirement,
+  checked before both Normal and Kiosk launch without changing Wi-Fi;
+- bounded, read-only app-provided launch options that bind the selected package,
+  exclusive UID, signer, provider, and existing public front door before passing
+  one opaque option ID under one fixed extra key;
 - hot reload of an externally editable JSON tag file;
 - unresolved name-only entries shown as **Not installed**;
 - normal and soft-kiosk launch actions;
@@ -48,6 +60,8 @@ Its optional Accessibility service is a foreground watchdog:
 - a typed, ADB-shell-protected debug CLI for stable wearer-equivalent testing.
 - a release-safe, `DUMP`-protected typed host adapter for optional desktop
   management through QuestIonAble File Manager.
+- short-lived Direct Link session bootstrap for an already authorized,
+  exact-serial USB host, without exporting the on-headset pairing code;
 - an explicitly wearer-enabled local PC link for the same typed commands, tag
   file, bounded app-owned staging, and Android-confirmed APK sessions without
   routine ADB.
@@ -82,7 +96,7 @@ Launching it immediately opens Rusty Kiosk when the expected package,
 provenance-bound public release signer, and normal front door are present.
 Otherwise it shows the official installation guide and GitHub release
 locations. One source implementation produces two closed release identities:
-the original Store package for Meta Alpha and a distinct Quest Private App
+separate stable Store and Labs Store packages plus a distinct Quest Private App
 package for Meta for Business. Rusty Kiosk remains a separately installed APK.
 See
 [Rusty Kiosk Launcher](docs/KIOSK_LAUNCHER.md).
@@ -92,14 +106,45 @@ the two APKs, their hashes/source manifest, the AGPL license, and source pointer
 using the stable filenames consumed by QuestIonAble File Manager. Release signing
 material stays in GitHub Actions secrets and is never committed. Release assets
 are versioned and are never overwritten; publish a new version for any change.
+The opt-in Labs product channel initially uses exact `vX.Y.Z-alpha.N` tags, GitHub
+prereleases, and those same immutable asset names inside the exact tag. Labs
+contains the complete current product rather than a reduced feature build.
+It uses distinct Kiosk, setup-helper, provider-authority, permission, and Store
+launcher identities, so stable and Labs can be installed together. Removing
+Labs follows `uninstall-labs-without-changing-stable`; it never requires a
+stable downgrade or replacement.
+
+Release version codes make that exit route explicit:
+`major*1,000,000 + minor*10,000 + patch*100 + alphaN`, with alpha ordinals
+limited to 1 through 98 and suffix 99 reserved for the later stable release.
+Historical stable builds keep their historical codes. The release manifest
+binds product channel, maturity, distribution track, exact tag, source commit/tree, signer, APK package/version
+identity, and asset hashes. The local release-pipeline test uses a temporary
+fixture signer and is not production-signing evidence.
+Every Labs release also carries `rusty-kiosk-labs-owner-release.json`, a
+Kiosk-owned closed-shape contract for strict live-readback consumers. It names
+`rusty-kiosk.apk` directly as the `complete-product` primary artifact and binds
+its lowercase SHA-256 and byte count to the exact repository, product, Labs
+tag/version, source commit/tree, and installation package. It also hash-binds
+the exact `bundle-manifest.json` bytes and directly records the co-installable package,
+signer, version name/code, and isolated uninstall exit policy. The bundle manifest
+remains multi-file bundle evidence; its array order is never primary-artifact
+authority.
+The reviewed `release/kiosk-release-signer-policy.v1.json` file is the
+production signer authority for both channels; a release candidate cannot
+authorize its own signer.
 The recommended installation route remains
 [QuestIonAble File Manager](https://mesmerprism.com/QuestIonAble-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
-The current published bundle is version `0.6.5`; version `0.6.4` remains the
+The current stable published bundle is version `0.6.5`; the current
+co-installable Labs prerelease is `0.6.6-alpha.9`. Version `0.6.4` remains the
 watchdog-recovery reliability release and `0.6.3` the first published bundle.
 The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are retained as
 pre-publication workflow-failure checkpoints and have no release assets.
+Manual release dispatch is intentionally an exact-tag recovery path. Invoke it
+with `gh workflow run <workflow> --ref <tag> -f version=<version>`; dispatching
+from the default branch fails closed.
 
 ## Typed debug CLI
 
@@ -132,7 +177,10 @@ An app that embeds the engine-neutral `foreground-signal-client` module may
 advise Rusty Kiosk after an app-owned lifecycle or engine integration confirms
 application-level foreground loss. A raw Activity top-resumed callback is
 deliberately insufficient because it also fires during same-package Activity
-handoffs. Kiosk accepts the signal only while that exact package is armed and
+handoffs. The client defaults to the stable provider; Labs integrations build
+the same source with `-PrustyKioskProductChannel=labs`, which selects the fixed
+Labs provider authority without allowing an arbitrary endpoint. Kiosk accepts
+the signal only while that exact package is armed and
 its exclusive Binder UID, protocol metadata, complete signing-certificate
 lineage, and installation identity still match the launch-time observation.
 
@@ -180,7 +228,7 @@ Wi-Fi ADB, Accessibility, the direct PC link, and local APK installation are
 independent opt-ins. Rusty Kiosk does not enable any of them automatically.
 The main APK never holds `WRITE_SECURE_SETTINGS`, and neither APK contains a
 shell, terminal UI, raw command surface, or arbitrary intent/path bridge. The
-setup helper remains network-free.
+setup helper opens no network connection.
 
 For a new headset, enable developer USB debugging outside Rusty Kiosk, connect
 USB-C, then install and provision both APKs in one serial-scoped step:
@@ -190,6 +238,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
   -File .\tools\Provision-RustyKiosk.ps1 `
   -Serial <quest-serial>
 ```
+
+Use `-ProductChannel labs` for the co-installable Labs pair. The developer
+provisioning step also authorizes Android's restricted-settings gate for that
+exact Kiosk package, but it still does not enable Accessibility. If a Kiosk APK
+was installed by the on-device Package Installer instead, Android may require
+the wearer to open the app-details menu and choose **Allow restricted settings**
+before enabling its Accessibility service.
 
 The script grants `WRITE_SECURE_SETTINGS` only to the dedicated, same-signer
 setup helper. It launches Rusty Kiosk but enables neither Wi-Fi ADB nor
@@ -220,7 +275,8 @@ After the one-time installation/provisioning step, routine Kiosk commands,
 tags, bounded file staging, and wearer-confirmed APK installation can use the
 local direct link instead of USB or Wi-Fi ADB. Enable it in **User controls**,
 then enter the displayed `http://` address and pairing code in Meta Quest File
-Manager. The pairing code is generated on-headset and can be rotated locally.
+Manager. The pairing code is generated on-headset, masked by default behind an
+explicit local **Show / Hide** control, and can be rotated locally.
 
 QuestIonAble File Manager uses its PC ADB installer as the default APK route once
 that PC is authorized. It supports unattended and batch installation without an
@@ -234,6 +290,27 @@ are retained, request bodies are SHA-256 checked, and requests and responses
 are HMAC-SHA-256 signed. It is authenticated and integrity-protected, but the
 current HTTP transport is not encrypted; use a trusted local network or the
 PC's private hotspot. See [Direct operator link](docs/DIRECT_OPERATOR.md).
+
+An already authorized USB ADB shell may ask the fixed provider-v4 adapter to
+enable the listener and issue one 32-byte, five-minute session credential bound
+to the current app channel and bridge generation. The desktop wrapper owns the
+exact serial and must consume raw provider output only in a redacted, in-memory
+child-process parser. Rusty Kiosk never claims to know the host serial, never
+returns the persistent pairing code, and exposes separate status and
+generation-bound cleanup calls. Cleanup authority is a separate bounded,
+non-secret record, so a long attended operation can still turn off a link that
+bootstrap enabled after the network secret expires. A DUMP-only recovery call
+using the original operation ID can re-dispatch STOP after a lost response
+without returning either credential. Direct install requests commit each
+staged APK's exact name, byte count, and SHA-256, which are verified from the
+same opened handle copied into PackageInstaller. Bootstrap operation IDs remain
+one-time in a fixed non-evicting bootstrap-issuance-epoch ledger; saturation or malformed
+state fails closed instead of making old IDs reusable. If Android cannot confirm
+cleanup of a failed installer session, its receipt stays `cleanup-required` and
+incomplete until the same install body retries cleanup with a fresh authenticated
+transport request ID. That retry must match the stored ordered APK commitments and
+canonical digest exactly. Existing malformed receipt or replay-ledger state is
+damage, never absence, and cannot admit another session.
 
 ## Tag file
 

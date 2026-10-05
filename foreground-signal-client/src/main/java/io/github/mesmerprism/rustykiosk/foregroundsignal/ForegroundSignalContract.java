@@ -2,13 +2,12 @@ package io.github.mesmerprism.rustykiosk.foregroundsignal;
 
 import android.net.Uri;
 
-/** Stable protocol constants shared by Rusty Kiosk and engine-specific foreground applications. */
+/** Protocol constants shared by one Rusty Kiosk product channel and its foreground applications. */
 public final class ForegroundSignalContract {
   public static final int PROTOCOL_VERSION = 2;
   public static final String CAPABILITY_METADATA =
       "io.github.mesmerprism.rustykiosk.FOREGROUND_SIGNAL_PROTOCOL";
-  public static final String PROVIDER_AUTHORITY =
-      "io.github.mesmerprism.rustykiosk.foreground-signal";
+  public static final String PROVIDER_AUTHORITY = BuildConfig.PROVIDER_AUTHORITY;
   public static final Uri PROVIDER_URI =
       Uri.parse("content://" + PROVIDER_AUTHORITY);
   public static final String METHOD_FOREGROUND_LOST = "foreground-lost";

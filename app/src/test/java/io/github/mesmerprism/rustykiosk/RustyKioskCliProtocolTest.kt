@@ -54,6 +54,32 @@ class RustyKioskCliProtocolTest {
   }
 
   @Test
+  fun parsesBoundedOpaqueLaunchOption() {
+    val request =
+      RustyKioskCliProtocol.parse(
+        requestId = "request_1234",
+        command = "launch-option",
+        value = "option.demo-loop",
+      ).getOrThrow()
+    assertEquals(RustyKioskCliCommand.LAUNCH_OPTION, request.command)
+    assertEquals("option.demo-loop", request.value)
+    val whitespaceBound =
+      RustyKioskCliProtocol.parse(
+        requestId = "request_1234",
+        command = "launch-option",
+        value = " playlist.with-significant-space ",
+      ).getOrThrow()
+    assertEquals(" playlist.with-significant-space ", whitespaceBound.value)
+    assertTrue(
+      RustyKioskCliProtocol.parse(
+        "request_1234",
+        "launch-option",
+        "x".repeat(AppLaunchOptionsContract.MAX_OPTION_ID_LENGTH + 1),
+      ).isFailure
+    )
+  }
+
+  @Test
   fun rejectsInvalidRequestIdAndOversizedValue() {
     assertTrue(RustyKioskCliProtocol.parse("short", "status", null).isFailure)
     assertTrue(

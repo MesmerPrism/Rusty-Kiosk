@@ -11,6 +11,7 @@ internal data class OperatorBridgeAuthHeaders(
   val timestampSeconds: Long,
   val contentSha256: String,
   val signature: String,
+  val sessionId: String? = null,
 )
 
 internal object OperatorBridgeAuth {
@@ -18,10 +19,12 @@ internal object OperatorBridgeAuth {
   const val HEADER_TIMESTAMP = "x-rusty-timestamp"
   const val HEADER_CONTENT_SHA256 = "x-rusty-content-sha256"
   const val HEADER_SIGNATURE = "x-rusty-signature"
+  const val HEADER_SESSION_ID = "x-rusty-session-id"
   const val MAX_CLOCK_SKEW_SECONDS = 90L
 
   private val requestIdPattern = Regex("[A-Za-z0-9_-]{8,64}")
   private val shaPattern = Regex("[0-9a-f]{64}")
+  private val sessionIdPattern = Regex("[A-Za-z0-9_-]{16,64}")
 
   fun parse(headers: Map<String, String>): Result<OperatorBridgeAuthHeaders> =
     runCatching {
@@ -34,11 +37,25 @@ internal object OperatorBridgeAuth {
       require(shaPattern.matches(contentSha)) { "A valid content SHA-256 is required." }
       val signature = normalized[HEADER_SIGNATURE].orEmpty().lowercase(Locale.ROOT)
       require(shaPattern.matches(signature)) { "A valid HMAC signature is required." }
-      OperatorBridgeAuthHeaders(requestId, timestamp, contentSha, signature)
+      val sessionId = normalized[HEADER_SESSION_ID]?.also { value ->
+        require(sessionIdPattern.matches(value)) { "A valid ephemeral session id is required." }
+      }
+      OperatorBridgeAuthHeaders(requestId, timestamp, contentSha, signature, sessionId)
     }
 
   fun verify(
     pairingKey: String,
+    method: String,
+    requestTarget: String,
+    body: ByteArray,
+    headers: OperatorBridgeAuthHeaders,
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
+  ): Result<Unit> = verify(
+    pairingKey.toByteArray(StandardCharsets.UTF_8), method, requestTarget, body, headers, nowSeconds
+  )
+
+  fun verify(
+    pairingKey: ByteArray,
     method: String,
     requestTarget: String,
     body: ByteArray,
@@ -62,6 +79,22 @@ internal object OperatorBridgeAuth {
 
   fun verifyDigest(
     pairingKey: String,
+    method: String,
+    requestTarget: String,
+    actualContentSha256: String,
+    headers: OperatorBridgeAuthHeaders,
+    nowSeconds: Long = System.currentTimeMillis() / 1000L,
+  ): Result<Unit> = verifyDigest(
+    pairingKey.toByteArray(StandardCharsets.UTF_8),
+    method,
+    requestTarget,
+    actualContentSha256,
+    headers,
+    nowSeconds,
+  )
+
+  fun verifyDigest(
+    pairingKey: ByteArray,
     method: String,
     requestTarget: String,
     actualContentSha256: String,
@@ -96,6 +129,22 @@ internal object OperatorBridgeAuth {
     requestId: String,
     timestampSeconds: Long,
     contentSha256: String,
+  ): String = sign(
+    pairingKey.toByteArray(StandardCharsets.UTF_8),
+    method,
+    requestTarget,
+    requestId,
+    timestampSeconds,
+    contentSha256,
+  )
+
+  fun sign(
+    pairingKey: ByteArray,
+    method: String,
+    requestTarget: String,
+    requestId: String,
+    timestampSeconds: Long,
+    contentSha256: String,
   ): String {
     require(requestIdPattern.matches(requestId))
     require(shaPattern.matches(contentSha256.lowercase(Locale.ROOT)))
@@ -109,12 +158,21 @@ internal object OperatorBridgeAuth {
         )
         .joinToString("\n")
     val mac = Mac.getInstance("HmacSHA256")
-    mac.init(SecretKeySpec(pairingKey.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
+    mac.init(SecretKeySpec(pairingKey, "HmacSHA256"))
     return mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)).toHex()
   }
 
   fun signResponse(
     pairingKey: String,
+    requestId: String,
+    statusCode: Int,
+    contentSha256: String,
+  ): String = signResponse(
+    pairingKey.toByteArray(StandardCharsets.UTF_8), requestId, statusCode, contentSha256
+  )
+
+  fun signResponse(
+    pairingKey: ByteArray,
     requestId: String,
     statusCode: Int,
     contentSha256: String,
@@ -130,7 +188,7 @@ internal object OperatorBridgeAuth {
         )
         .joinToString("\n")
     val mac = Mac.getInstance("HmacSHA256")
-    mac.init(SecretKeySpec(pairingKey.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
+    mac.init(SecretKeySpec(pairingKey, "HmacSHA256"))
     return mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)).toHex()
   }
 

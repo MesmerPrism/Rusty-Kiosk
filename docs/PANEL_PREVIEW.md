@@ -48,8 +48,9 @@ http://127.0.0.1:8767/tools/rusty-kiosk-panel-browser-preview/
 
 The projection supports:
 
-- app search by label, package, and tag;
+- separator-tolerant multi-term and quoted-phrase app search across labels, packages, and tags;
 - tag filters and tag add/remove interactions;
+- explicit Any / Wi-Fi on / Wi-Fi off launch-requirement controls;
 - launchable, installed-without-front-door, and not-installed states;
 - guard-enabled and guard-setup states;
 - setup-helper readiness, Wi-Fi ADB, Accessibility, and Meta Home status;

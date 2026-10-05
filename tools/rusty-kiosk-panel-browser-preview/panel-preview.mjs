@@ -3,6 +3,7 @@ import {
   deriveTags,
   importPreviewState,
   removeTag,
+  setLaunchRequirement,
   scenarioNames,
   scenarioState,
   selectedEntry,
@@ -392,12 +393,48 @@ function renderDetails() {
   kioskLaunch.id = "rusty-kiosk-kiosk-launch";
   kioskLaunch.disabled = !entry.launchable || !state.guardEnabled;
 
+  const launchOptions = node("div", { id: "rusty-kiosk-launch-options", className: "detail-tags" });
+  const launchOptionActions = node("div", {
+    id: "rusty-kiosk-launch-option-launch",
+    className: "detail-tags",
+  });
+  for (const option of entry.launchOptions ?? []) {
+    const optionLaunch = button(
+      `${option.displayLabel} · ${option.description}`,
+      "solid-button",
+      () => {
+        state = { ...state, statusLine: `Dispatched ${entry.label}: ${option.displayLabel} · browser simulation` };
+        render();
+      },
+    );
+    launchOptionActions.append(optionLaunch);
+  }
+  launchOptions.append(launchOptionActions);
+
+  const requirementRow = node("div", { id: "rusty-kiosk-launch-requirement", className: "detail-tags" });
+  for (const [wire, label] of [["any", "Any"], ["wifi-on", "Wi-Fi on"], ["wifi-off", "Wi-Fi off"]]) {
+    const requirementButton = button(label, "tag-button", () => {
+      state = setLaunchRequirement(state, wire);
+      renderCatalogue();
+    });
+    requirementButton.disabled = entry.launchRequirement === wire;
+    requirementRow.append(requirementButton);
+  }
+
   const children = [
     node("h2", { className: "detail-title" }, [entry.label]),
     node("p", { className: "detail-meta" }, [entry.packageName ?? "No package supplied"]),
     node("p", { className: `detail-status ${entry.installed ? "installed" : "missing"}` }, [statusLabel(entry)]),
     tagForm,
     tagRow,
+    node("p", { className: "detail-copy" }, [`Launch requirement: ${entry.launchRequirement ?? "any"}`]),
+    requirementRow,
+    node("p", { className: "detail-copy" }, [
+      (entry.launchOptions ?? []).length
+        ? `${entry.launchOptions.length} app-provided launch option${entry.launchOptions.length === 1 ? "" : "s"} available.`
+        : "The selected app currently offers no launch options.",
+    ]),
+    launchOptions,
     node("div", { className: "detail-divider" }),
     normalLaunch,
     kioskLaunch,
