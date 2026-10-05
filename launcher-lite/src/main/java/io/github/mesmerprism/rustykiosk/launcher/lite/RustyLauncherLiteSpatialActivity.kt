@@ -109,13 +109,18 @@ class RustyLauncherLiteSpatialActivity : AppSystemActivity(), LitePresentationHo
     super.onPause()
   }
 
+  override fun onStop() {
+    panel?.onStop()
+    super.onStop()
+  }
+
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
-    if (!hasFocus) panel?.onFocusLost()
+    if (!hasFocus) panel?.onFocusLost("window-focus")
   }
 
   override fun onVRPause() {
-    panel?.onFocusLost()
+    panel?.onFocusLost("vr-pause")
     super.onVRPause()
   }
 

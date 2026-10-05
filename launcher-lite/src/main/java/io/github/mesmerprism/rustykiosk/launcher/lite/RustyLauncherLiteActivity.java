@@ -15,9 +15,10 @@ public final class RustyLauncherLiteActivity extends Activity implements LitePre
 
   @Override protected void onResume() { super.onResume(); if (panel != null) panel.onResume(); }
   @Override protected void onPause() { if (panel != null) panel.onPause(); super.onPause(); }
+  @Override protected void onStop() { if (panel != null) panel.onStop(); super.onStop(); }
   @Override public void onWindowFocusChanged(boolean focused) {
     super.onWindowFocusChanged(focused);
-    if (!focused && panel != null) panel.onFocusLost();
+    if (!focused && panel != null) panel.onFocusLost("window-focus");
   }
   @Override protected void onDestroy() { if (panel != null) panel.release(); super.onDestroy(); }
   @Override public boolean isImmersive() { return false; }

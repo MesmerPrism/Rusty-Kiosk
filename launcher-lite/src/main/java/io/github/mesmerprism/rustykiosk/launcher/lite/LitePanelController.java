@@ -115,12 +115,24 @@ final class LitePanelController {
   void onPause() {
     resumed = false;
     cancelOptionTask();
-    hideKeyboard();
+    // Match the working hybrid Desktop: a paused but visible host may be under the native IME.
+    Log.i(TAG, "event=panel-paused mode=" + presentation.mode() + " keyboardDismissed=false");
   }
 
-  void onFocusLost() {
-    if (optionLaunchPending) cancelOptionTask();
+  void onStop() {
     hideKeyboard();
+    Log.i(TAG, "event=panel-stopped mode=" + presentation.mode() + " keyboardCleanup=true");
+  }
+
+  void onFocusLost(String source) {
+    boolean cancelledLaunch = optionLaunchPending;
+    if (cancelledLaunch) cancelOptionTask();
+    // Horizon's native IME overlay can take window/VR focus from the immersive host.
+    // Revoke pending dispatch without dismissing that overlay or clearing its editor.
+    // Activity stop, presentation switch and release retain keyboard cleanup.
+    Log.i(TAG, "event=panel-focus-lost mode=" + presentation.mode() + " source=" + source
+        + " optionLaunchCancelled=" + cancelledLaunch + " editorFocused=" + (root.findFocus() instanceof EditText)
+        + " keyboardDismissed=false");
   }
 
   void release() {

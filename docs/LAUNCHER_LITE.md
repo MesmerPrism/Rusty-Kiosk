@@ -48,6 +48,10 @@ restoration, mode-switch cancellation, settings return, option dispatch drift,
 normal app launch/return and system Home escape. Store screenshots must come
 from the exact signed production candidate and identify their actual capture
 surface; a flat Activity render does not prove immersive compositor appearance.
+The asset runner captures the exact public Browser row and restores only its
+artificial screenshot preferences. Its launch receipt is
+`not-run-assets-only`: capturing library screens does not validate a target
+app launch. Normal launch/return remains a separate headset check.
 
 ## Proposed Store copy after validation
 

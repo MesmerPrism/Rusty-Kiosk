@@ -55,6 +55,8 @@ final class LiteHybridInstrumentation {
     } finally { test.removeMonitor(spatialMonitor); }
     View spatialRoot = waitPanel(test, spatial, true);
     assertExclusiveTransition(test, window, outgoingWindowTask, spatial);
+    assertOverlayFocusHandler(test, spatial, spatialRoot);
+    result.putString("overlay_focus_and_pause_preserve_editor_stop_cleans_editor", "pass");
     assertSearch(test, spatialRoot, preferences.getString("search", ""));
     if (!before.equals(snapshot(preferences))) throw new AssertionError("Domain preferences changed during immersive transition");
 
@@ -87,6 +89,34 @@ final class LiteHybridInstrumentation {
     result.putString("persisted_domain_state", "pass");
     result.putString("distinct_tasks_outgoing_destroyed_incoming_survives", "pass");
     result.putString("scope", "test-only-semantic-handlers-not-physical-pointer-keyboard-or-compositor-acceptance");
+  }
+
+  private static void assertOverlayFocusHandler(Instrumentation test, Activity spatial, View root) {
+    Throwable[] failure = new Throwable[1];
+    test.runOnMainSync(() -> {
+      try {
+        Field controllerField = spatial.getClass().getDeclaredField("panel");
+        controllerField.setAccessible(true);
+        LitePanelController controller = (LitePanelController) controllerField.get(spatial);
+        if (controller == null) throw new AssertionError("Immersive controller is absent");
+        EditText editor = root.findViewById(R.id.search);
+        if (!editor.requestFocus()) throw new AssertionError("Native editor could not receive focus");
+        // Exercise the shared production focus-loss handler without SDK lifecycle injection.
+        // No provider request, launch, text edit or domain preference mutation is synthesized.
+        controller.onFocusLost("instrumentation-overlay-focus");
+        if (!editor.hasFocus()) throw new AssertionError("Overlay focus loss cleared its native editor");
+        // A paused host can remain visible below the IME. Pause revokes dispatch, not editor ownership.
+        controller.onPause();
+        if (!editor.hasFocus()) throw new AssertionError("Visible Activity pause cleared its native editor");
+        Field resumed = LitePanelController.class.getDeclaredField("resumed");
+        resumed.setAccessible(true);
+        if (resumed.getBoolean(controller)) throw new AssertionError("Paused controller retained launch authority");
+        controller.onStop();
+        if (editor.hasFocus()) throw new AssertionError("Stopped Activity did not clear editor focus");
+        controller.onResume();
+      } catch (Throwable error) { failure[0] = error; }
+    });
+    if (failure[0] != null) throw new AssertionError("Native editor lifecycle handler check failed", failure[0]);
   }
 
   private static Map<String, Object> snapshot(SharedPreferences preferences) {

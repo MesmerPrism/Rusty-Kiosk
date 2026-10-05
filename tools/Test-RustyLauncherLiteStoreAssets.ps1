@@ -102,7 +102,8 @@ if ($captureReceipt.schema -cne 'rusty.kiosk.launcher_lite.store_capture.v1' -or
     [int]$captureReceipt.capture.height -ne 1440 -or
     $captureReceipt.capture.source -cne 'production-activity-decor-view' -or
     $captureReceipt.capture.transform -cne 'aspect-fit-neutral-matte-no-overlay' -or
-    @($captureReceipt.flows.PSObject.Properties | Where-Object { $_.Value -cne 'pass' }).Count -ne 0) {
+    $captureReceipt.flows.launch -cne 'not-run-assets-only' -or
+    @($captureReceipt.flows.PSObject.Properties | Where-Object { $_.Name -cne 'launch' -and $_.Value -cne 'pass' }).Count -ne 0) {
   throw 'The on-device Store capture receipt does not bind the exact non-debuggable candidate.'
 }
 

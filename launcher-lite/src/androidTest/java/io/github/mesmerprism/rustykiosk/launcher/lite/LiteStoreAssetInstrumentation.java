@@ -44,6 +44,7 @@ import org.json.JSONObject;
 public final class LiteStoreAssetInstrumentation extends Instrumentation {
   private boolean presentationOnly;
   private String assetSearch = "Browser";
+  private String publicAssetComponent;
   private static final String PUBLIC_ASSET_PACKAGE = "com.oculus.browser";
 
   private static final int STORE_WIDTH = 2560;
@@ -92,6 +93,7 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
         }
       }
       if (publicApp == null) throw new IllegalStateException("No installed public Browser front door matches asset_search");
+      publicAssetComponent = publicApp.key();
       // Artificial screenshot favorites/tags/search/Wi-Fi preferences must not persist on the wearer device.
       // This restores only the test fixture file, not any headset or system-settings baseline.
       if (!preferences.edit().clear().putString("search", assetSearch)
@@ -202,18 +204,12 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
           });
       capture(activity, output, "screenshot-05-favorites.png");
 
-      runOnMain(activity, () -> activity.findViewById(R.id.all_button).performClick());
-      runOnMain(activity, () -> ((RadioGroup) activity.findViewById(R.id.wifi_group)).check(R.id.wifi_any));
-      runOnMain(activity, () -> activity.findViewById(R.id.launch_button).performClick());
-      waitForIdleSync();
-      SystemClock.sleep(500);
-      sendKeySync(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK));
-      sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK));
       result.putString("catalog_flow", "pass");
       result.putString("search_tag_flow", "pass");
       result.putString("favorite_flow", "pass");
       result.putString("wifi_preflight_flow", "pass");
-      result.putString("launch_flow", "pass");
+      // These are five production-Activity assets, not proof of another app's foreground adoption.
+      result.putString("launch_flow", "not-run-assets-only");
 
       result.putString("asset_directory", output.getAbsolutePath());
       result.putInt("asset_count", 5);
@@ -376,7 +372,7 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
                     .put("search_tag", "pass")
                     .put("favorite", "pass")
                     .put("wifi_preflight", "pass")
-                    .put("launch", "pass"))
+                    .put("launch", "not-run-assets-only"))
             .put("screenshots", screenshots);
     File receiptFile = new File(output, "capture-receipt.json");
     try (FileOutputStream stream = new FileOutputStream(receiptFile)) {
@@ -430,6 +426,11 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
             TextView details = activity.findViewById(R.id.detail_package);
             if (!activity.getString(R.string.package_detail, PUBLIC_ASSET_PACKAGE).equals(details.getText().toString())) {
               throw new IllegalStateException("Asset details are not the selected public Browser app");
+            }
+            String selectedComponent = getTargetContext().getSharedPreferences("launcher-lite-state", 0)
+                .getString("selected-component", null);
+            if (!publicAssetComponent.equals(selectedComponent)) {
+              throw new IllegalStateException("Asset selection is not the exact public Browser front door");
             }
             View decor = activity.getWindow().getDecorView();
             if (decor.getWidth() <= 0 || decor.getHeight() <= 0) {
