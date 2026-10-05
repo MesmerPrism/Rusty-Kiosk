@@ -312,3 +312,21 @@ and run `tools/Invoke-RustyKioskGuardCli.ps1 -Count 3`. Require two
 `schedule_recovery` receipts with `guard_armed=true`, followed by one
 `disarm_and_return` receipt with `guard_armed=false`. Keep the Android HOME
 wrapper and a physical Meta-button run as separate integration witnesses.
+
+## Lite update candidate
+
+The repository gate additionally runs `Test-RustyLauncherLiteSource.ps1`, Lite
+unit/lint tasks, release-manifest processing and debug assembly. The source
+boundary admits exactly two presentation hosts, the closed SDK permissions
+and read-only Wi-Fi. The merged manifest admits only ISDK 0.13.2's exact
+non-exported `ChannelBrokerService`, without filters or extra attributes;
+other services, providers and receivers reject. Store release
+assembly selects `launcher-lite`, preserves the reviewed signer and binds a
+clean source commit/tree, artifact hash and immutable versioned candidate.
+Legacy Labs Store/Business release assembly still selects `launcher`.
+
+A Store update is not accepted solely by assembly. Verify the installed
+predecessor package/version/signer, preserve data through upgrade, test both
+hosts, search/keyboard, mode switches, option revalidation, Wi-Fi cancellation,
+launch/return and system escape, then capture exact production screens.
+Store publication remains a separate authorized action.

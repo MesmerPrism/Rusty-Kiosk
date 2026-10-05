@@ -227,7 +227,6 @@ internal object CatalogFilter {
     searchQuery: String,
     selectedTag: String?,
   ): List<CatalogEntry> {
-    val terms = parseCatalogSearchTerms(searchQuery)
     val tag = selectedTag?.let(::normalizeTag)
     return entries
       .asSequence()
@@ -236,15 +235,7 @@ internal object CatalogFilter {
         val searchable =
           listOf(normalizeLookup(entry.label), normalizeLookup(entry.packageName.orEmpty())) +
             entry.tags.map(::normalizeLookup)
-        terms.all { term ->
-          searchable.any { value ->
-            if (term.phrase) {
-              normalizeSearchPhrase(value).contains(term.value)
-            } else {
-              value.contains(term.value)
-            }
-          }
-        }
+        io.github.mesmerprism.rustykiosk.catalog.CatalogSearch.matches(searchQuery, searchable)
       }
       .sortedWith(
         compareByDescending<CatalogEntry> { it.installed }
@@ -254,40 +245,6 @@ internal object CatalogFilter {
       .toList()
   }
 }
-
-private data class CatalogSearchTerm(
-  val value: String,
-  val phrase: Boolean,
-)
-
-private fun parseCatalogSearchTerms(value: String): List<CatalogSearchTerm> {
-  val terms = mutableListOf<CatalogSearchTerm>()
-  val token = StringBuilder()
-  var quoted = false
-
-  fun flush() {
-    val normalized =
-      if (quoted) normalizeSearchPhrase(token.toString()) else normalizeLookup(token.toString())
-    if (normalized.isNotEmpty()) terms += CatalogSearchTerm(normalized, phrase = quoted)
-    token.clear()
-  }
-
-  value.forEach { character ->
-    when {
-      character == '"' -> {
-        flush()
-        quoted = !quoted
-      }
-      quoted || character.isLetterOrDigit() -> token.append(character)
-      else -> flush()
-    }
-  }
-  flush()
-  return terms
-}
-
-private fun normalizeSearchPhrase(value: String): String =
-  SEARCH_TERM_SEPARATOR.replace(normalizeLookup(value), " ").trim()
 
 internal object CatalogAssembler {
   fun assemble(snapshot: InstalledSnapshot, document: TagFileDocument): List<CatalogEntry> =
@@ -372,5 +329,4 @@ internal fun normalizeLookup(value: String): String =
 
 internal fun normalizeTag(value: String): String = normalizeLookup(value).take(MAX_TAG_LENGTH)
 
-private val SEARCH_TERM_SEPARATOR = Regex("[^\\p{L}\\p{N}]+")
 private const val MAX_TAG_LENGTH = 40

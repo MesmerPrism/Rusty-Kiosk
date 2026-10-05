@@ -139,3 +139,10 @@ pwsh -NoProfile -File .\tools\Test-RustyKioskPanelPreview.ps1 -RenderNative
 
 A successful desktop render does not prove live Spatial input or placement.
 Use the attended headset checklist in `docs/VALIDATION.md` for those claims.
+
+## Lite hybrid candidate
+
+The dimensions and desktop fixtures above remain full-Kiosk-specific. Lite's
+window and immersive hosts share their own native layout/controller. Desktop
+checks do not qualify Lite's compositor, pointer, keyboard or mode transitions;
+those require the exact signed candidate on the headset.

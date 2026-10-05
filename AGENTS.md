@@ -151,8 +151,8 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   transition; it must never be described as physical Meta-button or visible
   Android HOME parity.
 - `launcher` is one conventional native 2D Android implementation, not a
-  Spatial SDK app. It has three closed release identities: stable Store, Labs
-  Store, and the distinct Quest Private App Business package required by Meta
+  Spatial SDK app. Its legacy handoff builds have three closed release
+  identities: stable Store, Labs Store, and the distinct Quest Private App Business package required by Meta
   distribution rules. All builds have one Activity, one exact package query,
   no declared permissions, and no service, provider, receiver, installer,
   Accessibility, updater, analytics, account, or background authority.
@@ -164,9 +164,20 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
 - The launcher accepts no package, component, certificate, URL, or command
   from intents or remote input. Its target identity and official install links
   are compile-time release inputs.
+- `launcher-lite` owns the published standalone Store package. Its hybrid update
+  preserves that package, signing policy and private preference keys. It has a
+  conventional window host and a Spatial SDK immersive host sharing one native
+  panel/controller; changing presentation cancels pending Wi-Fi remediation.
+  Keep only read-only Wi-Fi and the closed Spatial SDK permission set. It has
+  no helper, operator/provider, Accessibility, installer, Internet, boot receiver,
+  app-owned service, managed-kiosk or background authority. Only the exact
+  non-exported SDK `com.meta.spatial.channels.ChannelBrokerService` may merge
+  from ISDK, with no intent filter, process or permission expansion. App launch options stay
+  selected-app scoped and are revalidated at dispatch; they carry only the
+  fixed opaque option-ID extra to the admitted front door.
 - All launcher release identities use the same launcher signing identity and
-  must remain behaviorally identical. They and Rusty Kiosk remain separately
-  installed packages with distinct signing identities. Meta Store and Business
+  keep their distinct standalone or handoff behavior. They and Rusty Kiosk
+  remain separately installed packages with distinct signing identities. Meta Store and Business
   products/tracks own their respective launcher distribution; Rusty Kiosk
   owns all kiosk, setup, install, and update behavior.
 - Stable Kiosk releases use canonical `vX.Y.Z` tags. Initial Labs candidates use

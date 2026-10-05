@@ -83,6 +83,13 @@ internal data class RawAppLaunchOption(
 )
 
 internal object AppLaunchOptionsValidationPolicy {
+  fun validateSchemaVersion(value: Long): Int {
+    require(value == AppLaunchOptionsContract.SCHEMA_VERSION.toLong()) {
+      "launch-option-schema-version-invalid"
+    }
+    return AppLaunchOptionsContract.SCHEMA_VERSION
+  }
+
   fun validateRows(rows: List<RawAppLaunchOption>): List<AppLaunchOption> {
     require(rows.size <= AppLaunchOptionsContract.MAX_OPTION_COUNT) {
       "launch-option-count-invalid"
@@ -345,7 +352,7 @@ internal class AppLaunchOptionsRepository(context: Context) {
         ) { "launch-options-column-types-invalid" }
         rows +=
           RawAppLaunchOption(
-            schemaVersion = it.getInt(0),
+            schemaVersion = AppLaunchOptionsValidationPolicy.validateSchemaVersion(it.getLong(0)),
             optionId = if (it.isNull(1)) null else it.getString(1),
             displayLabel = if (it.isNull(2)) null else it.getString(2),
             description = if (it.isNull(3)) null else it.getString(3),

@@ -937,6 +937,8 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Panel preview contract gate failed with exit code $LASTEXITCODE."
   }
+  & pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-RustyLauncherLiteSource.ps1
+  if ($LASTEXITCODE -ne 0) { throw 'Launcher Lite source boundary gate failed.' }
   & .\gradlew.bat testDebugUnitTest lintDebug
   if ($LASTEXITCODE -ne 0) {
     throw "Gradle unit/lint gate failed with exit code $LASTEXITCODE."
@@ -944,6 +946,7 @@ try {
   & .\gradlew.bat `
     :app:processReleaseMainManifest `
     :launcher:processReleaseMainManifest `
+    :launcher-lite:processReleaseMainManifest `
     :setup-helper:processReleaseMainManifest `
     --rerun-tasks
   if ($LASTEXITCODE -ne 0) {
@@ -960,6 +963,12 @@ try {
       'RustyKioskCliActivity|RustyKioskGuardCliReceiver') {
     throw 'A debug Rusty Kiosk CLI component leaked into the release manifest.'
   }
+  $liteReleaseManifest = Get-ChildItem -Path .\launcher-lite\build\intermediates -Recurse -Filter AndroidManifest.xml |
+    Where-Object { $_.FullName -match 'merged_manifest.*release' } |
+    Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+  if ($null -eq $liteReleaseManifest) { throw 'Lite release manifest was not produced.' }
+  & pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-RustyLauncherLiteSource.ps1 -MergedManifestPath $liteReleaseManifest.FullName
+  if ($LASTEXITCODE -ne 0) { throw 'Lite merged release manifest boundary failed.' }
   $launcherReleaseManifest =
     Get-ChildItem -Path .\launcher\build\intermediates -Recurse -Filter AndroidManifest.xml |
       Where-Object { $_.FullName -match '[\\/]release[\\/]' } |
@@ -1061,7 +1070,7 @@ try {
 
   if (-not $SkipAssemble) {
     $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
-    & .\gradlew.bat :app:assembleDebug :launcher:assembleDebug :setup-helper:assembleDebug
+    & .\gradlew.bat :app:assembleDebug :launcher:assembleDebug :launcher-lite:assembleDebug :setup-helper:assembleDebug
     if ($LASTEXITCODE -ne 0) {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }

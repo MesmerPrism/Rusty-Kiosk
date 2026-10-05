@@ -108,6 +108,8 @@ android {
     buildConfig = true
   }
 
+  sourceSets["main"].java.srcDir(rootProject.file("shared/catalog-search/src/main/java"))
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17

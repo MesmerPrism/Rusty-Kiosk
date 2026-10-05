@@ -358,3 +358,16 @@ AGPL-3.0-or-later. See `LICENSE`.
 
 Meta Spatial SDK and other dependencies retain their own licenses and terms.
 See `THIRD_PARTY_NOTICES.md`.
+
+## Standalone Launcher Lite update candidate
+
+[Rusty Launcher Lite](https://www.meta.com/en-gb/experiences/rusty-launcher-lite/1241943475671333/)
+is published at version `0.2.0` (public listing checked 2026-10-05). The
+`launcher-lite` module
+preserves its existing package, signer and local preferences. The current
+`0.3.0` / version-code `3` hybrid candidate adds a window and an immersive
+Spatial SDK host sharing the same catalogue panel, search and launch handlers.
+It is an unpublished update candidate, not evidence of a Store release or
+headset-qualified hybrid behavior. It retains standalone operation and does
+not acquire the full Kiosk helper, Accessibility, direct-link or installer.
+See [Launcher Lite](docs/LAUNCHER_LITE.md) for boundaries and update validation.

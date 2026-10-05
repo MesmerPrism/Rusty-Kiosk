@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rusty Launcher Lite</string>
+    <string name="subtitle">A simple, standalone launcher for your Quest apps</string>
+    <string name="search_hint">Search apps, packages, or tags</string>
+    <string name="all_apps">All apps</string>
+    <string name="favorites">Favorites</string>
+    <string name="help">Help</string>
+    <string name="refresh">Refresh</string>
+    <string name="empty">No launchable apps match this view.</string>
+    <string name="select_app">Select an app to see details and launch it.</string>
+    <string name="package_detail">Package: %1$s</string>
+    <string name="activity_detail">Activity: %1$s</string>
+    <string name="add_favorite">Add favorite</string>
+    <string name="remove_favorite">Remove favorite</string>
+    <string name="local_tags">Local tags</string>
+    <string name="tag_hint">Add a tag</string>
+    <string name="add_tag">Add</string>
+    <string name="no_tags">No tags yet</string>
+    <string name="wifi_requirement">Launch requirement</string>
+    <string name="wifi_any">Any Wi-Fi state</string>
+    <string name="wifi_on">Wi-Fi on</string>
+    <string name="wifi_off">Wi-Fi off</string>
+    <string name="launch_app">Launch app</string>
+    <string name="open_full_kiosk">Open full Rusty Kiosk</string>
+    <string name="full_kiosk_available">Optional full Kiosk is installed and trusted.</string>
+    <string name="full_kiosk_unavailable">Rusty Launcher Lite works on its own. The full Rusty Kiosk is optional and is not installed.</string>
+    <string name="wifi_on_needed">Turn Wi-Fi on to launch %1$s.</string>
+    <string name="wifi_off_needed">Turn Wi-Fi off to launch %1$s.</string>
+    <string name="wifi_guidance">Wi-Fi settings opened. Return after changing the setting, or return unchanged to cancel.</string>
+    <string name="open_wifi_settings">Open Wi-Fi settings</string>
+    <string name="cancel">Cancel</string>
+    <string name="launch_failed">Android could not open this app. Refresh the catalogue and try again.</string>
+    <string name="catalog_status">%1$d launchable apps • Wi-Fi %2$s</string>
+    <string name="filtered_status">Showing %1$d of %2$d apps</string>
+    <string name="tag_added">Tag “%1$s” added locally.</string>
+    <string name="tag_removed">Tag “%1$s” removed.</string>
+    <string name="tag_invalid">Use 1–24 letters, numbers, or hyphens.</string>
+    <string name="about_title">About Rusty Launcher Lite</string>
+    <string name="about_body">Rusty Launcher Lite is a standalone, privacy-conscious app launcher. It shows only apps that publish a normal launchable front door. Search, favorites, tags, and Wi-Fi launch requirements stay locally on this headset.\n\nIt does not require Developer Mode, ADB, Accessibility, a PC, an account, or a companion app. It never changes Wi-Fi itself; unmet requirements open Android Wi-Fi settings for you.\n\nThe separate full Rusty Kiosk is optional and adds advanced lab workflows when installed independently.</string>
+    <string name="close">Close</string>
+    <string name="window_mode">Window</string>
+    <string name="immersive_mode">Immersive</string>
+    <string name="presentation_failed">The presentation could not be opened. Try again.</string>
+    <string name="launch_options_loading">Checking app launch options…</string>
+    <string name="launch_option_failed">This app option could not be verified. Select it again to retry.</string>
+</resources>

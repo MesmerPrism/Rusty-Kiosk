@@ -1,5 +1,17 @@
 # Rusty Kiosk Launcher
 
+## Current standalone Store product
+
+Rusty Launcher Lite is published under the original Store package. The
+`launcher-lite` module is its standalone implementation; the current hybrid
+`0.3.0` / code `3` work is an unpublished update candidate. It preserves package,
+signer and preferences and requires no full Kiosk companion. See
+[Launcher Lite](LAUNCHER_LITE.md). The conventional handoff implementation and
+its validations below remain applicable to the separate Labs Store/Business
+products and historical handoff evidence; they do not impose one-Activity,
+no-native-library or permission-free constraints on the hybrid Lite candidate.
+
+
 ## Decision
 
 `launcher` is one native 2D Android implementation released through three
