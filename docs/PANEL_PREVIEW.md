@@ -142,7 +142,48 @@ Use the attended headset checklist in `docs/VALIDATION.md` for those claims.
 
 ## Lite hybrid candidate
 
-The dimensions and desktop fixtures above remain full-Kiosk-specific. Lite's
-window and immersive hosts share their own native layout/controller. Desktop
-checks do not qualify Lite's compositor, pointer, keyboard or mode transitions;
-those require the exact signed candidate on the headset.
+The full-Kiosk fixtures above retain their own dimensions. Render Lite with:
+
+```powershell
+pwsh -NoProfile -File .\tools\Export-RustyLauncherLiteNativePreview.ps1
+```
+
+The isolated `lite-panel-preview` module uses production Lite resources directly
+and inflates `activity_rusty_launcher_lite.xml` through Android Layoutlib. Its
+catalogue rows use the production `LiteAppAdapter`, model and preference store.
+The fixture fills the existing selected-app controls with synthetic app, tags
+and launch-option data; it does not run catalogue discovery or the controller's
+launch handlers. These renders are native XML layout evidence.
+
+The window fixture is 1024 × 640 dp at 160 dpi. The immersive fixture follows
+Lite's production 1.3 × 0.775 m panel at 800 dp/m: 1040 × 620 dp, rendered at
+288 dpi to 1872 × 1116 pixels. A compact 800 × 480 dp long-title fixture is
+recorded both at the beginning and end of detail scrolling. Tests assert that
+the primary Launch button is outside the detail ScrollView, has at least a
+48 dp height, stays fully within the viewport, and keeps the same rectangle
+when the detail content scrolls. Each fixture includes overflowing options so
+the scroll evidence cannot pass without actual detail movement. Detail viewport
+checks require at least 72 dp at compact size and 160 dp at normal sizes;
+both catalogue toggle labels must fit completely within their measured controls
+and the viewport.
+
+Ignored outputs live in `artifacts/rusty-launcher-lite-native-preview/`.
+The manifest records the commit, dirty state, source and image SHA-256 hashes,
+viewport and launch rectangles, and scroll geometry. The exporter rejects source
+changes during rendering. Keep inputs stable while it runs. Normal machine build
+coordination applies before invoking Gradle.
+
+The Lite test host supplies a bounded Layoutlib 14.0.11 font-stream compatibility
+delegate because framework TextView inflation on Windows can return a null
+asset stream for an existing framework font disk path. It reads only font files
+from that exact Layoutlib runtime artifact's `data/fonts` directory. The manifest
+records SHA-256 digests for the complete available runtime font closure, including
+preloaded system typefaces and `fonts.xml`; these are available-asset evidence,
+not a per-file font-load trace. It preserves the production theme, XML and font bytes;
+the delegate is test-only and never enters the APK. Layoutlib typography remains
+a desktop approximation of the installed Android/Quest renderer. Upstream's
+[Windows font-loading fix](https://github.com/cashapp/paparazzi/pull/2074)
+addresses the related AndroidX resource path; this host uses framework Views.
+
+Desktop checks do not qualify Lite's compositor, pointer, keyboard or mode
+transitions; those require the exact signed candidate on the headset.

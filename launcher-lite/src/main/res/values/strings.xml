@@ -5,6 +5,8 @@
     <string name="search_hint">Search apps, packages, or tags</string>
     <string name="all_apps">All apps</string>
     <string name="favorites">Favorites</string>
+    <string name="system_apps">System apps</string>
+    <string name="internal_activities">Internal activities</string>
     <string name="help">Help</string>
     <string name="refresh">Refresh</string>
     <string name="empty">No launchable apps match this view.</string>

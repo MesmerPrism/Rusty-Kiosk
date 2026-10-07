@@ -8,8 +8,8 @@ description. Its canonical privacy policy is
 includes its existing Lite module on current full-Kiosk main; full Kiosk and
 its Stable/Labs channels remain separate products. Candidate `0.3.0` / code `3`
 preserves the published Store package and reviewed launcher signer policy.
-Known local signed predecessor evidence is `0.2.0` / code `2`; current installed
-headsets also report that version. On 2026-10-05 the authenticated publisher
+Known local signed predecessor evidence is `0.2.0` / code `2`; pre-upgrade
+headset observations also reported that version. On 2026-10-05 the authenticated publisher
 console confirmed approved production `0.2.0` / code `2`; its inspected build
 list contained codes `1` and `2`, making code `3` the next candidate. This candidate is not yet published or
 device qualified.
@@ -32,6 +32,40 @@ The same-package upgrade preserves data; uninstall/data clear is not an upgrade.
 Spatial SDK introduces native libraries and a substantially larger download
 than the original 2D-only APK. Record the actual signed candidate size; the
 Lite name describes the product scope, not the original tiny binary size.
+
+## App library and selected-app actions
+
+The selected app's title, **Launch app** and favorite action remain above the
+scrolling details. Tags, Wi-Fi preferences, package/activity information and
+app-provided options scroll independently; opening an app does not require
+finding a button at the bottom of that content.
+
+The default library shows user-installed and sideloaded apps, including apps
+whose only front door uses Quest's VR category. **System apps** and **Internal
+activities** are independent, visible opt-in filters, remembered locally across
+Window/Immersive changes and subsequent launches. Turning an entry off does not
+remove its favorites, tags or Wi-Fi preference. Search and favorites apply to
+the currently visible library; selection never retains an entry hidden by a
+filter.
+
+Classification uses Android system/updated-system flags and the union of
+categories queried for each exact component. Known Quest shell, dialog and
+onboarding packages are internal even when they advertise ordinary launcher
+categories. Nine exact public Meta front doors remain in the default view:
+Browser, Store, TV, Files, Gallery, Remote Desktop, Avatar Editor, Media Player
+and the sharing panel. This is a bounded component list, not an exemption for
+all Meta package names. Other components of those packages remain internal;
+the main Settings front door is a system app, while Settings modal wrappers
+are internal. A package with a normal front door may also have auxiliary VR
+activities, which appear under Internal activities. Unrecognized non-system
+VR-only packages stay visible to preserve sideloaded apps. These presentation
+rules do not grant launch authority or change catalogue admission.
+
+Account and privacy settings utilities remain under System apps even when
+Android reports them as user applications. Known Link-interruption dialogs,
+People shelves and companion activities use Internal activities; their main
+user controls remain under System apps. Unknown utility identities may require
+a future bounded classification update after observation.
 
 ## Candidate assembly and verification
 

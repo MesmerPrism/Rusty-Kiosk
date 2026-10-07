@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import org.junit.Test;
 
 public final class LitePreferenceStoreTest {
@@ -13,10 +14,14 @@ public final class LitePreferenceStoreTest {
     SharedPreferences preferences = preferences(persisted);
     LitePreferenceStore original = new LitePreferenceStore(preferences);
     assertFalse(original.favoritesOnly());
+    assertFalse(original.showSystemApps());
+    assertFalse(original.showInternalActivities());
     assertNull(original.selectedComponent());
     String key = "com.example/com.example.Main";
     original.setSearch("\"Spatial Camera\" video");
     original.setFavoritesOnly(true);
+    original.setShowSystemApps(true);
+    original.setShowInternalActivities(true);
     original.setSelectedComponent(key);
     original.setFavorite(key, true);
     original.addTag(key, "camera");
@@ -24,6 +29,8 @@ public final class LitePreferenceStoreTest {
     LitePreferenceStore recreated = new LitePreferenceStore(preferences);
     assertEquals("\"Spatial Camera\" video", recreated.search());
     assertTrue(recreated.favoritesOnly());
+    assertTrue(recreated.showSystemApps());
+    assertTrue(recreated.showInternalActivities());
     assertEquals(key, recreated.selectedComponent());
     assertTrue(recreated.isFavorite(key));
     assertTrue(recreated.tags(key).contains("camera"));
@@ -32,8 +39,12 @@ public final class LitePreferenceStoreTest {
     assertTrue(persisted.containsKey("tags:" + key));
     assertTrue(persisted.containsKey("wifi:" + key));
     recreated.setFavoritesOnly(false);
+    recreated.setShowSystemApps(false);
+    recreated.setShowInternalActivities(false);
     recreated.setSelectedComponent(null);
     assertFalse(original.favoritesOnly());
+    assertFalse(original.showSystemApps());
+    assertFalse(original.showInternalActivities());
     assertNull(original.selectedComponent());
   }
 
@@ -41,6 +52,25 @@ public final class LitePreferenceStoreTest {
     Map<String, Object> values = new HashMap<>();
     values.put("selected-component", "content://attacker/Main");
     assertNull(new LitePreferenceStore(preferences(values)).selectedComponent());
+  }
+
+  @Test public void hidingSystemEntriesPreservesRecordsAndSearchAcrossRecreation() {
+    SharedPreferences preferences = preferences(new HashMap<>());
+    LitePreferenceStore store = new LitePreferenceStore(preferences);
+    String key = "com.android.settings/com.android.settings.Settings";
+    store.setShowSystemApps(true);
+    store.setFavorite(key, true);
+    store.addTag(key, "tools");
+    store.setWifiRequirement(key, WifiRequirement.OFF);
+    store.setSearch("tools");
+    store.setShowSystemApps(false);
+    store.pruneToCatalog(Set.of(key));
+    LitePreferenceStore recreated = new LitePreferenceStore(preferences);
+    assertFalse(recreated.showSystemApps());
+    assertTrue(recreated.isFavorite(key));
+    assertEquals(Set.of("tools"), recreated.tags(key));
+    assertEquals(WifiRequirement.OFF, recreated.wifiRequirement(key));
+    assertEquals("tools", recreated.search());
   }
 
   // A tiny in-memory interface adapter verifies persisted keys, without Android framework calls.
