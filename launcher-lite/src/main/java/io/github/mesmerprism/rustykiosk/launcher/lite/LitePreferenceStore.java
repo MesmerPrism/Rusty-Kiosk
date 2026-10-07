@@ -13,6 +13,8 @@ final class LitePreferenceStore {
   private static final String WIFI_PREFIX = "wifi:";
   private static final String SEARCH = "search";
   private static final String FAVORITES_ONLY = "favorites-only";
+  private static final String SHOW_SYSTEM_APPS = "show-system-apps";
+  private static final String SHOW_INTERNAL_ACTIVITIES = "show-internal-activities";
   private static final String SELECTED_COMPONENT = "selected-component";
   private static final String RECORD_KEYS = "record-keys";
   private final SharedPreferences preferences;
@@ -111,6 +113,22 @@ final class LitePreferenceStore {
 
   String selectedComponent() {
     return LiteBrowsingState.acceptComponent(preferences.getString(SELECTED_COMPONENT, null));
+  }
+
+  boolean showSystemApps() {
+    return preferences.getBoolean(SHOW_SYSTEM_APPS, false);
+  }
+
+  void setShowSystemApps(boolean value) {
+    preferences.edit().putBoolean(SHOW_SYSTEM_APPS, value).apply();
+  }
+
+  boolean showInternalActivities() {
+    return preferences.getBoolean(SHOW_INTERNAL_ACTIVITIES, false);
+  }
+
+  void setShowInternalActivities(boolean value) {
+    preferences.edit().putBoolean(SHOW_INTERNAL_ACTIVITIES, value).apply();
   }
 
   void setSelectedComponent(String value) {

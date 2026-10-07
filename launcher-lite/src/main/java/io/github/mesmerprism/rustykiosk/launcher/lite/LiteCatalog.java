@@ -2,6 +2,7 @@ package io.github.mesmerprism.rustykiosk.launcher.lite;
 
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import java.util.ArrayList;
@@ -39,7 +40,9 @@ final class LiteCatalog {
             activity.enabled,
             activity.exported,
             activity.applicationInfo.enabled,
-            ownPackage);
+            ownPackage,
+            (activity.applicationInfo.flags
+                & (ApplicationInfo.FLAG_SYSTEM | ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0);
       }
     }
     List<LiteApp> apps = new ArrayList<>(unique.values());

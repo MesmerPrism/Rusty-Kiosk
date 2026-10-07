@@ -16,3 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "RustyKioskNativePanelPreview"
 include(":native-panel-preview")
+include(":lite-panel-preview")

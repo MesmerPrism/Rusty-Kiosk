@@ -19,6 +19,7 @@ import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -260,6 +261,18 @@ final class LitePanelController {
         });
     findViewById(R.id.refresh_button).setOnClickListener(view -> reloadCatalog());
     findViewById(R.id.help_button).setOnClickListener(view -> showHelp());
+    CheckBox systemApps = findViewById(R.id.show_system_apps);
+    CheckBox internalActivities = findViewById(R.id.show_internal_activities);
+    systemApps.setChecked(store.showSystemApps());
+    internalActivities.setChecked(store.showInternalActivities());
+    systemApps.setOnCheckedChangeListener((button, checked) -> {
+      store.setShowSystemApps(checked);
+      applyFilter();
+    });
+    internalActivities.setOnCheckedChangeListener((button, checked) -> {
+      store.setShowInternalActivities(checked);
+      applyFilter();
+    });
     findViewById(R.id.all_button)
         .setOnClickListener(
             view -> {
@@ -344,9 +357,11 @@ final class LitePanelController {
     }
     String query = search == null ? "" : search.getText().toString();
     List<LiteApp> filtered = new ArrayList<>();
+    LiteCatalogVisibility visibility = new LiteCatalogVisibility(allApps);
     for (LiteApp app : allApps) {
       Set<String> tags = store.tags(app.key());
-      if ((!favoritesOnly || store.isFavorite(app.key())) && app.matches(query, tags)) {
+      if (visibility.visible(app, store.showSystemApps(), store.showInternalActivities())
+          && (!favoritesOnly || store.isFavorite(app.key())) && app.matches(query, tags)) {
         filtered.add(app);
       }
     }
@@ -360,7 +375,7 @@ final class LitePanelController {
     Boolean wifi = readWifiEnabled();
     String wifiLabel = wifi == null ? "unavailable" : (wifi ? "on" : "off");
     if (query.isBlank() && !favoritesOnly) {
-      status.setText(getString(R.string.catalog_status, allApps.size(), wifiLabel));
+      status.setText(getString(R.string.catalog_status, filtered.size(), wifiLabel));
     } else {
       status.setText(getString(R.string.filtered_status, filtered.size(), allApps.size()));
     }
