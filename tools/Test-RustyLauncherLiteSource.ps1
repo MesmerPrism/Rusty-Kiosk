@@ -21,6 +21,12 @@ if ($signerPolicy.schema -cne 'rusty.kiosk.launcher_release_signer_policy.v1' -o
 $requiredPermissions = @('android.permission.ACCESS_WIFI_STATE',
   'org.khronos.openxr.permission.OPENXR', 'org.khronos.openxr.permission.OPENXR_SYSTEM')
 $allowedPermissions = $requiredPermissions + @('com.oculus.permission.HAND_TRACKING')
+$graphicsFeatures = @($manifest.manifest.SelectNodes("*[local-name()='uses-feature']") |
+  Where-Object { $_.HasAttribute('glEsVersion', $androidNamespace) })
+if ($graphicsFeatures.Count -ne 1 -or
+    $graphicsFeatures[0].GetAttribute('glEsVersion', $androidNamespace) -cne '0x00030001') {
+  throw 'Lite must declare the Spatial SDK hybrid OpenGL ES 3.1 requirement exactly once.'
+}
 $permissions = @($manifest.manifest.SelectNodes("*[local-name()='uses-permission']") | ForEach-Object { $_.GetAttribute('name', $androidNamespace) })
 if (@($requiredPermissions | Where-Object { $_ -cnotin $permissions }).Count -ne 0 -or
     @($permissions | Where-Object { $_ -cnotin $allowedPermissions }).Count -ne 0 -or
