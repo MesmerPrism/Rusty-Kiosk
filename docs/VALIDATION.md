@@ -330,3 +330,17 @@ predecessor package/version/signer, preserve data through upgrade, test both
 hosts, search/keyboard, mode switches, option revalidation, Wi-Fi cancellation,
 launch/return and system escape, then capture exact production screens.
 Store publication remains a separate authorized action.
+
+The test-only Store instrumentation optionally accepts `asset_scenes=distinct-v2`.
+It preserves the exact production release APK and captures the real Wi-Fi
+requirement and Help/About dialog windows instead of the two near-identical
+favorite frames. A shown dialog must match the expected production message;
+its window decor is captured alone with the same aspect-fit neutral matte,
+without an Activity composite, simulated overlay or retouch. The v2 receipt
+declares `production-activity-and-dialog-window-decor`. The fixed v2 image
+names distinguish dialog scenes, and the asset validator retains all exact
+APK/signer, PNG, receipt and preference-restoration checks. The opt-in capture
+uses a separate create-new `store-assets-distinct-v2` directory, preserving
+the old on-device assets. The default v1 flow remains available.
+Hash uniqueness is insufficient for Store scene diversity: visually review
+all five genuine images together before any separate listing resubmission.

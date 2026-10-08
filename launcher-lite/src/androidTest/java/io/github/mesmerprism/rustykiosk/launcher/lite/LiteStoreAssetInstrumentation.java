@@ -1,6 +1,7 @@
 package io.github.mesmerprism.rustykiosk.launcher.lite;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Instrumentation;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -43,6 +44,7 @@ import org.json.JSONObject;
 /** Instrumentation-only Store asset capture. No test component is packaged in the release APK. */
 public final class LiteStoreAssetInstrumentation extends Instrumentation {
   private boolean presentationOnly;
+  private boolean distinctScenes;
   private String assetSearch = "Browser";
   private String publicAssetComponent;
   private static final String PUBLIC_ASSET_PACKAGE = "com.oculus.browser";
@@ -54,6 +56,12 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
   public void onCreate(Bundle arguments) {
     super.onCreate(arguments);
     presentationOnly = arguments != null && "true".equals(arguments.getString("presentation_only"));
+    String scenes = arguments == null ? null : arguments.getString("asset_scenes");
+    if (scenes != null && !"distinct-v2".equals(scenes)) {
+      throw new IllegalArgumentException("Unknown Store asset scene set");
+    }
+    distinctScenes = scenes != null;
+    if (distinctScenes && presentationOnly) throw new IllegalArgumentException("Scene capture is not presentation validation");
     if (arguments != null && arguments.getString("asset_search") != null) assetSearch = arguments.getString("asset_search");
     start();
   }
@@ -124,7 +132,8 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
         throw new IllegalStateException("Store target must have exactly one current signer");
       }
 
-      output = new File(getTargetContext().getExternalFilesDir(null), "store-assets");
+      output = new File(getTargetContext().getExternalFilesDir(null), distinctScenes ? "store-assets-distinct-v2" : "store-assets");
+      if (distinctScenes && output.exists()) throw new IOException("Distinct capture namespace already exists");
       if (!output.exists() && !output.mkdirs()) {
         throw new IOException("Unable to create " + output);
       }
@@ -169,8 +178,9 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
               throw new AssertionError("Favorite state did not persist in the visible details");
             }
           });
-      capture(activity, output, "screenshot-03-app-details.png");
+      if (!distinctScenes) capture(activity, output, "screenshot-03-app-details.png");
 
+      String[] wifiGuidance = new String[1];
       runOnMain(
           activity,
           () -> {
@@ -179,8 +189,12 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
             RadioGroup group = activity.findViewById(R.id.wifi_group);
             group.check(enabled ? R.id.wifi_off : R.id.wifi_on);
             activity.findViewById(R.id.launch_button).performClick();
+            wifiGuidance[0] = ((TextView) activity.findViewById(R.id.status)).getText().toString();
           });
       waitForIdleSync();
+      if (distinctScenes) {
+        captureDialog(activity, output, "screenshot-03-wifi-dialog.png", wifiGuidance[0]);
+      }
       sendKeySync(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_BACK));
       sendKeySync(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_BACK));
       assertOnMain(
@@ -202,7 +216,12 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
               throw new AssertionError("Favorites view did not isolate the saved app");
             }
           });
-      capture(activity, output, "screenshot-05-favorites.png");
+      if (distinctScenes) {
+        runOnMain(activity, () -> activity.findViewById(R.id.help_button).performClick());
+        captureDialog(activity, output, "screenshot-05-help-about.png", activity.getString(R.string.about_body));
+      } else {
+        capture(activity, output, "screenshot-05-favorites.png");
+      }
 
       result.putString("catalog_flow", "pass");
       result.putString("search_tag_flow", "pass");
@@ -329,9 +348,9 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
     String[] names = {
       "screenshot-01-catalog-home.png",
       "screenshot-02-search-tags.png",
-      "screenshot-03-app-details.png",
+      distinctScenes ? "screenshot-03-wifi-dialog.png" : "screenshot-03-app-details.png",
       "screenshot-04-wifi-preflight.png",
-      "screenshot-05-favorites.png"
+      distinctScenes ? "screenshot-05-help-about.png" : "screenshot-05-favorites.png"
     };
     for (String name : names) {
       File file = new File(output, name);
@@ -344,7 +363,7 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
     File targetApk = new File(target.applicationInfo.sourceDir);
     JSONObject receipt =
         new JSONObject()
-            .put("schema", "rusty.kiosk.launcher_lite.store_capture.v1")
+            .put("schema", distinctScenes ? "rusty.kiosk.launcher_lite.store_capture.v2" : "rusty.kiosk.launcher_lite.store_capture.v1")
             .put("result", "pass")
             .put("preferences_restored", "exact-after-controller-fence")
             .put("public_asset_package", PUBLIC_ASSET_PACKAGE)
@@ -363,7 +382,7 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
                 new JSONObject()
                     .put("width", STORE_WIDTH)
                     .put("height", STORE_HEIGHT)
-                    .put("source", "production-activity-decor-view")
+                    .put("source", distinctScenes ? "production-activity-and-dialog-window-decor" : "production-activity-decor-view")
                     .put("transform", "aspect-fit-neutral-matte-no-overlay"))
             .put(
                 "flows",
@@ -408,6 +427,22 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
   }
 
   private void capture(Activity activity, File output, String name) throws Exception {
+    captureWindow(activity, output, name, null);
+  }
+
+  private void captureDialog(Activity activity, File output, String name, String expectedMessage) throws Exception {
+    if (expectedMessage == null || expectedMessage.isBlank()) throw new IllegalArgumentException("Dialog message is missing");
+    captureWindow(activity, output, name, expectedMessage);
+  }
+
+  private static void requireDisplayedScene(boolean showing, boolean hasWindow, CharSequence message, String expectedMessage) {
+    if (!showing || !hasWindow || message == null || expectedMessage == null || expectedMessage.isBlank()
+        || !expectedMessage.contentEquals(message)) {
+      throw new IllegalStateException("Displayed owner dialog does not match the selected scene");
+    }
+  }
+
+  private void captureWindow(Activity activity, File output, String name, String expectedMessage) throws Exception {
     waitForIdleSync();
     SystemClock.sleep(250);
     CountDownLatch latch = new CountDownLatch(1);
@@ -433,6 +468,21 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
               throw new IllegalStateException("Asset selection is not the exact public Browser front door");
             }
             View decor = activity.getWindow().getDecorView();
+            if (expectedMessage != null) {
+              Field panelField = activity.getClass().getDeclaredField("panel");
+              panelField.setAccessible(true);
+              Object panel = panelField.get(activity);
+              Field dialogField = panel.getClass().getDeclaredField("activeDialog");
+              dialogField.setAccessible(true);
+              Object current = dialogField.get(panel);
+              if (!(current instanceof AlertDialog)) throw new IllegalStateException("No current owner dialog");
+              AlertDialog dialog = (AlertDialog) current;
+              TextView message = dialog.findViewById(android.R.id.message);
+              requireDisplayedScene(dialog.isShowing(), dialog.getWindow() != null,
+                  message == null ? null : message.getText(), expectedMessage);
+              // Draw this real window alone. Never synthesize an overlay/composite with the Activity.
+              decor = dialog.getWindow().getDecorView();
+            }
             if (decor.getWidth() <= 0 || decor.getHeight() <= 0) {
               throw new IllegalStateException("The app panel has no drawable bounds");
             }

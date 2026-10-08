@@ -15,6 +15,8 @@ $screensPath = [IO.Path]::GetFullPath($ScreenshotDirectory)
 $candidate = Get-Content -Raw -LiteralPath $candidatePath | ConvertFrom-Json
 $receipt = Get-Content -Raw -LiteralPath $receiptPath | ConvertFrom-Json
 $captureReceipt = Get-Content -Raw -LiteralPath $captureReceiptPath | ConvertFrom-Json
+$distinctScenes = $captureReceipt.schema -ceq 'rusty.kiosk.launcher_lite.store_capture.v2'
+$captureSource = if ($distinctScenes) { 'production-activity-and-dialog-window-decor' } else { 'production-activity-decor-view' }
 
 function Assert-ExactProperties {
   param(
@@ -91,7 +93,7 @@ if ($receipt.schema -cne 'rusty.kiosk.launcher_lite.device_validation.v1' -or
     $receipt.apk.signer_sha256 -cne $candidate.apk.signer_sha256) {
   throw 'The device receipt does not accept the exact candidate APK.'
 }
-if ($captureReceipt.schema -cne 'rusty.kiosk.launcher_lite.store_capture.v1' -or
+if ($captureReceipt.schema -cnotin @('rusty.kiosk.launcher_lite.store_capture.v1', 'rusty.kiosk.launcher_lite.store_capture.v2') -or
     $captureReceipt.result -cne 'pass' -or
     $captureReceipt.preferences_restored -cne 'exact-after-controller-fence' -or
     $captureReceipt.public_asset_package -cne 'com.oculus.browser' -or
@@ -104,7 +106,7 @@ if ($captureReceipt.schema -cne 'rusty.kiosk.launcher_lite.store_capture.v1' -or
     $captureReceipt.target.signer_sha256 -cne $candidate.apk.signer_sha256 -or
     [int]$captureReceipt.capture.width -ne 2560 -or
     [int]$captureReceipt.capture.height -ne 1440 -or
-    $captureReceipt.capture.source -cne 'production-activity-decor-view' -or
+    $captureReceipt.capture.source -cne $captureSource -or
     $captureReceipt.capture.transform -cne 'aspect-fit-neutral-matte-no-overlay' -or
     $captureReceipt.flows.launch -cne 'not-run-assets-only' -or
     @($captureReceipt.flows.PSObject.Properties | Where-Object { $_.Name -cne 'launch' -and $_.Value -cne 'pass' }).Count -ne 0) {
@@ -117,6 +119,15 @@ $roles = [ordered]@{
   'screenshot-03-app-details.png' = 'app-details'
   'screenshot-04-wifi-preflight.png' = 'wifi-preflight'
   'screenshot-05-favorites.png' = 'favorites'
+}
+if ($distinctScenes) {
+  $roles = [ordered]@{
+    'screenshot-01-catalog-home.png' = 'catalogue'
+    'screenshot-02-search-tags.png' = 'search-tags'
+    'screenshot-03-wifi-dialog.png' = 'wifi-requirement-dialog'
+    'screenshot-04-wifi-preflight.png' = 'wifi-preflight'
+    'screenshot-05-help-about.png' = 'help-about-dialog'
+  }
 }
 $files = @(Get-ChildItem -LiteralPath $screensPath -File -Filter '*.png')
 if ($files.Count -ne $roles.Count) {
@@ -190,7 +201,7 @@ foreach ($entry in $roles.GetEnumerator()) {
 }
 
 $manifest = [ordered]@{
-  schema = 'rusty.kiosk.launcher_lite.store_assets.v1'
+  schema = if ($distinctScenes) { 'rusty.kiosk.launcher_lite.store_assets.v2' } else { 'rusty.kiosk.launcher_lite.store_assets.v1' }
   created_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   candidate_manifest_sha256 =
     (Get-FileHash -LiteralPath $candidatePath -Algorithm SHA256).Hash.ToLowerInvariant()
