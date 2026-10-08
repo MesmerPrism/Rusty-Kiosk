@@ -435,6 +435,13 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
     captureWindow(activity, output, name, expectedMessage);
   }
 
+  private static void requireDisplayedScene(boolean showing, boolean hasWindow, CharSequence message, String expectedMessage) {
+    if (!showing || !hasWindow || message == null || expectedMessage == null || expectedMessage.isBlank()
+        || !expectedMessage.contentEquals(message)) {
+      throw new IllegalStateException("Displayed owner dialog does not match the selected scene");
+    }
+  }
+
   private void captureWindow(Activity activity, File output, String name, String expectedMessage) throws Exception {
     waitForIdleSync();
     SystemClock.sleep(250);
@@ -471,10 +478,8 @@ public final class LiteStoreAssetInstrumentation extends Instrumentation {
               if (!(current instanceof AlertDialog)) throw new IllegalStateException("No current owner dialog");
               AlertDialog dialog = (AlertDialog) current;
               TextView message = dialog.findViewById(android.R.id.message);
-              if (!dialog.isShowing() || dialog.getWindow() == null || message == null
-                  || !expectedMessage.contentEquals(message.getText())) {
-                throw new IllegalStateException("Displayed owner dialog does not match the selected scene");
-              }
+              requireDisplayedScene(dialog.isShowing(), dialog.getWindow() != null,
+                  message == null ? null : message.getText(), expectedMessage);
               // Draw this real window alone. Never synthesize an overlay/composite with the Activity.
               decor = dialog.getWindow().getDecorView();
             }
