@@ -9,6 +9,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [version]'7.6') {
   throw 'Rusty Kiosk checks require PowerShell 7.6 or newer through pwsh.'
 }
+& (Join-Path $PSScriptRoot 'Test-QuestNavigatorVisibility.ps1') -RepoRoot $repoRoot
 
 $manifestPath = Join-Path $repoRoot 'app\src\main\AndroidManifest.xml'
 $serviceXmlPath = Join-Path $repoRoot 'app\src\main\res\xml\kiosk_accessibility_service.xml'
@@ -1074,6 +1075,9 @@ try {
     if ($LASTEXITCODE -ne 0) {
       throw "Gradle debug assembly failed with exit code $LASTEXITCODE."
     }
+    & python (Join-Path $PSScriptRoot 'check_quest_visibility_apk.py') `
+      (Join-Path $repoRoot 'app/build/outputs/apk/debug/app-debug.apk')
+    if ($LASTEXITCODE -ne 0) { throw 'Quest visibility APK class-definition gate failed.' }
   }
   $exampleTasks = @('testDebugUnitTest', 'lintDebug')
   $exampleManifest = Get-Content -Raw -LiteralPath (

@@ -50,6 +50,7 @@ internal data class GuardConfig(
   val targetSigningIdentity: String? = null,
   val targetPackageLastUpdateTime: Long? = null,
   val targetPackageVersionCode: Long? = null,
+  val mode: GuardMode = GuardMode.ACCESSIBILITY,
 ) {
   init {
     require(generation != 0L)

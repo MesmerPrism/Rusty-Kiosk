@@ -24,6 +24,7 @@ internal enum class RustyKioskCliCommand(val wireName: String, val valueRule: Cl
   CANCEL_PENDING_LAUNCH("cancel-pending-launch", CliValueRule.NONE),
   LAUNCH_NORMAL("launch-normal", CliValueRule.NONE),
   LAUNCH_KIOSK("launch-kiosk", CliValueRule.NONE),
+  SET_KIOSK_MODE("set-kiosk-mode", CliValueRule.REQUIRED),
   LAUNCH_OPTION("launch-option", CliValueRule.REQUIRED),
   CHECK_SETUP_HELPER("check-setup-helper", CliValueRule.NONE),
   REQUEST_WIFI_ADB("request-wifi-adb", CliValueRule.NONE),
@@ -135,6 +136,11 @@ internal object RustyKioskCliProtocol {
         CliValueRule.NONE -> require(cleanValue == null) { "command does not accept a value" }
         CliValueRule.OPTIONAL -> Unit
         CliValueRule.REQUIRED -> require(cleanValue != null) { "command requires a value" }
+      }
+      if (kind == RustyKioskCliCommand.SET_KIOSK_MODE) {
+        require(cleanValue in setOf("accessibility", "visibility")) {
+          "mode must be accessibility or visibility"
+        }
       }
       RustyKioskCliRequest(cleanRequestId, kind, cleanValue)
     }
@@ -451,6 +457,11 @@ internal class RustyKioskCliStore(
         .put("request_wifi_adb_after_boot", controls.requestWifiAfterBoot)
         .put("last_boot_request", controls.lastBootRequest?.toJson() ?: JSONObject.NULL)
         .put("accessibility_enabled", controls.accessibilityEnabled)
+        .put("kiosk_mode", controls.kioskMode.id)
+        .put("guard_ready", controls.guardReady)
+        .put("visibility_available", controls.visibilityAvailable)
+        .put("visibility_ready", controls.visibilityReady)
+        .put("visibility_status", VisibilityMenuBridge.statusJson(appContext))
         .put("passthrough_style", controls.passthroughStyle.wireName)
         .put("system_passthrough_enabled", controls.systemPassthroughEnabled)
         .put("passthrough_lut_applied", controls.passthroughLutApplied)

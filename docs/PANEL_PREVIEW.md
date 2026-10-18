@@ -53,6 +53,7 @@ The projection supports:
 - explicit Any / Wi-Fi on / Wi-Fi off launch-requirement controls;
 - launchable, installed-without-front-door, and not-installed states;
 - guard-enabled and guard-setup states;
+- explicit Accessibility/Visibility choices in User controls, with synthetic readiness;
 - setup-helper readiness, Wi-Fi ADB, Accessibility, and Meta Home status;
 - reversible user-control simulations, including explicit setup and revocation;
 - normal/kiosk launch simulations;
@@ -91,9 +92,16 @@ The isolated host points its Android source set directly at these production
 files:
 
 - `CatalogModels.kt`
+- `GuardMode.kt`
 - `RustyKioskPanel.kt`
 - `RustyKioskPanelContract.kt`
 - `RustyKioskTheme.kt`
+
+The host also compiles the actual shared `CatalogSearch.java`. Its generated
+launch-option model source is the exact declaration block from production
+`AppLaunchOptions.kt`; the preview has no separately maintained model or live
+provider query. The exporter hashes both canonical inputs and the projection
+build script with the rendered evidence.
 
 The production search and tag fields are direct Android `EditText` descendants
 of a Spatial SDK `LayoutXMLPanelRegistration`. They enable soft input on focus

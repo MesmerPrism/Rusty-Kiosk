@@ -69,6 +69,15 @@ class RustyKioskActivity : AppSystemActivity() {
     AndroidWifiSettingsRemediator(this)
   }
   private val mainHandler = Handler(Looper.getMainLooper())
+  private val readinessRefresh = object : Runnable {
+    override fun run() {
+      val controls = readUserControls()
+      if (controls != state.userControls) {
+        state = state.copy(guardEnabled = controls.guardReady, userControls = controls)
+      }
+      mainHandler.postDelayed(this, 1000L)
+    }
+  }
   private var panelEntity: Entity? = null
   private var passthroughController: RustyKioskPassthroughController? = null
   private var passthroughState = KioskPassthroughState()
@@ -144,6 +153,8 @@ class RustyKioskActivity : AppSystemActivity() {
 
   override fun onResume() {
     super.onResume()
+    mainHandler.removeCallbacks(readinessRefresh)
+    mainHandler.postDelayed(readinessRefresh, 1000L)
     passthroughController?.let {
       applyPassthroughStyle(passthroughSettings.load(), "activity-resumed", persist = false)
     }
@@ -159,6 +170,11 @@ class RustyKioskActivity : AppSystemActivity() {
     ) {
       mainHandler.post { dispatchSetupHelper(SetupHelperOperation.STATUS) }
     }
+  }
+
+  override fun onPause() {
+    mainHandler.removeCallbacks(readinessRefresh)
+    super.onPause()
   }
 
   override fun onDestroy() {
@@ -212,6 +228,7 @@ class RustyKioskActivity : AppSystemActivity() {
       onCancelPendingRequirementLaunch = ::cancelPendingRequirementLaunch,
       onNormalLaunch = { launchSelected(LaunchKind.NORMAL) },
       onKioskLaunch = { launchSelected(LaunchKind.KIOSK) },
+      onKioskModeSelected = ::setKioskMode,
       onLaunchOption = ::launchSelectedOption,
       onOpenUserControls = { state = state.copy(userControlsOpen = true) },
       onCloseUserControls = { state = state.copy(userControlsOpen = false) },
@@ -254,7 +271,7 @@ class RustyKioskActivity : AppSystemActivity() {
           selectedKey = selected,
           statusLine = "${entries.count { it.installed }} installed · ${entries.count { !it.installed }} not installed · $source",
           tagFilePath = tagStore.tagFile.absolutePath,
-          guardEnabled = userControls.accessibilityEnabled,
+          guardEnabled = userControls.guardReady,
           userControlsOpen = state.userControlsOpen,
           userControls = userControls,
           searchFocusRequest = state.searchFocusRequest,
@@ -270,7 +287,7 @@ class RustyKioskActivity : AppSystemActivity() {
         state.copy(
           statusLine = "Catalogue reload failed: ${throwable.message ?: throwable.javaClass.simpleName}",
           tagFilePath = tagStore.tagFile.absolutePath,
-          guardEnabled = isGuardEnabled(),
+          guardEnabled = readUserControls().guardReady,
           userControls = readUserControls(),
         )
       }
@@ -368,7 +385,8 @@ class RustyKioskActivity : AppSystemActivity() {
     } else {
       guardLaunchHandoffLease.clear()
     }
-    val result = launchController.launch(entry, kind, state.guardEnabled)
+    val controls = readUserControls()
+    val result = launchController.launch(entry, kind, controls.guardReady, controls.kioskMode)
     if (!result.accepted) guardLaunchHandoffLease.clear()
     state = state.copy(statusLine = result.message)
     return result
@@ -380,6 +398,16 @@ class RustyKioskActivity : AppSystemActivity() {
     val launchOptionBinding: AppLaunchOptionsBinding? = null,
     val launchOption: AppLaunchOption? = null,
   )
+
+  private fun setKioskMode(mode: GuardMode) {
+    val store = GuardStateStore(this)
+    if (store.selectedMode() != mode) {
+      cancelPendingRequirementLaunch()
+      guardLaunchHandoffLease.clear()
+    }
+    store.setSelectedMode(mode)
+    refreshUserControls("${readUserControls().kioskModeLabel} selected.")
+  }
 
   private fun createFreshRequirementCandidate(
     entryKey: String,
@@ -637,6 +665,10 @@ class RustyKioskActivity : AppSystemActivity() {
       RustyKioskCliCommand.LAUNCH_NORMAL -> launchFromCli(request, LaunchKind.NORMAL)
       RustyKioskCliCommand.LAUNCH_KIOSK -> launchFromCli(request, LaunchKind.KIOSK)
       RustyKioskCliCommand.LAUNCH_OPTION -> launchOptionFromCli(request)
+      RustyKioskCliCommand.SET_KIOSK_MODE -> {
+        setKioskMode(GuardMode.fromId(request.value))
+        cliOutcome(true, true, "${readUserControls().kioskModeLabel} selected.")
+      }
       RustyKioskCliCommand.CHECK_SETUP_HELPER ->
         requestSetupOperationFromCli(request, SetupHelperOperation.STATUS)
       RustyKioskCliCommand.REQUEST_WIFI_ADB ->
@@ -985,6 +1017,10 @@ class RustyKioskActivity : AppSystemActivity() {
     val stored = setupResultStore.snapshot()
     val bridge = operatorBridgeSettings.snapshot()
     return UserControlState(
+      kioskMode = GuardStateStore(this).selectedMode(),
+      visibilityAvailable = VisibilityMenuBridge.isAvailable(this),
+      visibilityReady = VisibilityMenuBridge.isReady(this),
+      visibilityDescription = VisibilityMenuBridge.description(this),
       passthroughStyle = passthroughState.style,
       systemPassthroughEnabled = passthroughState.systemPassthroughEnabled,
       passthroughLutApplied = passthroughState.lutApplied,
@@ -1018,7 +1054,7 @@ class RustyKioskActivity : AppSystemActivity() {
     val controls = readUserControls(message)
     state =
       state.copy(
-        guardEnabled = controls.accessibilityEnabled,
+        guardEnabled = controls.guardReady,
         userControls = controls,
       )
   }

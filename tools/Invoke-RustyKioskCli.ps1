@@ -20,6 +20,7 @@ param(
     'cancel-pending-launch',
     'launch-normal',
     'launch-kiosk',
+    'set-kiosk-mode',
     'launch-option',
     'check-setup-helper',
     'request-wifi-adb',
@@ -47,8 +48,8 @@ $resultPath = 'files/cli/last-result.json'
 $adbPath = (Get-Command adb -ErrorAction Stop).Source
 $requestId = [Guid]::NewGuid().ToString('N')
 
-$valueCommands = @('set-search', 'select', 'filter-tag', 'add-tag', 'remove-tag', 'set-launch-requirement', 'launch-option')
-$requiredValueCommands = @('select', 'add-tag', 'remove-tag', 'set-launch-requirement', 'launch-option')
+$valueCommands = @('set-search', 'select', 'filter-tag', 'add-tag', 'remove-tag', 'set-launch-requirement', 'set-kiosk-mode', 'launch-option')
+$requiredValueCommands = @('select', 'add-tag', 'remove-tag', 'set-launch-requirement', 'set-kiosk-mode', 'launch-option')
 if ($Command -notin $valueCommands -and $PSBoundParameters.ContainsKey('Value')) {
   throw "Command '$Command' does not accept -Value."
 }
@@ -57,6 +58,9 @@ if ($Command -in $requiredValueCommands -and [string]::IsNullOrWhiteSpace($Value
 }
 if ($Command -eq 'set-launch-requirement' -and $Value -notin @('any', 'wifi-on', 'wifi-off')) {
   throw "Command 'set-launch-requirement' requires exactly any, wifi-on, or wifi-off."
+}
+if ($Command -eq 'set-kiosk-mode' -and $Value -notin @('accessibility', 'visibility')) {
+  throw "Command 'set-kiosk-mode' requires exactly accessibility or visibility."
 }
 
 $state = (& $adbPath -s $Serial get-state 2>&1).Trim()

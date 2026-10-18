@@ -26,6 +26,13 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   package, and a genuine Rusty Kiosk resume still disarms immediately.
 - The first two distinct Meta Home invocations recover that target. The third
   within five seconds disarms the guard and returns to Rusty Kiosk.
+- Accessibility recovery is the default. The explicit Visibility mode instead
+  consumes the exact vendored Quest observer; Accessibility supplies selected-target
+  metadata and disarm only. Preserve false baseline, generation/sequence, one original,
+  durable tickets, third-edge escape, lifecycle retirement and unknown holds. No fallback
+  or shell mode is selected automatically. Do not edit vendored component bytes;
+  update the upstream Quest source and complete pin/inventory deliberately. See
+  `docs/VISIBILITY_MODE.md` and `vendor/quest-navigator-visibility/UPSTREAM.json`.
 - Once Rusty Kiosk is visible, a normal Meta Home press can open Meta Home.
 - Accessibility observes package/window transitions only. Do not add UI-tree
   reads, text/view lookup, clicks, gestures, global actions, force-stop, or

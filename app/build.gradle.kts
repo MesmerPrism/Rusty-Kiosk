@@ -121,6 +121,7 @@ android {
 }
 
 dependencies {
+  implementation(project(":navigator-visibility"))
   implementation(project(":foreground-signal-client"))
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.activity.compose)

@@ -11,6 +11,11 @@ that is distributed under separate terms, including:
 - Cash App Paparazzi, used only by the desktop-native preview harness — Apache
   License 2.0;
 - Gradle wrapper — Apache License 2.0.
+- The exact Rusty Quest Navigator visibility source inventory under
+  `vendor/quest-navigator-visibility` — AGPL-3.0-or-later, with its license and
+  upstream commit/file hashes retained there. Vendor ABI declarations are
+  independently authored compile-only signatures; no Horizon implementation
+  or SDK binary is redistributed in that inventory.
 - NanoHTTPD 2.3.1, used for the bounded local operator listener — BSD 3-Clause
   License.
 

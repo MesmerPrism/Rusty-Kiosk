@@ -59,7 +59,9 @@
     "rusty-kiosk-passthrough-controls",
     "rusty-kiosk-wifi-adb-controls",
     "rusty-kiosk-accessibility-toggle",
-    "rusty-kiosk-meta-home-exit"
+    "rusty-kiosk-meta-home-exit",
+    "rusty-kiosk-mode-accessibility",
+    "rusty-kiosk-mode-visibility"
   ],
   "preview": {
     "synthetic_only": true,

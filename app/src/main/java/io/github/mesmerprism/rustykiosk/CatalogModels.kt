@@ -163,6 +163,10 @@ internal data class KioskUiState(
 }
 
 internal data class UserControlState(
+  val kioskMode: GuardMode = GuardMode.ACCESSIBILITY,
+  val visibilityAvailable: Boolean = false,
+  val visibilityReady: Boolean = false,
+  val visibilityDescription: String = "Visibility platform support is unavailable.",
   val passthroughStyle: KioskPassthroughStyle = KioskPassthroughStyle.NATURAL,
   val systemPassthroughEnabled: Boolean = false,
   val passthroughLutApplied: Boolean = false,
@@ -183,6 +187,20 @@ internal data class UserControlState(
   val message: String =
     "Wi-Fi ADB, Accessibility, the direct link, and local installs are separate opt-ins.",
 ) {
+  val guardReady: Boolean
+    get() = when (kioskMode) {
+      GuardMode.ACCESSIBILITY -> accessibilityEnabled
+      GuardMode.VISIBILITY -> accessibilityEnabled && visibilityReady
+      GuardMode.UNAVAILABLE -> false
+    }
+
+  val kioskModeLabel: String
+    get() = when (kioskMode) {
+      GuardMode.ACCESSIBILITY -> "Accessibility recovery"
+      GuardMode.VISIBILITY -> "Visibility menu closing"
+      GuardMode.UNAVAILABLE -> "Unavailable selection; choose a supported mode"
+    }
+
   val passthroughStatusLabel: String
     get() =
       if (systemPassthroughEnabled && passthroughLutApplied) {

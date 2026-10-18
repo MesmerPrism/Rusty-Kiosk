@@ -29,38 +29,47 @@ internal class LaunchController(context: Context) {
   private val guardStore = GuardStateStore(appContext)
   private val foregroundSignalCapability = ForegroundSignalCapabilityDetector(appContext)
 
-  fun launch(entry: CatalogEntry, kind: LaunchKind, guardEnabled: Boolean): LaunchResult {
+  fun launch(
+    entry: CatalogEntry,
+    kind: LaunchKind,
+    guardEnabled: Boolean,
+    mode: GuardMode = GuardMode.ACCESSIBILITY,
+  ): LaunchResult {
     val target = entry.target
       ?: return LaunchResult(false, "${entry.label} does not have a public launch activity.")
     if (!entry.installed) return LaunchResult(false, "${entry.label} is not installed.")
 
-    if (kind == LaunchKind.KIOSK && !guardEnabled) {
-      return LaunchResult(false, "Enable the Rusty Kiosk Accessibility service first.")
+    if (kind == LaunchKind.KIOSK && target.packageName == appContext.packageName) {
+      guardStore.disarm("rusty-kiosk-selected")
+      return LaunchResult(false, "Rusty Kiosk never runs under its own guard.")
+    }
+    if (kind == LaunchKind.KIOSK &&
+      (!guardEnabled || mode == GuardMode.UNAVAILABLE ||
+        (mode == GuardMode.VISIBILITY && !VisibilityMenuBridge.isReady(appContext)))
+    ) {
+      return LaunchResult(false, if (mode == GuardMode.VISIBILITY)
+        VisibilityMenuBridge.description(appContext) else if (mode == GuardMode.UNAVAILABLE)
+        "Choose a supported kiosk mode explicitly." else
+        "Enable the Rusty Kiosk Accessibility service first.")
     }
     val foregroundSignalCapability =
-      if (kind == LaunchKind.KIOSK) {
+      if (kind == LaunchKind.KIOSK && mode == GuardMode.ACCESSIBILITY) {
         foregroundSignalCapability.supported(target.packageName)
       } else {
         null
       }
 
-    if (kind == LaunchKind.NORMAL) {
-      guardStore.disarm("normal-launch")
-    } else {
-      guardStore.arm(
-        target,
-        entry.label,
-        foregroundSignalCapability,
-      )
-    }
-
     return runCatching {
+        if (kind == LaunchKind.NORMAL) guardStore.disarm("normal-launch")
+        else guardStore.arm(target, entry.label, foregroundSignalCapability, mode)
         appContext.startActivity(target.toIntent(LaunchTaskPolicy.initialFlags(kind)))
         LaunchResult(
           true,
           if (kind == LaunchKind.KIOSK) {
             val signalMode =
-              if (
+              if (mode == GuardMode.VISIBILITY) {
+                " Visibility callbacks qualify one fixed close; Accessibility supplies target metadata only."
+              } else if (
                 foregroundSignalCapability != null
               ) {
                 " Direct foreground signaling is preferred with Accessibility fallback."

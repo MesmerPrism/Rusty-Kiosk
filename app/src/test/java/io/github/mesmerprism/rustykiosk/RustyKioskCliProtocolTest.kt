@@ -5,6 +5,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RustyKioskCliProtocolTest {
+  @Test fun visibilityModeUsesTheClosedExistingCommandQueue() {
+    assertEquals(RustyKioskCliCommand.SET_KIOSK_MODE,
+      RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "visibility").getOrThrow().command)
+    assertTrue(RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "shell").isFailure)
+    assertTrue(RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "unavailable").isFailure)
+  }
   @Test
   fun commandWireNamesAreUnique() {
     val names = RustyKioskCliCommand.entries.map(RustyKioskCliCommand::wireName)

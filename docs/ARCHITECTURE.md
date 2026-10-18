@@ -88,6 +88,15 @@ and [JobParameters](https://developer.android.com/reference/android/app/job/JobP
 
 ## Authority
 
+The optional `navigator-visibility` library dependency builds the unmodified
+Quest source inventory pinned in `vendor/quest-navigator-visibility/UPSTREAM.json`.
+Quest owns availability, ordered observations and the subscription handle.
+`VisibilityMenuBridge`, `VisibilityMenuPolicy` and `VisibilityTicketLedger`
+own Kiosk's explicit target/generation, metadata qualification, fixed broadcast,
+one-original custody, evidence and escape. Only the selected mode can actuate;
+Accessibility recovery remains the default and supplies no recovery actuator
+while Visibility is selected. See [Visibility mode](VISIBILITY_MODE.md).
+
 | Concern | Owner |
 | --- | --- |
 | Installed launchable-app discovery | `InstalledAppRepository` |

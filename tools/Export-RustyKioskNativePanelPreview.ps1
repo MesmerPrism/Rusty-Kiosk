@@ -56,10 +56,14 @@ $artifacts = foreach ($name in $expectedNames) {
 
 $sourceFiles = @(
   'app/src/main/java/io/github/mesmerprism/rustykiosk/CatalogModels.kt',
+  'app/src/main/java/io/github/mesmerprism/rustykiosk/AppLaunchOptions.kt',
+  'app/src/main/java/io/github/mesmerprism/rustykiosk/GuardMode.kt',
   'app/src/main/java/io/github/mesmerprism/rustykiosk/BootRequestStatus.kt',
   'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskPanel.kt',
   'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskPanelContract.kt',
-  'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskTheme.kt'
+  'app/src/main/java/io/github/mesmerprism/rustykiosk/RustyKioskTheme.kt',
+  'shared/catalog-search/src/main/java/io/github/mesmerprism/rustykiosk/catalog/CatalogSearch.java',
+  'tools/rusty-kiosk-native-panel-preview-android/native-panel-preview/build.gradle.kts'
 )
 $sourceStatus = (& git -C $repoRoot status --porcelain -- $sourceFiles) -join "`n"
 $sources = foreach ($relativePath in $sourceFiles) {

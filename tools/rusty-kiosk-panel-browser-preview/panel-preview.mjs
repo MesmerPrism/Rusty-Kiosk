@@ -4,6 +4,7 @@ import {
   importPreviewState,
   removeTag,
   setLaunchRequirement,
+  selectKioskMode,
   scenarioNames,
   scenarioState,
   selectedEntry,
@@ -245,7 +246,8 @@ function renderUserControls() {
       const enabled = !controls.accessibilityEnabled;
       state = {
         ...state,
-        guardEnabled: enabled,
+        guardEnabled: enabled && (controls.kioskMode !== "visibility" ||
+          (controls.visibilityAvailable && controls.visibilityReady)),
         userControls: {
           ...controls,
           accessibilityEnabled: enabled,
@@ -266,11 +268,24 @@ function renderUserControls() {
     render();
   });
   exitHome.id = "rusty-kiosk-meta-home-exit";
+  const modeButtons = [
+    ["accessibility", "Accessibility recovery", "rusty-kiosk-mode-accessibility"],
+    ["visibility", "Visibility menu closing", "rusty-kiosk-mode-visibility"],
+  ].map(([mode, label, controlId]) => {
+    const choice = button(label, "outline-button control-button", () => {
+      state = selectKioskMode(state, mode); render();
+    });
+    choice.id = controlId;
+    choice.disabled = controls.kioskMode === mode || (mode === "visibility" && !controls.visibilityAvailable);
+    return choice;
+  });
 
   elements.userControls.replaceChildren(
     node("div", { className: "control-center-heading" }, [
       node("h2", {}, ["Transparent, reversible setup"]),
       node("p", {}, [controls.message]),
+      node("p", {}, [`Kiosk mode: ${controls.kioskMode} · synthetic platform readiness`]),
+      node("div", { className: "control-actions" }, modeButtons),
     ]),
     node("div", { className: "control-card-grid" }, [
       controlCard("Passthrough appearance", [
