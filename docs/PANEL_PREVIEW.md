@@ -97,6 +97,12 @@ files:
 - `RustyKioskPanelContract.kt`
 - `RustyKioskTheme.kt`
 
+The host also compiles the actual shared `CatalogSearch.java`. Its generated
+launch-option model source is the exact declaration block from production
+`AppLaunchOptions.kt`; the preview has no separately maintained model or live
+provider query. The exporter hashes both canonical inputs and the projection
+build script with the rendered evidence.
+
 The production search and tag fields are direct Android `EditText` descendants
 of a Spatial SDK `LayoutXMLPanelRegistration`. They enable soft input on focus
 and explicitly request the Quest IME from both focus and click. Because Meta
