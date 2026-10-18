@@ -12,6 +12,13 @@ Friends testing the co-installable pre-release should instead follow the
 guided Windows installer, and Kiosk Labs release.
 
 The project is intentionally not a Home replacement or managed-device kiosk.
+**User controls** now offers an explicit **Visibility menu closing** option
+alongside the default Accessibility recovery. It uses the exact shared Quest
+observer and keeps Kiosk's target, escape and fixed-broadcast policy in the app.
+It requires compatible Horizon linkage and the live Accessibility service;
+unavailable or unresolved state blocks a new guard without fallback. Normal launch,
+mode change and explicit exit disarm it. See [Visibility mode](docs/VISIBILITY_MODE.md).
+
 Its optional Accessibility service is a foreground watchdog:
 
 1. **Normal launch** disarms the watchdog and opens the selected app.

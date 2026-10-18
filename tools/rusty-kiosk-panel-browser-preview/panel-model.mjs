@@ -75,6 +75,9 @@ export function scenarioState(name = "catalog-ready") {
     guardEnabled: true,
     userControlsOpen: false,
     userControls: {
+      kioskMode: "accessibility",
+      visibilityAvailable: true,
+      visibilityReady: true,
       passthroughStyle: "natural",
       systemPassthroughEnabled: true,
       passthroughLutApplied: true,
@@ -156,6 +159,15 @@ export function setLaunchRequirement(state, value) {
   return updateSelected(state, (entry) => ({ ...entry, launchRequirement: value }));
 }
 
+export function selectKioskMode(state, mode) {
+  if (!["accessibility", "visibility"].includes(mode)) return state;
+  const controls = { ...state.userControls, kioskMode: mode };
+  return { ...state, userControls: controls,
+    guardEnabled: controls.accessibilityEnabled &&
+      (mode === "accessibility" || (controls.visibilityAvailable && controls.visibilityReady)),
+    statusLine: `${mode} selected; previous guard disarmed · browser simulation` };
+}
+
 export function importPreviewState(value) {
   if (!value || value.schema !== "rusty.kiosk.browser_preview_state.v1") {
     throw new Error("Unsupported Rusty Kiosk preview state.");
@@ -196,6 +208,9 @@ export function importPreviewState(value) {
     userControlsOpen: Boolean(value.userControlsOpen),
     userControls: {
       ...base.userControls,
+      kioskMode: value.userControls?.kioskMode === "visibility" ? "visibility" : "accessibility",
+      visibilityAvailable: Boolean(value.userControls?.visibilityAvailable),
+      visibilityReady: Boolean(value.userControls?.visibilityReady),
       passthroughStyle:
         value.userControls?.passthroughStyle === "contour-lut" ? "contour-lut" : "natural",
       systemPassthroughEnabled: Boolean(value.userControls?.systemPassthroughEnabled),

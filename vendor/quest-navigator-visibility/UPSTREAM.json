@@ -1,0 +1,94 @@
+{
+  "schema": "rusty.kiosk.quest_visibility_vendor.v1",
+  "repository": "https://github.com/MesmerPrism/rusty-quest",
+  "revision": "eff10990c0eb73dbb4daf223d74fef33bae4e1bb",
+  "tree": "8382b623f952118c779a308d337c66869de37457",
+  "license": "AGPL-3.0-or-later",
+  "component": "apps/navigator-visibility-android",
+  "files": [
+    {
+      "source_path": "apps/navigator-visibility-android/src/main/java/io/github/mesmerprism/rustyquest/navigatorvisibility/AndroidNavigatorVisibility.java",
+      "vendored_path": "src/main/java/io/github/mesmerprism/rustyquest/navigatorvisibility/AndroidNavigatorVisibility.java",
+      "bytes": 1906,
+      "sha256": "4067a81e0af5ee3079d84d6e12dd579757a9dba348323a3ade7ecc6e8286e155"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/src/main/java/io/github/mesmerprism/rustyquest/navigatorvisibility/CrcsVisibilityBackend.java",
+      "vendored_path": "src/main/java/io/github/mesmerprism/rustyquest/navigatorvisibility/CrcsVisibilityBackend.java",
+      "bytes": 2714,
+      "sha256": "d54e04f14b66294d03163178ef9baf2d155e5dad653a0e71305a362682808d13"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/src/main/java/io/github/mesmerprism/rustyquest/navigatorvisibility/NavigatorVisibilityObserver.java",
+      "vendored_path": "src/main/java/io/github/mesmerprism/rustyquest/navigatorvisibility/NavigatorVisibilityObserver.java",
+      "bytes": 9628,
+      "sha256": "e2138b88e69811917e365d96099a2c92f02da5d9f9485d1b38716ea8fcf0a704"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/CurrentControllerState.java",
+      "vendored_path": "compile-only/horizonos/os/resource/CurrentControllerState.java",
+      "bytes": 308,
+      "sha256": "b70d945fe1966e707c4a5e3c9988568af075d7478725d6c21dc81f318d917303"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/Error.java",
+      "vendored_path": "compile-only/horizonos/os/resource/Error.java",
+      "bytes": 126,
+      "sha256": "b6d5124592f44262a65d4e0c588a8eec55a7c12fb2f11200fa60e791598ab022"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/FeatureController.java",
+      "vendored_path": "compile-only/horizonos/os/resource/FeatureController.java",
+      "bytes": 309,
+      "sha256": "d3a660c48b819418a31eaf9ea837332724cdff4a30c72e63308dd0b05626f4bf"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/FeatureControllerRegistrationInfo.java",
+      "vendored_path": "compile-only/horizonos/os/resource/FeatureControllerRegistrationInfo.java",
+      "bytes": 528,
+      "sha256": "11062852ac97aa326b8a7d17b08f4acb49749b6d8aa9e5e34eafa0aeb8fb60f9"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/FeatureManager.java",
+      "vendored_path": "compile-only/horizonos/os/resource/FeatureManager.java",
+      "bytes": 444,
+      "sha256": "7cf6ffde2f063aca97660a468d31a742f4bf6d0e7ce76a38ab701d31dad96e4d"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/SignalReceivedValue.java",
+      "vendored_path": "compile-only/horizonos/os/resource/SignalReceivedValue.java",
+      "bytes": 319,
+      "sha256": "285829f78a1e830b3592c4515b934f43ad7c066937286fc91df8966b50286688"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/SignalRequest.java",
+      "vendored_path": "compile-only/horizonos/os/resource/SignalRequest.java",
+      "bytes": 243,
+      "sha256": "fa990bc65127d423a2d9bd9bf4d02ac7ecb6b53255d2142918a5c8eff2281d79"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/compile-only/horizonos/os/resource/StateChange.java",
+      "vendored_path": "compile-only/horizonos/os/resource/StateChange.java",
+      "bytes": 317,
+      "sha256": "bc4f6cadd24ed3fa5315354c6db67b028e3f64b32f7a15efd84b8557b24c6a3c"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/src/main/AndroidManifest.xml",
+      "vendored_path": "src/main/AndroidManifest.xml",
+      "bytes": 232,
+      "sha256": "19ec7438b019e7bc61ae4e3321441fbc64afd3451e3b222a30c12a2bcca44a33"
+    },
+    {
+      "source_path": "apps/navigator-visibility-android/consumer-rules.pro",
+      "vendored_path": "consumer-rules.pro",
+      "bytes": 311,
+      "sha256": "9f9194b186a1d9f8eb7e48f9a85eae9684de11e1647a889023826d7b3416a2c0"
+    },
+    {
+      "source_path": "LICENSE",
+      "vendored_path": "LICENSE",
+      "bytes": 34523,
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import {
   deriveTags,
   importPreviewState,
   removeTag,
+  selectKioskMode,
   scenarioState,
   selectedEntry,
   visibleEntries,
@@ -51,4 +52,8 @@ assert.equal(scenarioState("guard-setup").userControls.accessibilityEnabled, fal
 assert.equal(ready.userControls.passthroughStyle, "natural");
 assert.equal(ready.userControls.systemPassthroughEnabled, true);
 
+assert.equal(selectKioskMode(ready, "visibility").guardEnabled, true);
+assert.equal(selectKioskMode({ ...ready, userControls: { ...ready.userControls,
+  visibilityReady: false } }, "visibility").guardEnabled, false);
+assert.equal(selectKioskMode(ready, "shell"), ready);
 console.log("Rusty Kiosk browser panel model passed.");

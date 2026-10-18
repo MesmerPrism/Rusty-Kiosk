@@ -148,6 +148,7 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | `set-launch-requirement` | `any`, `wifi-on`, or `wifi-off` | Change the selected app's dedicated launch requirement |
 | `cancel-pending-launch` | none | Cancel the current unmet-requirement launch |
 | `launch-normal` / `launch-kiosk` | none | Use the corresponding launch button |
+| `set-kiosk-mode` | `accessibility` or `visibility` | Use the same explicit User controls mode handler, disarming the old guard and pending launch |
 | `launch-option` | opaque option ID, maximum 160 characters | Revalidate and normally launch the selected app's fixed front door with its one declared option; the soft guard remains disarmed |
 | `check-setup-helper` | none | Refresh the fixed helper's installed/provisioned status |
 | `request-wifi-adb` / `disable-wifi-adb` | none | Use the corresponding visible fixed-operation control |
@@ -194,7 +195,7 @@ reads the complete matching app-private JSON receipt.
 Passthrough commands return the same state receipt as the panel. Acceptance
 requires `system_passthrough_enabled=true`; `passthrough_style` reports
 `natural` or `contour-lut`, and `passthrough_lut_applied` confirms that the
-retained 16³ LUT reached the Spatial SDK scene.
+retained 16Â³ LUT reached the Spatial SDK scene.
 
 For the system-owned Home transition used by soft-guard testing, use the
 separate typed wrapper:
@@ -262,3 +263,13 @@ it does not open Meta Home or replace a physical Meta-button witness.
 The full Kiosk CLI and release operator/provider contracts do not apply to
 `launcher-lite`. Lite is a wearer-operated standalone launcher; the hybrid
 candidate adds no CLI, operator provider, direct link or helper command.
+
+## Visibility status
+
+`state.kiosk_mode` and `state.guard_ready` describe the selected mode, with
+separate `visibility_available`, `visibility_ready` and `visibility_status`.
+The latter exposes app guard generation, observer generation/phase/fault,
+registration/retirement, pending original, target qualification and the bounded
+journal. Observer availability does not mean registration or effect succeeded.
+Only explicit `accessibility` and `visibility` selections are accepted; legacy
+unsupported selection does not silently become another mode.

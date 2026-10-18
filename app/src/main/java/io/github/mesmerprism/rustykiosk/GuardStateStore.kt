@@ -2,6 +2,7 @@ package io.github.mesmerprism.rustykiosk
 
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import java.security.SecureRandom
 
 internal object GuardGenerationPolicy {
@@ -17,17 +18,31 @@ internal object GuardGenerationPolicy {
 }
 
 internal class GuardStateStore(
-  context: Context,
+  private val preferences: SharedPreferences,
   private val generationSource: () -> Long = SecureRandom()::nextLong,
+  private val onDisarm: (String) -> Unit = {},
+  private val onVisibilityArmed: (GuardConfig) -> Unit = {},
+  private val canArmVisibility: () -> Boolean = { true },
 ) {
-  private val preferences =
-    context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+  constructor(context: Context, generationSource: () -> Long = SecureRandom()::nextLong) : this(
+    context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE),
+    generationSource,
+    { reason -> VisibilityMenuBridge.disarm(context.applicationContext, reason) },
+    { config -> VisibilityMenuBridge.onTargetArmed(context.applicationContext, config) },
+    { VisibilityMenuBridge.isReady(context.applicationContext) },
+  )
 
   fun arm(
     target: LaunchTarget,
     targetLabel: String,
     foregroundSignalCapability: ForegroundSignalCapability? = null,
+    mode: GuardMode = GuardMode.ACCESSIBILITY,
   ): GuardConfig {
+    check(mode != GuardMode.UNAVAILABLE) { "Choose a supported kiosk mode explicitly." }
+    check(mode != GuardMode.VISIBILITY || canArmVisibility()) {
+      "Visibility menu closing is unavailable or a previous controller is still owned."
+    }
+    if (preferences.getBoolean(KEY_ARMED, false)) onDisarm("kiosk-target-replaced")
     val config =
       GuardConfig(
         generation =
@@ -37,6 +52,7 @@ internal class GuardStateStore(
           ),
         target = target,
         targetLabel = targetLabel,
+        mode = mode,
         foregroundSignalProtocolVersion = foregroundSignalCapability?.protocolVersion,
         targetSigningIdentity = foregroundSignalCapability?.signingIdentity,
         targetPackageLastUpdateTime = foregroundSignalCapability?.packageLastUpdateTime,
@@ -46,6 +62,7 @@ internal class GuardStateStore(
       preferences.edit()
         .putBoolean(KEY_ARMED, true)
         .putLong(KEY_GENERATION, config.generation)
+        .putString(KEY_MODE, mode.id)
         .putString(KEY_TARGET_PACKAGE, target.packageName)
         .putString(KEY_TARGET_ACTIVITY, target.activityName)
         .putString(KEY_TARGET_ACTION, target.action)
@@ -67,14 +84,29 @@ internal class GuardStateStore(
         .putString(KEY_LAST_DISARM_REASON, "")
         .commit()
     check(saved) { "Could not persist foreground guard state." }
+    if (mode == GuardMode.VISIBILITY) {
+      try { onVisibilityArmed(config) }
+      catch (failure: Throwable) { disarm("visibility-arm-failed"); throw failure }
+    }
     return config
   }
 
   fun disarm(reason: String) {
+    onDisarm(reason)
     preferences.edit()
       .putBoolean(KEY_ARMED, false)
       .putString(KEY_LAST_DISARM_REASON, reason.take(120))
       .commit()
+  }
+
+  fun selectedMode(): GuardMode = GuardMode.fromId(preferences.getString(KEY_SELECTED_MODE, null))
+
+  fun setSelectedMode(mode: GuardMode) {
+    check(mode != GuardMode.UNAVAILABLE)
+    if (mode != selectedMode()) disarm("kiosk-mode-changed")
+    check(preferences.edit().putString(KEY_SELECTED_MODE, mode.id).commit()) {
+      "Could not persist kiosk mode."
+    }
   }
 
   fun loadArmed(): GuardConfig? {
@@ -111,6 +143,7 @@ internal class GuardStateStore(
       generation = generation,
       target = LaunchTarget(packageName, activityName, action, categories),
       targetLabel = label,
+      mode = GuardMode.fromId(preferences.getString(KEY_MODE, null)),
       foregroundSignalProtocolVersion =
         foregroundSignalProtocolVersion.takeIf { foregroundSignalCapabilityPresent },
       targetSigningIdentity =
@@ -125,6 +158,8 @@ internal class GuardStateStore(
   companion object {
     private const val PREFERENCES = "rusty_kiosk_guard_state"
     private const val KEY_ARMED = "armed"
+    private const val KEY_MODE = "mode"
+    private const val KEY_SELECTED_MODE = "selected_mode"
     private const val KEY_GENERATION = "generation"
     private const val KEY_TARGET_PACKAGE = "target_package"
     private const val KEY_TARGET_ACTIVITY = "target_activity"

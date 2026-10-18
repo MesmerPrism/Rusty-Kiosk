@@ -53,6 +53,7 @@ The projection supports:
 - explicit Any / Wi-Fi on / Wi-Fi off launch-requirement controls;
 - launchable, installed-without-front-door, and not-installed states;
 - guard-enabled and guard-setup states;
+- explicit Accessibility/Visibility choices in User controls, with synthetic readiness;
 - setup-helper readiness, Wi-Fi ADB, Accessibility, and Meta Home status;
 - reversible user-control simulations, including explicit setup and revocation;
 - normal/kiosk launch simulations;
@@ -91,6 +92,7 @@ The isolated host points its Android source set directly at these production
 files:
 
 - `CatalogModels.kt`
+- `GuardMode.kt`
 - `RustyKioskPanel.kt`
 - `RustyKioskPanelContract.kt`
 - `RustyKioskTheme.kt`

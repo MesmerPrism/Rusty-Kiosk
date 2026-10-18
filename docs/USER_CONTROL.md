@@ -69,6 +69,13 @@ Horizon still decides whether and how to present approval.
 
 ## Status model
 
+**Kiosk mode** explicitly selects Accessibility recovery or Visibility menu
+closing. The latter needs compatible Horizon linkage and a live Accessibility
+service for selected-target metadata. Mode changes cancel a pending Wi-Fi
+remediation launch and disarm the prior guard before another launch. Unsupported
+persisted selections remain unavailable until an explicit supported choice;
+there is no automatic fallback. See [Visibility mode](VISIBILITY_MODE.md).
+
 - **Passthrough Natural / Contour LUT / Unavailable** combines Spatial SDK
   effective-state readback with the retained LUT application state. Natural is
   the persisted default. Contour LUT uses color bands to emphasize contours;

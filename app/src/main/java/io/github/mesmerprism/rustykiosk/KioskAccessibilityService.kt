@@ -51,6 +51,7 @@ class KioskAccessibilityService : AccessibilityService() {
   override fun onServiceConnected() {
     super.onServiceConnected()
     ForegroundSignalRouter.attach(this)
+    VisibilityMenuBridge.attach(this)
     registerUserControlReceiver()
     registerDebugReceiver()
     reloadConfiguration()
@@ -97,6 +98,16 @@ class KioskAccessibilityService : AccessibilityService() {
       return
     }
 
+    val visibility = store.loadArmed()?.takeIf { it.mode == GuardMode.VISIBILITY }
+    if (visibility != null) {
+      cancelRecovery()
+      clearActiveConfiguration()
+      VisibilityMenuBridge.observeWindow(
+        visibility, eventType, event.eventTime, SystemClock.uptimeMillis(), packageName,
+        event.className?.toString()?.trim().orEmpty(),
+      )
+      return
+    }
     val config = reloadConfiguration() ?: return
     val className = event.className?.toString()?.trim().orEmpty()
     val nowMs = SystemClock.elapsedRealtime()
@@ -172,6 +183,7 @@ class KioskAccessibilityService : AccessibilityService() {
   }
 
   override fun onInterrupt() {
+    VisibilityMenuBridge.detach(this)
     cancelRecovery()
     cancelInitialHandoffConfirmation()
     Log.w(TAG, "status=service-interrupted")
@@ -183,11 +195,13 @@ class KioskAccessibilityService : AccessibilityService() {
     unregisterUserControlReceiver()
     unregisterDebugReceiver()
     ForegroundSignalRouter.detach(this)
+    VisibilityMenuBridge.detach(this)
     super.onDestroy()
   }
 
   override fun onUnbind(intent: Intent?): Boolean {
     ForegroundSignalRouter.detach(this)
+    VisibilityMenuBridge.detach(this)
     return super.onUnbind(intent)
   }
 
@@ -283,7 +297,7 @@ class KioskAccessibilityService : AccessibilityService() {
 
   private fun reloadConfiguration(): GuardConfig? {
     val config = store.loadArmed()
-    if (config == null) {
+    if (config == null || config.mode != GuardMode.ACCESSIBILITY) {
       if (activeGeneration != null) cancelRecovery()
       clearActiveConfiguration()
       return null
@@ -315,7 +329,7 @@ class KioskAccessibilityService : AccessibilityService() {
       Runnable {
         pendingInitialHandoffConfirmation = null
         val current = store.loadArmed()
-        if (current?.generation != generation) return@Runnable
+        if (current?.generation != generation || current.mode != GuardMode.ACCESSIBILITY) return@Runnable
         if (engine?.confirmInitialHandoff(SystemClock.elapsedRealtime()) == true) {
           Log.i(TAG, "status=initial-handoff-confirmed")
         }
@@ -342,7 +356,7 @@ class KioskAccessibilityService : AccessibilityService() {
       Runnable {
         pendingRecovery = null
         val current = store.loadArmed()
-        if (current?.generation != generation) return@Runnable
+        if (current?.generation != generation || current.mode != GuardMode.ACCESSIBILITY) return@Runnable
         if (engine?.currentPackage == current.target.packageName) return@Runnable
         val attempt =
           engine?.claimRecovery(
@@ -394,6 +408,16 @@ class KioskAccessibilityService : AccessibilityService() {
       .onFailure { throwable ->
         Log.e(TAG, "status=kiosk-return-failed error=${throwable.javaClass.simpleName}")
       }
+  }
+
+  internal fun returnFromVisibility(generation: Long) {
+    val current = store.loadArmed()
+    if (current?.mode != GuardMode.VISIBILITY || current.generation != generation) return
+    cancelRecovery()
+    guardLaunchHandoffLease.clear()
+    store.disarm("triple-visibility-opening-escape")
+    clearActiveConfiguration()
+    launchReturnToKiosk()
   }
 
   private fun cancelRecovery() {

@@ -2,6 +2,18 @@
 
 ## Host gate
 
+The Visibility consumer additionally verifies all 14 vendored source/license
+files against `UPSTREAM.json` through `tools/Test-QuestNavigatorVisibility.ps1`.
+Pass `-UpstreamRoot <exact-clean-Quest-checkout>` for direct canonical comparison.
+The Android dependency verifies the same closed inventory before building.
+Policy, ticket, preference/readiness and actual observer-to-policy JVM tests
+cover initial true, false baseline, equal-uptime ordered samples, stale callback
+fences, one original, third-edge escape, mode changes and unknown cleanup.
+After debug assembly, `tools/check_quest_visibility_apk.py` requires the three
+Quest runtime classes and rejects vendor ABI definitions or the old private
+platform reader in APK DEX. References to OS vendor classes remain expected.
+See [Visibility mode](VISIBILITY_MODE.md) for the separate coordinated device gate.
+
 ```powershell
 pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\check_repo.ps1
 ```

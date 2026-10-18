@@ -48,6 +48,7 @@ internal class RustyKioskNativePanel(
   private val onCancelPendingRequirementLaunch: () -> Unit,
   private val onNormalLaunch: () -> Unit,
   private val onKioskLaunch: () -> Unit,
+  private val onKioskModeSelected: (GuardMode) -> Unit,
   private val onLaunchOption: (String) -> Unit,
   private val onOpenUserControls: () -> Unit,
   private val onCloseUserControls: () -> Unit,
@@ -102,6 +103,9 @@ internal class RustyKioskNativePanel(
   private lateinit var wifiStatus: TextView
   private lateinit var wifiAfterBootStatus: TextView
   private lateinit var accessibilityStatus: TextView
+  private lateinit var kioskModeStatus: TextView
+  private lateinit var accessibilityModeButton: Button
+  private lateinit var visibilityModeButton: Button
   private lateinit var passthroughStatus: TextView
   private lateinit var passthroughMessage: TextView
   private lateinit var naturalPassthroughButton: Button
@@ -417,6 +421,18 @@ internal class RustyKioskNativePanel(
       },
       margin(top = 8),
     )
+    addView(controlCard("Kiosk mode") {
+      kioskModeStatus = text("", 14f, COLOR_TEXT, true)
+      addView(kioskModeStatus)
+      accessibilityModeButton = button("Accessibility recovery", {
+        onKioskModeSelected(GuardMode.ACCESSIBILITY)
+      }).apply { tag = RustyKioskPanelControls.MODE_ACCESSIBILITY }
+      visibilityModeButton = button("Visibility menu closing", {
+        onKioskModeSelected(GuardMode.VISIBILITY)
+      }).apply { tag = RustyKioskPanelControls.MODE_VISIBILITY }
+      addView(accessibilityModeButton, margin(top = 7, height = 46))
+      addView(visibilityModeButton, margin(top = 7, height = 46))
+    }, margin(top = 8))
     controlMessage = text("", 13f, COLOR_MUTED)
     addView(controlMessage, margin(top = 8))
     addView(
@@ -543,9 +559,9 @@ internal class RustyKioskNativePanel(
       if (state.pendingRequirementMessage != null) {
         "${state.pendingRequirementMessage} Return from Android Wi-Fi settings to retry automatically, or cancel."
       } else if (state.guardEnabled) {
-        "Requirements are checked before either launch. Soft guard: Home #1/#2 restore; Home #3 returns here."
+        "Requirements precede launch. ${state.userControls.kioskModeLabel}: first two openings recover; third returns here."
       } else {
-        "Requirements are checked before either launch. Kiosk launch also needs Accessibility."
+        "Requirements precede launch. Choose a ready kiosk mode in User controls; Accessibility must be enabled."
       }
     launchGuidance.setTextColor(
       if (state.pendingRequirementMessage == null && state.guardEnabled) COLOR_MUTED else COLOR_WARNING
@@ -559,6 +575,9 @@ internal class RustyKioskNativePanel(
     wifiStatus.text = "Wireless debugging: ${controls.wifiStatusLabel}"
     wifiAfterBootStatus.text = if (controls.requestWifiAfterBoot) "Ask again after restart: On" else "Ask again after restart: Off"
     accessibilityStatus.text = "Accessibility: ${controls.accessibilityStatusLabel}"
+    kioskModeStatus.text = "${controls.kioskModeLabel}. ${controls.visibilityDescription}"
+    accessibilityModeButton.isEnabled = controls.kioskMode != GuardMode.ACCESSIBILITY
+    visibilityModeButton.isEnabled = controls.visibilityAvailable && controls.kioskMode != GuardMode.VISIBILITY
     passthroughStatus.text = "System passthrough: ${controls.passthroughStatusLabel}"
     passthroughMessage.text = controls.passthroughMessage
     naturalPassthroughButton.isEnabled =

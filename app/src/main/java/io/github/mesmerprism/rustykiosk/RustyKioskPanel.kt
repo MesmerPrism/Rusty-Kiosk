@@ -80,6 +80,7 @@ internal fun RustyKioskPanel(
   onUseContourPassthrough: () -> Unit,
   onExitToMetaHome: () -> Unit,
   onLaunchRequirementSelected: (AppLaunchRequirement) -> Unit = {},
+  onKioskModeSelected: (GuardMode) -> Unit = {},
 ) {
   Surface(
     modifier =
@@ -119,6 +120,7 @@ internal fun RustyKioskPanel(
       if (state.userControlsOpen) {
         UserControlCenter(
           controls = state.userControls,
+          onKioskModeSelected = onKioskModeSelected,
           onCheckSetupHelper = onCheckSetupHelper,
           onRequestWifiAdb = onRequestWifiAdb,
           onEnableWifiAfterBoot = onEnableWifiAfterBoot,
@@ -665,6 +667,7 @@ private fun StatusBadge(label: String, value: String, positive: Boolean) {
 @Composable
 private fun UserControlCenter(
   controls: UserControlState,
+  onKioskModeSelected: (GuardMode) -> Unit,
   onCheckSetupHelper: () -> Unit,
   onRequestWifiAdb: () -> Unit,
   onEnableWifiAfterBoot: () -> Unit,
@@ -682,6 +685,19 @@ private fun UserControlCenter(
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     Text("Transparent, reversible setup", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+    Text("Kiosk mode: ${controls.kioskModeLabel}", style = MaterialTheme.typography.titleMedium)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      OutlinedButton(
+        onClick = { onKioskModeSelected(GuardMode.ACCESSIBILITY) },
+        modifier = Modifier.testTag(RustyKioskPanelControls.MODE_ACCESSIBILITY),
+      ) { Text("Accessibility recovery") }
+      OutlinedButton(
+        onClick = { onKioskModeSelected(GuardMode.VISIBILITY) },
+        enabled = controls.visibilityAvailable,
+        modifier = Modifier.testTag(RustyKioskPanelControls.MODE_VISIBILITY),
+      ) { Text("Visibility menu closing") }
+    }
+    Text(controls.visibilityDescription, style = MaterialTheme.typography.bodySmall)
     Text(
       controls.message,
       style = MaterialTheme.typography.bodySmall,
