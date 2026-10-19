@@ -41,7 +41,7 @@ class ProducerConsumerTests(unittest.TestCase):
                 "operator_id": "passive-host-conformance",
                 "artifact": {"path": str(root / "absent.dex.jar"), "sha256": "c" * 64, "bytes": 1},
                 "source": {"revision": "d" * 40, "tree": "e" * 40, "source_id": "f" * 64},
-                "firmware": {"fingerprint": "conformance/not-a-device", "vrshell_sha256": "1" * 64,
+                "firmware": {"fingerprint": "conformance/not-a-device,release-keys", "vrshell_sha256": "1" * 64,
                              "framework_sha256": "2" * 64}, "output_dir": str(output),
             }
             digest = hashlib.sha256(provider.read_bytes()).hexdigest()
