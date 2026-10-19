@@ -5,10 +5,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RustyKioskCliProtocolTest {
-  @Test fun visibilityModeUsesTheClosedExistingCommandQueue() {
-    assertEquals(RustyKioskCliCommand.SET_KIOSK_MODE,
-      RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "visibility").getOrThrow().command)
-    assertTrue(RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "shell").isFailure)
+  @Test fun explicitModesUseTheClosedExistingCommandQueue() {
+    for (mode in listOf("accessibility", "shell", "visibility")) {
+      val request = RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", mode).getOrThrow()
+      assertEquals(RustyKioskCliCommand.SET_KIOSK_MODE, request.command)
+      assertEquals(mode, request.value)
+    }
+    assertTrue(RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "unknown-mode").isFailure)
     assertTrue(RustyKioskCliProtocol.parse("request_1234", "set-kiosk-mode", "unavailable").isFailure)
   }
   @Test
