@@ -108,6 +108,9 @@ for that same original. An expired observer deadline, pending callback,
 missing result, or changed source is never permission to create another
 recenter request. Duplicate/replay admission remains the shared provider's
 responsibility; Kiosk does not reinterpret its ledger.
+Quest's fsynced per-user original-identity journal binds the request ID to the
+whole request and operation before dispatch. Changing the output directory or
+nonce, or deleting an old evidence directory, cannot make that original unused.
 
 ## Device custody and cleanup
 

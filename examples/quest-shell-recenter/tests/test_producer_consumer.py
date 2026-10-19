@@ -9,6 +9,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import uuid
 
 SPEC = importlib.util.spec_from_file_location("kiosk_recenter_pair", Path(__file__).resolve().parents[1] / "recenter.py")
 utility = importlib.util.module_from_spec(SPEC)
@@ -34,7 +35,7 @@ class ProducerConsumerTests(unittest.TestCase):
             output = root / "original"
             output.mkdir()
             request = {
-                "schema": "rusty.quest.shell_recenter.request.v1", "request_id": "a" * 32, "nonce": "b" * 32,
+                "schema": "rusty.quest.shell_recenter.request.v1", "request_id": uuid.uuid4().hex, "nonce": uuid.uuid4().hex,
                 "adb": str(root / "NEVER_EXECUTE_ADB"), "canonical_serial": "CONFORMANCE_ONLY",
                 "selector": "CONFORMANCE_ONLY", "boot_id": "00000000-0000-4000-8000-000000000001",
                 "operator_id": "passive-host-conformance",
