@@ -2,6 +2,7 @@ package io.github.mesmerprism.rustykiosk
 
 internal enum class GuardMode(val id: String) {
   ACCESSIBILITY("accessibility"),
+  SHELL("shell"),
   VISIBILITY("visibility"),
   UNAVAILABLE("unavailable");
 

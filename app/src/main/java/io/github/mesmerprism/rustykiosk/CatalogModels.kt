@@ -164,6 +164,9 @@ internal data class KioskUiState(
 
 internal data class UserControlState(
   val kioskMode: GuardMode = GuardMode.ACCESSIBILITY,
+  val shellCompanionReady: Boolean = false,
+  val shellCustodyHeld: Boolean = false,
+  val shellCompanionDescription: String = "Shell companion unavailable; ordinary APK permissions do not provide shell authority.",
   val visibilityAvailable: Boolean = false,
   val visibilityReady: Boolean = false,
   val visibilityDescription: String = "Visibility platform support is unavailable.",
@@ -188,8 +191,9 @@ internal data class UserControlState(
     "Wi-Fi ADB, Accessibility, the direct link, and local installs are separate opt-ins.",
 ) {
   val guardReady: Boolean
-    get() = when (kioskMode) {
+    get() = !shellCustodyHeld && when (kioskMode) {
       GuardMode.ACCESSIBILITY -> accessibilityEnabled
+      GuardMode.SHELL -> shellCompanionReady
       GuardMode.VISIBILITY -> accessibilityEnabled && visibilityReady
       GuardMode.UNAVAILABLE -> false
     }
@@ -197,6 +201,7 @@ internal data class UserControlState(
   val kioskModeLabel: String
     get() = when (kioskMode) {
       GuardMode.ACCESSIBILITY -> "Accessibility recovery"
+      GuardMode.SHELL -> "Shell menu closing"
       GuardMode.VISIBILITY -> "Visibility menu closing"
       GuardMode.UNAVAILABLE -> "Unavailable selection; choose a supported mode"
     }

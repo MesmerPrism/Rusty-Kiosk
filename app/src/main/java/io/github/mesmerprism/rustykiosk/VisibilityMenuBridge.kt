@@ -28,6 +28,8 @@ internal object VisibilityMenuBridge {
   @Volatile private var lastCallbackToSend = -1L
 
   fun isAvailable(context: Context): Boolean = capability(context) == null
+  /** Read-only cross-mode admission; the existing controller still owns its full retirement. */
+  fun outstandingCustody(): Boolean = current != null
   fun isReady(context: Context): Boolean = isAvailable(context) && service != null && current == null
   fun description(context: Context): String {
     if (!isAvailable(context)) return "Visibility menu closing needs compatible Horizon platform support."

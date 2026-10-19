@@ -1,0 +1,106 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+package io.github.mesmerprism.rustykiosk.shellcompanion;
+
+import java.util.ArrayDeque;
+import java.util.HashMap;
+
+/** Host doubles schedule exact production method bodies; no Android/runtime effects. */
+public final class ProtocolInterleavingTests {
+    static int checks;
+    static void check(boolean value) { checks++; if (!value) throw new AssertionError("interleaving check "+checks); }
+    final Queue main=new Queue(), ipc=new Queue(), samples=new Queue();
+    final CloseState state=new CloseState();
+    long generation=42, qualifiedGeneration, lastSample;
+    boolean stopped, sampling, claimBusy;
+    Boolean lastFocused;
+    Candidate candidate;
+    int returns, scheduled, targetCalls;
+    Bundle response=new Bundle();
+    void protocol(Runnable operation) { ipc.post(operation); }
+    void sample(Runnable operation) { samples.post(operation); }
+    void event(String name,Json value) {}
+    static Json json(String key,Object value) { return new Json().put(key,value); }
+    static Json replyJson(Bundle value) { return new Json(); }
+    Values extras() { return new Values(); }
+    Bundle call(String method,Values values) { if (method.equals("target-state")) targetCalls++; return response; }
+    void returnToKiosk() { returns++; }
+    void schedule(Candidate value) { scheduled++; }
+    void stop(String why) { stopped=true; state.stop(); candidate=null; }
+    void fail(String why,Throwable failure) { throw new AssertionError(why,failure); }
+    void finishIfKnown() {}
+    String command(String... args) { return "fixture"; }
+    static boolean ownFocus(String value,ComponentName component) { return true; }
+    static final class AwaitingFocus extends IllegalStateException {}
+    static final class Queue {
+        final ArrayDeque<Runnable> jobs=new ArrayDeque<>();
+        void post(Runnable value) { jobs.add(value); }
+        void one() { jobs.remove().run(); }
+    }
+    static final class Json { Json put(String key,Object value) { return this; } }
+    static final class Bundle {
+        final HashMap<String,Object> values=new HashMap<>();
+        Bundle put(String key,Object value) { values.put(key,value); return this; }
+        String getString(String key) { return (String)values.get(key); }
+        long getLong(String key,long fallback) { return values.containsKey(key)?(Long)values.get(key):fallback; }
+    }
+    static final class Values {
+        Values putLongValue(String key,long value) { return this; }
+        Values putBooleanValue(String key,boolean value) { return this; }
+    }
+    static final class Candidate {
+        final String id; final long generation,edge,due,event;
+        Candidate(String id,long generation,long edge,long due,long event) {
+            this.id=id;this.generation=generation;this.edge=edge;this.due=due;this.event=event;
+        }
+    }
+    static final class SystemClock { static long uptimeMillis() { return 1000; } }
+    static final class ComponentName {
+        ComponentName(String pkg,String activity) {}
+        String flattenToString() { return "fixture.target/fixture.target.Main"; }
+    }
+    static void canonicalUuid(String value) { java.util.UUID.fromString(value); }
+
+// EXACT_PRODUCTION_METHODS
+
+    static ProtocolInterleavingTests nativeReply(String action) {
+        ProtocolInterleavingTests value=new ProtocolInterleavingTests();
+        value.response.put("action",action).put("command_id","11111111-1111-4111-8111-111111111111").put("due_uptime_ms",180L);
+        long edge=value.state.observe(true);
+        value.nativeEvent(new NativeEvent(100,true),100,1,edge);
+        value.ipc.one(); // The original IPC has returned; its main-thread reply is still queued.
+        return value;
+    }
+    static ProtocolInterleavingTests targetReply() {
+        ProtocolInterleavingTests value=new ProtocolInterleavingTests();
+        value.response.put("status","target_qualified");
+        value.sampleTarget(42,"fixture.target","fixture.target.Main");
+        value.samples.one(); value.main.one(); value.ipc.one();
+        return value;
+    }
+    public static void main(String[] args) {
+        ProtocolInterleavingTests stoppedEscape=nativeReply("escape");
+        stoppedEscape.stop("explicit-stop"); stoppedEscape.main.one();
+        check(stoppedEscape.returns==0); check(stoppedEscape.generation==42);
+        ProtocolInterleavingTests newerEscape=nativeReply("escape");
+        newerEscape.generation=43; newerEscape.main.one();
+        check(newerEscape.returns==0); check(newerEscape.generation==43);
+        ProtocolInterleavingTests liveEscape=nativeReply("escape"); liveEscape.main.one();
+        check(liveEscape.returns==0); check(liveEscape.generation==0); // App owns return; helper observes only.
+        ProtocolInterleavingTests stoppedClose=nativeReply("close"); stoppedClose.stop("explicit-stop"); stoppedClose.main.one();
+        check(stoppedClose.scheduled==0); check(stoppedClose.candidate==null);
+        ProtocolInterleavingTests liveClose=nativeReply("close"); liveClose.main.one();
+        check(liveClose.scheduled==1); check(liveClose.candidate!=null);
+        ProtocolInterleavingTests beforeSample=new ProtocolInterleavingTests();
+        beforeSample.sampleTarget(42,"fixture.target","fixture.target.Main");
+        beforeSample.samples.one(); beforeSample.stop("explicit-stop"); beforeSample.main.one();
+        check(beforeSample.ipc.jobs.isEmpty()); check(beforeSample.targetCalls==0);
+        ProtocolInterleavingTests stoppedTarget=targetReply(); stoppedTarget.stop("explicit-stop"); stoppedTarget.main.one();
+        check(stoppedTarget.targetCalls==1); check(stoppedTarget.lastFocused==null); check(stoppedTarget.qualifiedGeneration==0);
+        ProtocolInterleavingTests newerTarget=targetReply(); newerTarget.generation=43; newerTarget.main.one();
+        check(newerTarget.lastFocused==null); check(newerTarget.qualifiedGeneration==0);
+        ProtocolInterleavingTests liveTarget=targetReply(); liveTarget.main.one();
+        check(Boolean.TRUE.equals(liveTarget.lastFocused)); check(liveTarget.qualifiedGeneration==42);
+        System.out.println("PASS "+checks+" exact production-method interleaving checks");
+    }
+}
+final class CompanionIdentity { static final String KIOSK_PACKAGE="io.github.mesmerprism.rustykiosk"; }

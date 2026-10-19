@@ -22,6 +22,11 @@ It requires compatible Horizon linkage and the live Accessibility service;
 unavailable or unresolved state blocks a new guard without fallback. Normal launch,
 mode change and explicit exit disarm it. See [Visibility mode](docs/VISIBILITY_MODE.md).
 
+The optional **Shell menu closing** mode uses an explicitly bootstrapped Android
+shell companion, the pinned shared Quest factory and one fixed Navigator operation.
+Ordinary APK permissions cannot provide its authority. Unresolved originals block
+new guards across modes. See [Shell mode](docs/SHELL_MODE.md).
+
 Its optional Accessibility service is a foreground watchdog:
 
 1. **Normal launch** disarms the watchdog and opens the selected app.

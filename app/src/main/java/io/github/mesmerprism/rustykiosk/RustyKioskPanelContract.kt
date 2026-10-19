@@ -29,6 +29,7 @@ internal object RustyKioskPanelControls {
   const val WIFI_ADB_CONTROLS = "rusty-kiosk-wifi-adb-controls"
   const val ACCESSIBILITY_TOGGLE = "rusty-kiosk-accessibility-toggle"
   const val MODE_ACCESSIBILITY = "rusty-kiosk-mode-accessibility"
+  const val MODE_SHELL = "rusty-kiosk-mode-shell"
   const val MODE_VISIBILITY = "rusty-kiosk-mode-visibility"
   const val META_HOME_EXIT = "rusty-kiosk-meta-home-exit"
 }

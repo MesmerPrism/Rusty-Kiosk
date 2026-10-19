@@ -53,6 +53,38 @@ class GuardModeIntegrationTest {
     assertFalse(visibility.copy(accessibilityEnabled = false).guardReady)
     assertFalse(visibility.copy(visibilityReady = false).guardReady)
     assertFalse(visibility.copy(kioskMode = GuardMode.UNAVAILABLE).guardReady)
+    val shell = UserControlState(kioskMode = GuardMode.SHELL, shellCompanionReady = true)
+    assertTrue(shell.guardReady)
+    assertFalse(shell.copy(shellCompanionReady = false, accessibilityEnabled = true).guardReady)
+    for (mode in listOf(GuardMode.ACCESSIBILITY, GuardMode.SHELL, GuardMode.VISIBILITY))
+      assertFalse(shell.copy(kioskMode = mode, accessibilityEnabled = true, visibilityReady = true, shellCustodyHeld = true).guardReady)
+  }
+
+  @Test fun heldShellOriginalBlocksEveryNewModeBeforePersistenceOrVisibilityHook() {
+    var announced = 0
+    for (mode in listOf(GuardMode.ACCESSIBILITY, GuardMode.SHELL, GuardMode.VISIBILITY)) {
+      val store = GuardStateStore(preferences(mutableMapOf()), { 6L },
+        onVisibilityArmed = { announced++ }, onShellArmed = { announced++ }, canArmNewGuard = { false })
+      assertTrue(runCatching { store.arm(target, "Target", mode = mode) }.isFailure)
+      assertNull(store.loadArmed())
+    }
+    assertEquals(0, announced)
+  }
+
+  @Test fun shellReadinessIsRecheckedBeforePersistenceAndOnlyShellHookSeesCommittedArm() {
+    val preferences = preferences(mutableMapOf())
+    var ready = false
+    var announced: GuardConfig? = null
+    lateinit var store: GuardStateStore
+    store = GuardStateStore(preferences, { 9L }, onShellArmed = {
+      assertEquals(it, store.loadArmed()); announced = it
+    }, canArmShell = { ready })
+    assertTrue(runCatching { store.arm(target, "Target", mode = GuardMode.SHELL) }.isFailure)
+    assertNull(store.loadArmed()); assertNull(announced)
+    ready = true
+    assertEquals(store.arm(target, "Target", mode = GuardMode.SHELL), announced)
+    store.setSelectedMode(GuardMode.VISIBILITY)
+    assertNull(store.loadArmed())
   }
 
   @Test fun visibilityReadinessIsCheckedBeforePersistingANewGeneration() {
@@ -82,7 +114,7 @@ class GuardModeIntegrationTest {
   }
 
   @Test fun cliModeValuesAreClosedAndRoundTripWithTheUiIds() {
-    for (mode in listOf(GuardMode.ACCESSIBILITY, GuardMode.VISIBILITY)) {
+    for (mode in listOf(GuardMode.ACCESSIBILITY, GuardMode.SHELL, GuardMode.VISIBILITY)) {
       val request = RustyKioskCliProtocol.parse("mode_request", "set-kiosk-mode", mode.id).getOrThrow()
       assertEquals(mode, GuardMode.fromId(request.value))
     }

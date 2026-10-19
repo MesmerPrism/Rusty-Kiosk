@@ -45,10 +45,13 @@ internal class LaunchController(context: Context) {
     }
     if (kind == LaunchKind.KIOSK &&
       (!guardEnabled || mode == GuardMode.UNAVAILABLE ||
+        !ShellCompanionBridge.canArmNewGuard(appContext) ||
+        (mode == GuardMode.SHELL && !ShellCompanionBridge.isReady(appContext)) ||
         (mode == GuardMode.VISIBILITY && !VisibilityMenuBridge.isReady(appContext)))
     ) {
       return LaunchResult(false, if (mode == GuardMode.VISIBILITY)
-        VisibilityMenuBridge.description(appContext) else if (mode == GuardMode.UNAVAILABLE)
+        VisibilityMenuBridge.description(appContext) else if (mode == GuardMode.SHELL || !ShellCompanionBridge.canArmNewGuard(appContext))
+        ShellCompanionBridge.description(appContext) else if (mode == GuardMode.UNAVAILABLE)
         "Choose a supported kiosk mode explicitly." else
         "Enable the Rusty Kiosk Accessibility service first.")
     }
@@ -61,13 +64,15 @@ internal class LaunchController(context: Context) {
 
     return runCatching {
         if (kind == LaunchKind.NORMAL) guardStore.disarm("normal-launch")
-        else guardStore.arm(target, entry.label, foregroundSignalCapability, mode)
+        else ShellCompanionBridge.armAtomically { guardStore.arm(target, entry.label, foregroundSignalCapability, mode) }
         appContext.startActivity(target.toIntent(LaunchTaskPolicy.initialFlags(kind)))
         LaunchResult(
           true,
           if (kind == LaunchKind.KIOSK) {
             val signalMode =
-              if (mode == GuardMode.VISIBILITY) {
+              if (mode == GuardMode.SHELL) {
+                " The admitted shell companion owns the fixed native-menu call; ordinary Accessibility recovery is inactive."
+              } else if (mode == GuardMode.VISIBILITY) {
                 " Visibility callbacks qualify one fixed close; Accessibility supplies target metadata only."
               } else if (
                 foregroundSignalCapability != null

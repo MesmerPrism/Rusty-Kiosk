@@ -1,0 +1,22 @@
+{
+  "schema": "rusty.kiosk.quest_shell_context_vendor.v1",
+  "repository": "https://github.com/MesmerPrism/rusty-quest",
+  "revision": "5b821d5fbab0d8e5946fca31d732fab2c7f0be83",
+  "tree": "f8e724c7a743e3b7b162aebc8c663744fee63526",
+  "license": "AGPL-3.0-or-later",
+  "component": "apps/shell-recenter-android",
+  "files": [
+    {
+      "source_path": "apps/shell-recenter-android/src/main/java/io/github/mesmerprism/rustyquest/shellrecenter/ShellApplicationContext.java",
+      "vendored_path": "src/main/java/io/github/mesmerprism/rustyquest/shellrecenter/ShellApplicationContext.java",
+      "bytes": 8929,
+      "sha256": "61c36cc1632e44f6b442237fd492f9c7a0b6589e51f5e2cfa42323936316ed31"
+    },
+    {
+      "source_path": "LICENSE",
+      "vendored_path": "LICENSE",
+      "bytes": 34523,
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+    }
+  ]
+}

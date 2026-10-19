@@ -9,7 +9,7 @@ $previewProject = Join-Path $repoRoot 'tools\rusty-kiosk-native-panel-preview-an
 $outputPath = [IO.Path]::GetFullPath((Join-Path $repoRoot $OutputDir))
 $snapshotPath =
   Join-Path $previewProject 'native-panel-preview\src\test\snapshots'
-$expectedNames = @('catalog-ready', 'tag-filter-missing', 'guard-setup')
+$expectedNames = @('catalog-ready', 'tag-filter-missing', 'guard-setup', 'shell-ready', 'shell-unavailable', 'shell-original-held')
 
 if (-not $outputPath.StartsWith($repoRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
   throw 'Native preview output must remain inside the repository.'

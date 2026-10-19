@@ -196,7 +196,10 @@ foreach ($token in @(
   'Density.create(RustyKioskPanelGeometry.LAYOUT_DPI)',
   'catalog-ready',
   'tag-filter-missing',
-  'guard-setup'
+  'guard-setup',
+  'shell-ready',
+  'shell-unavailable',
+  'shell-original-held'
 )) {
   if (-not $nativeTest.Contains($token)) { throw "Native Compose renderer is missing: $token" }
 }

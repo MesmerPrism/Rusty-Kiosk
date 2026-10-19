@@ -58,7 +58,7 @@ const baseEntries = [
   },
 ];
 
-export const scenarioNames = ["catalog-ready", "tag-filter-missing", "guard-setup"];
+export const scenarioNames = ["catalog-ready", "tag-filter-missing", "guard-setup", "shell-ready", "shell-unavailable", "shell-original-held"];
 
 export function scenarioState(name = "catalog-ready") {
   const scenario = scenarioNames.includes(name) ? name : scenarioNames[0];
@@ -76,6 +76,9 @@ export function scenarioState(name = "catalog-ready") {
     userControlsOpen: false,
     userControls: {
       kioskMode: "accessibility",
+      shellCompanionReady: false,
+      shellCustodyHeld: false,
+      shellCompanionDescription: "Shell companion unavailable; ordinary APK permissions do not provide shell authority.",
       visibilityAvailable: true,
       visibilityReady: true,
       passthroughStyle: "natural",
@@ -102,6 +105,19 @@ export function scenarioState(name = "catalog-ready") {
     state.userControls.accessibilityEnabled = false;
     state.userControls.message =
       "Wi-Fi ADB is ready. Accessibility remains off until you explicitly enable it.";
+  }
+  if (scenario.startsWith("shell-")) {
+    state.userControlsOpen = true;
+    state.userControls.kioskMode = "shell";
+    state.userControls.accessibilityEnabled = false;
+    state.userControls.shellCompanionReady = scenario === "shell-ready";
+    state.userControls.shellCustodyHeld = scenario === "shell-original-held";
+    state.userControls.shellCompanionDescription = scenario === "shell-ready"
+      ? "Shell companion ready (fresh heartbeat)."
+      : scenario === "shell-original-held"
+        ? "Shell recovery disarmed; waiting for the original callback."
+        : state.userControls.shellCompanionDescription;
+    state.guardEnabled = guardReady(state.userControls);
   }
   return state;
 }
@@ -160,12 +176,18 @@ export function setLaunchRequirement(state, value) {
 }
 
 export function selectKioskMode(state, mode) {
-  if (!["accessibility", "visibility"].includes(mode)) return state;
+  if (!["accessibility", "shell", "visibility"].includes(mode)) return state;
   const controls = { ...state.userControls, kioskMode: mode };
   return { ...state, userControls: controls,
-    guardEnabled: controls.accessibilityEnabled &&
-      (mode === "accessibility" || (controls.visibilityAvailable && controls.visibilityReady)),
+    guardEnabled: guardReady(controls),
     statusLine: `${mode} selected; previous guard disarmed · browser simulation` };
+}
+
+export function guardReady(controls) {
+  if (controls.shellCustodyHeld) return false;
+  if (controls.kioskMode === "shell") return controls.shellCompanionReady;
+  if (controls.kioskMode === "visibility") return controls.accessibilityEnabled && controls.visibilityAvailable && controls.visibilityReady;
+  return controls.kioskMode === "accessibility" && controls.accessibilityEnabled;
 }
 
 export function importPreviewState(value) {
@@ -208,7 +230,11 @@ export function importPreviewState(value) {
     userControlsOpen: Boolean(value.userControlsOpen),
     userControls: {
       ...base.userControls,
-      kioskMode: value.userControls?.kioskMode === "visibility" ? "visibility" : "accessibility",
+      kioskMode: value.userControls?.kioskMode == null ? "accessibility" :
+        ["accessibility", "shell", "visibility"].includes(value.userControls.kioskMode) ? value.userControls.kioskMode : "unavailable",
+      shellCompanionReady: Boolean(value.userControls?.shellCompanionReady),
+      shellCustodyHeld: Boolean(value.userControls?.shellCustodyHeld),
+      shellCompanionDescription: String(value.userControls?.shellCompanionDescription ?? base.userControls.shellCompanionDescription).slice(0, 240),
       visibilityAvailable: Boolean(value.userControls?.visibilityAvailable),
       visibilityReady: Boolean(value.userControls?.visibilityReady),
       passthroughStyle:

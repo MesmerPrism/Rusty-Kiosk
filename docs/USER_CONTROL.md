@@ -3,6 +3,9 @@
 Rusty Kiosk presents passthrough appearance, setup-helper readiness, Wi-Fi ADB,
 Accessibility, the direct PC link, local APK installation, and Meta Home as
 separate capabilities.
+Explicit developer Shell mode additionally needs fresh genuine-shell companion
+readiness. The panel shows unavailable and pending-original states; ordinary
+APK privileges do not supply it. See [Shell mode](SHELL_MODE.md).
 Each setting has an effective-state readback, requires an explicit action before
 it changes, and has a visible off route.
 

@@ -146,6 +146,13 @@
             android:exported="true"
             android:permission="android.permission.DUMP" />
 
+        <!-- Fixed optional companion protocol; immediate Binder UID/PID is checked again. -->
+        <provider
+            android:name=".ShellCompanionProvider"
+            android:authorities="${applicationId}.shell-companion"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+
         <!--
           Engine-neutral advisory fast path. Runtime admission binds the immediate Binder caller
           to the armed package, exclusive UID, protocol metadata, and launch-time signing lineage.
