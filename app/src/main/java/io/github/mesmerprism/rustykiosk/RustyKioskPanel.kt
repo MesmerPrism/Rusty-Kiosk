@@ -692,12 +692,18 @@ private fun UserControlCenter(
         modifier = Modifier.testTag(RustyKioskPanelControls.MODE_ACCESSIBILITY),
       ) { Text("Accessibility recovery") }
       OutlinedButton(
+        onClick = { onKioskModeSelected(GuardMode.SHELL) },
+        enabled = controls.shellCompanionReady,
+        modifier = Modifier.testTag(RustyKioskPanelControls.MODE_SHELL),
+      ) { Text("Shell menu closing") }
+      OutlinedButton(
         onClick = { onKioskModeSelected(GuardMode.VISIBILITY) },
         enabled = controls.visibilityAvailable,
         modifier = Modifier.testTag(RustyKioskPanelControls.MODE_VISIBILITY),
       ) { Text("Visibility menu closing") }
     }
     Text(controls.visibilityDescription, style = MaterialTheme.typography.bodySmall)
+    Text(controls.shellCompanionDescription, style = MaterialTheme.typography.bodySmall)
     Text(
       controls.message,
       style = MaterialTheme.typography.bodySmall,

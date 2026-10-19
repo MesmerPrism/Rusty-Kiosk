@@ -34,6 +34,12 @@ Read `README.md`, `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/USER_CONTROL.md`,
   update the upstream Quest source and complete pin/inventory deliberately. See
   `docs/VISIBILITY_MODE.md` and `vendor/quest-navigator-visibility/UPSTREAM.json`.
 - Once Rusty Kiosk is visible, a normal Meta Home press can open Meta Home.
+- Explicit Shell mode uses the pinned shared Quest genuine-shell factory only
+  in its standalone companion. Preserve fixed channel identities, durable
+  original committed before execute, authenticated retirement, restart/unknown
+  holds and cross-mode fences. Enabled-query deadlines and STOP retain callback
+  custody. No kill, retry, invented FINAL, generic operation or APK privilege
+  expansion. See `docs/SHELL_MODE.md` before changing its lifecycle.
 - Accessibility observes package/window transitions only. Do not add UI-tree
   reads, text/view lookup, clicks, gestures, global actions, force-stop, or
   hidden Accessibility activation.

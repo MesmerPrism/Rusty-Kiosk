@@ -53,7 +53,8 @@ class VisibilityObserverIntegrationTest {
 
   @Test fun unsupportedPersistedSelectionDoesNotBecomeAccessibilityRecovery() {
     assertEquals(GuardMode.ACCESSIBILITY, GuardMode.fromId(null))
-    assertEquals(GuardMode.UNAVAILABLE, GuardMode.fromId("shell"))
+    assertEquals(GuardMode.SHELL, GuardMode.fromId("shell"))
+    assertEquals(GuardMode.UNAVAILABLE, GuardMode.fromId("retired-mode"))
     assertEquals(GuardMode.UNAVAILABLE, GuardMode.fromId("corrupt"))
     assertEquals(GuardMode.VISIBILITY, GuardMode.fromId("visibility"))
   }

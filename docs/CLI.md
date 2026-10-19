@@ -1,5 +1,10 @@
 # Typed debug CLI
 
+`set-kiosk-mode` accepts only `accessibility`, `shell`, or `visibility`.
+Shell status exposes fresh readiness, outstanding custody and its explanation;
+mode selection does not start a companion or grant shell privilege. See
+[Shell mode](SHELL_MODE.md) for its separate attended lifecycle.
+
 Rusty Kiosk debug builds provide a stable command-line route for exercising
 the same application actions as the visible Spatial panel. This replaces
 display-coordinate touch injection in automated acceptance runs.

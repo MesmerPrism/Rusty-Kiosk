@@ -61,6 +61,7 @@
     "rusty-kiosk-accessibility-toggle",
     "rusty-kiosk-meta-home-exit",
     "rusty-kiosk-mode-accessibility",
+    "rusty-kiosk-mode-shell",
     "rusty-kiosk-mode-visibility"
   ],
   "preview": {
@@ -68,7 +69,10 @@
     "scenarios": [
       "catalog-ready",
       "tag-filter-missing",
-      "guard-setup"
+      "guard-setup",
+      "shell-ready",
+      "shell-unavailable",
+      "shell-original-held"
     ],
     "native_manifest": "artifacts/rusty-kiosk-native-panel-preview/manifest.json"
   }

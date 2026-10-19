@@ -1,5 +1,9 @@
 # Architecture
 
+The optional [Shell mode](SHELL_MODE.md) keeps policy and durable original
+custody in Kiosk, and compiles the pinned Quest context factory only into its
+separate fixed-operation companion. Existing Visibility ownership stays intact.
+
 ## Decision
 
 Ship two same-signer APKs with deliberately separate authority:

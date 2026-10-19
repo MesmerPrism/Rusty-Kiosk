@@ -1,6 +1,7 @@
 import {
   addTag,
   deriveTags,
+  guardReady,
   importPreviewState,
   removeTag,
   setLaunchRequirement,
@@ -72,7 +73,7 @@ elements.renderer.addEventListener("change", () => {
 elements.guard.addEventListener("change", () => {
   state = {
     ...state,
-    guardEnabled: elements.guard.checked,
+    guardEnabled: elements.guard.checked && guardReady({ ...state.userControls, accessibilityEnabled: elements.guard.checked }),
     userControls: { ...state.userControls, accessibilityEnabled: elements.guard.checked },
   };
   render();
@@ -246,8 +247,7 @@ function renderUserControls() {
       const enabled = !controls.accessibilityEnabled;
       state = {
         ...state,
-        guardEnabled: enabled && (controls.kioskMode !== "visibility" ||
-          (controls.visibilityAvailable && controls.visibilityReady)),
+        guardEnabled: guardReady({ ...controls, accessibilityEnabled: enabled }),
         userControls: {
           ...controls,
           accessibilityEnabled: enabled,
@@ -270,13 +270,15 @@ function renderUserControls() {
   exitHome.id = "rusty-kiosk-meta-home-exit";
   const modeButtons = [
     ["accessibility", "Accessibility recovery", "rusty-kiosk-mode-accessibility"],
+    ["shell", "Shell menu closing", "rusty-kiosk-mode-shell"],
     ["visibility", "Visibility menu closing", "rusty-kiosk-mode-visibility"],
   ].map(([mode, label, controlId]) => {
     const choice = button(label, "outline-button control-button", () => {
       state = selectKioskMode(state, mode); render();
     });
     choice.id = controlId;
-    choice.disabled = controls.kioskMode === mode || (mode === "visibility" && !controls.visibilityAvailable);
+    choice.disabled = controls.kioskMode === mode || (mode === "shell" && !controls.shellCompanionReady) ||
+      (mode === "visibility" && !controls.visibilityAvailable);
     return choice;
   });
 
@@ -285,6 +287,7 @@ function renderUserControls() {
       node("h2", {}, ["Transparent, reversible setup"]),
       node("p", {}, [controls.message]),
       node("p", {}, [`Kiosk mode: ${controls.kioskMode} · synthetic platform readiness`]),
+      node("p", {}, [controls.shellCompanionDescription]),
       node("div", { className: "control-actions" }, modeButtons),
     ]),
     node("div", { className: "control-card-grid" }, [

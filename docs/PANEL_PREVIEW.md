@@ -2,6 +2,9 @@
 
 ## Purpose
 
+Synthetic Shell scenarios cover ready, unavailable and original-held status.
+They do not connect to a companion or qualify headset behavior.
+
 Rusty Kiosk has two complementary desktop views of its one Spatial SDK panel:
 
 - **Browser projection** is interactive and optimized for rapid layout,

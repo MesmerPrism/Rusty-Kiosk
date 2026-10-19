@@ -104,6 +104,7 @@ internal class RustyKioskNativePanel(
   private lateinit var wifiAfterBootStatus: TextView
   private lateinit var accessibilityStatus: TextView
   private lateinit var kioskModeStatus: TextView
+  private lateinit var shellModeButton: Button
   private lateinit var accessibilityModeButton: Button
   private lateinit var visibilityModeButton: Button
   private lateinit var passthroughStatus: TextView
@@ -430,7 +431,11 @@ internal class RustyKioskNativePanel(
       visibilityModeButton = button("Visibility menu closing", {
         onKioskModeSelected(GuardMode.VISIBILITY)
       }).apply { tag = RustyKioskPanelControls.MODE_VISIBILITY }
+      shellModeButton = button("Shell menu closing", {
+        onKioskModeSelected(GuardMode.SHELL)
+      }).apply { tag = RustyKioskPanelControls.MODE_SHELL }
       addView(accessibilityModeButton, margin(top = 7, height = 46))
+      addView(shellModeButton, margin(top = 7, height = 46))
       addView(visibilityModeButton, margin(top = 7, height = 46))
     }, margin(top = 8))
     controlMessage = text("", 13f, COLOR_MUTED)
@@ -575,8 +580,9 @@ internal class RustyKioskNativePanel(
     wifiStatus.text = "Wireless debugging: ${controls.wifiStatusLabel}"
     wifiAfterBootStatus.text = if (controls.requestWifiAfterBoot) "Ask again after restart: On" else "Ask again after restart: Off"
     accessibilityStatus.text = "Accessibility: ${controls.accessibilityStatusLabel}"
-    kioskModeStatus.text = "${controls.kioskModeLabel}. ${controls.visibilityDescription}"
+    kioskModeStatus.text = "${controls.kioskModeLabel}. ${controls.shellCompanionDescription} ${controls.visibilityDescription}"
     accessibilityModeButton.isEnabled = controls.kioskMode != GuardMode.ACCESSIBILITY
+    shellModeButton.isEnabled = controls.shellCompanionReady && controls.kioskMode != GuardMode.SHELL
     visibilityModeButton.isEnabled = controls.visibilityAvailable && controls.kioskMode != GuardMode.VISIBILITY
     passthroughStatus.text = "System passthrough: ${controls.passthroughStatusLabel}"
     passthroughMessage.text = controls.passthroughMessage

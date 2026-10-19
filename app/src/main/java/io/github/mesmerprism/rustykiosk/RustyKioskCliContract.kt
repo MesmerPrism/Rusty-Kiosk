@@ -138,8 +138,8 @@ internal object RustyKioskCliProtocol {
         CliValueRule.REQUIRED -> require(cleanValue != null) { "command requires a value" }
       }
       if (kind == RustyKioskCliCommand.SET_KIOSK_MODE) {
-        require(cleanValue in setOf("accessibility", "visibility")) {
-          "mode must be accessibility or visibility"
+        require(cleanValue in setOf("accessibility", "shell", "visibility")) {
+          "mode must be accessibility, shell or visibility"
         }
       }
       RustyKioskCliRequest(cleanRequestId, kind, cleanValue)
@@ -459,6 +459,9 @@ internal class RustyKioskCliStore(
         .put("accessibility_enabled", controls.accessibilityEnabled)
         .put("kiosk_mode", controls.kioskMode.id)
         .put("guard_ready", controls.guardReady)
+        .put("shell_companion_ready", controls.shellCompanionReady)
+        .put("shell_custody_held", controls.shellCustodyHeld)
+        .put("shell_companion_description", controls.shellCompanionDescription)
         .put("visibility_available", controls.visibilityAvailable)
         .put("visibility_ready", controls.visibilityReady)
         .put("visibility_status", VisibilityMenuBridge.statusJson(appContext))

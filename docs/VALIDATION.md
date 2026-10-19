@@ -2,6 +2,11 @@
 
 ## Host gate
 
+The optional Shell companion adds exact shared Quest factory inventory checks,
+production coordinator/ledger restart and damage controls, cross-mode admission,
+enabled-read lifetime tests, Stable/Labs standalone packaging, and pure postboot
+quarantine checks. These are source/host proofs only; see [Shell mode](SHELL_MODE.md).
+
 The separate shell recenter developer utility runs production consumer/process
 protocol tests from `examples/quest-shell-recenter/tests`. They cover pinned
 source admission, exact named dispatch, passive status, supported/unsupported

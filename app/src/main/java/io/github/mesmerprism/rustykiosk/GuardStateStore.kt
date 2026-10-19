@@ -23,13 +23,22 @@ internal class GuardStateStore(
   private val onDisarm: (String) -> Unit = {},
   private val onVisibilityArmed: (GuardConfig) -> Unit = {},
   private val canArmVisibility: () -> Boolean = { true },
+  private val onShellArmed: (GuardConfig) -> Unit = {},
+  private val canArmShell: () -> Boolean = { true },
+  private val canArmNewGuard: () -> Boolean = { true },
 ) {
   constructor(context: Context, generationSource: () -> Long = SecureRandom()::nextLong) : this(
     context.applicationContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE),
     generationSource,
-    { reason -> VisibilityMenuBridge.disarm(context.applicationContext, reason) },
+    { reason ->
+      ShellCompanionBridge.disarm(context.applicationContext, reason)
+      VisibilityMenuBridge.disarm(context.applicationContext, reason)
+    },
     { config -> VisibilityMenuBridge.onTargetArmed(context.applicationContext, config) },
     { VisibilityMenuBridge.isReady(context.applicationContext) },
+    { config -> ShellCompanionBridge.onTargetArmed(context.applicationContext, config) },
+    { ShellCompanionBridge.isReady(context.applicationContext) },
+    { ShellCompanionBridge.canArmNewGuard(context.applicationContext) },
   )
 
   fun arm(
@@ -39,6 +48,8 @@ internal class GuardStateStore(
     mode: GuardMode = GuardMode.ACCESSIBILITY,
   ): GuardConfig {
     check(mode != GuardMode.UNAVAILABLE) { "Choose a supported kiosk mode explicitly." }
+    check(canArmNewGuard()) { "A prior shell original remains owned; new guard admission waits." }
+    check(mode != GuardMode.SHELL || canArmShell()) { "Shell companion or prior visibility retirement is unavailable." }
     check(mode != GuardMode.VISIBILITY || canArmVisibility()) {
       "Visibility menu closing is unavailable or a previous controller is still owned."
     }
@@ -88,15 +99,19 @@ internal class GuardStateStore(
       try { onVisibilityArmed(config) }
       catch (failure: Throwable) { disarm("visibility-arm-failed"); throw failure }
     }
+    if (mode == GuardMode.SHELL) {
+      try { onShellArmed(config) }
+      catch (failure: Throwable) { disarm("shell-arm-failed"); throw failure }
+    }
     return config
   }
 
   fun disarm(reason: String) {
     onDisarm(reason)
-    preferences.edit()
+    check(preferences.edit()
       .putBoolean(KEY_ARMED, false)
       .putString(KEY_LAST_DISARM_REASON, reason.take(120))
-      .commit()
+      .commit()) { "Could not persist foreground guard disarm." }
   }
 
   fun selectedMode(): GuardMode = GuardMode.fromId(preferences.getString(KEY_SELECTED_MODE, null))

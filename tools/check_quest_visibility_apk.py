@@ -39,7 +39,9 @@ def main():
             if name.startswith("classes") and name.endswith(".dex"):
                 found.update(definitions(apk.read(name)))
     forbidden = sorted(name for name in found if name.startswith("Lhorizonos/os/resource/")
-                       or name == "Lio/github/mesmerprism/rustykiosk/VisibilityPlatformReader;")
+                       or name == "Lio/github/mesmerprism/rustykiosk/VisibilityPlatformReader;"
+                       or name.startswith("Lio/github/mesmerprism/rustyquest/shellrecenter/")
+                       or name.startswith("Lio/github/mesmerprism/rustykiosk/shellcompanion/"))
     prefix = "Lio/github/mesmerprism/rustyquest/navigatorvisibility/"
     required = {prefix + name + ";" for name in (
         "NavigatorVisibilityObserver", "AndroidNavigatorVisibility", "CrcsVisibilityBackend")}

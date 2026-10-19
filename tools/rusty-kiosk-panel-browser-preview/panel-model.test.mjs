@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   addTag,
   deriveTags,
+  guardReady,
   importPreviewState,
   removeTag,
   selectKioskMode,
@@ -55,5 +56,13 @@ assert.equal(ready.userControls.systemPassthroughEnabled, true);
 assert.equal(selectKioskMode(ready, "visibility").guardEnabled, true);
 assert.equal(selectKioskMode({ ...ready, userControls: { ...ready.userControls,
   visibilityReady: false } }, "visibility").guardEnabled, false);
-assert.equal(selectKioskMode(ready, "shell"), ready);
+assert.equal(selectKioskMode(ready, "shell").guardEnabled, false);
+assert.equal(scenarioState("shell-ready").guardEnabled, true);
+assert.equal(scenarioState("shell-unavailable").guardEnabled, false);
+assert.equal(scenarioState("shell-original-held").guardEnabled, false);
+for (const kioskMode of ["shell", "accessibility", "visibility"]) {
+  assert.equal(guardReady({ ...ready.userControls, kioskMode, shellCompanionReady: true, shellCustodyHeld: true }), false);
+}
+assert.equal(guardReady({ ...ready.userControls, kioskMode: "unavailable" }), false);
+assert.equal(importPreviewState({ ...ready, userControls: { ...ready.userControls, kioskMode: "future" } }).userControls.kioskMode, "unavailable");
 console.log("Rusty Kiosk browser panel model passed.");

@@ -36,6 +36,10 @@ class RustyKioskNativePanelRenderTest {
   @Test
   fun guardSetup() = snapshot("guard-setup", PreviewFixtures.guardSetup())
 
+  @Test fun shellReady() = snapshot("shell-ready", PreviewFixtures.shell(ready = true))
+  @Test fun shellUnavailable() = snapshot("shell-unavailable", PreviewFixtures.shell(ready = false))
+  @Test fun shellOriginalHeld() = snapshot("shell-original-held", PreviewFixtures.shell(ready = false, held = true))
+
   private fun snapshot(name: String, state: KioskUiState) {
     paparazzi.snapshot(name = name) {
       RustyKioskTheme {
@@ -116,6 +120,17 @@ private object PreviewFixtures {
 
   fun guardSetup() =
     state(selectedKey = movement.key, guardEnabled = false, userControlsOpen = true)
+
+  fun shell(ready: Boolean, held: Boolean = false): KioskUiState {
+    val base = state(selectedKey = browser.key, guardEnabled = ready && !held, userControlsOpen = true)
+    return base.copy(userControls = base.userControls.copy(kioskMode = GuardMode.SHELL,
+      accessibilityEnabled = false, shellCompanionReady = ready, shellCustodyHeld = held,
+      shellCompanionDescription = when {
+        held -> "Shell recovery disarmed; waiting for the original callback."
+        ready -> "Shell companion ready (fresh heartbeat)."
+        else -> "Shell companion unavailable; ordinary APK permissions do not provide shell authority."
+      }))
+  }
 
   private fun state(
     selectedKey: String,

@@ -1018,6 +1018,9 @@ class RustyKioskActivity : AppSystemActivity() {
     val bridge = operatorBridgeSettings.snapshot()
     return UserControlState(
       kioskMode = GuardStateStore(this).selectedMode(),
+      shellCompanionReady = ShellCompanionBridge.isReady(this),
+      shellCustodyHeld = ShellCompanionBridge.outstandingCustody(this),
+      shellCompanionDescription = ShellCompanionBridge.description(this),
       visibilityAvailable = VisibilityMenuBridge.isAvailable(this),
       visibilityReady = VisibilityMenuBridge.isReady(this),
       visibilityDescription = VisibilityMenuBridge.description(this),
