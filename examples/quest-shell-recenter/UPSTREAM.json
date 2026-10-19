@@ -1,8 +1,8 @@
 {
   "schema": "rusty.kiosk.shell_recenter.upstream.v1",
   "repository": "https://github.com/MesmerPrism/rusty-quest",
-  "revision": "ea04e352276dbf181d7acd90669e8ed010b4d5c7",
-  "tree": "69f0cb4cd7b0aa9de32b6b217c82cd9d90297dc4",
+  "revision": "c3b0ca54fbc613bbf67acc32464ce7497f54f811",
+  "tree": "ddd3836cf39fb41fb5a502aaddecec32242efc95",
   "provider": {
     "path": "tools/shell_recenter/quest_shell_recenter.py",
     "sha256": "64bac0a11ff24922b7c64c877bfa3cb92674cc4abfe346e6d491d0114bccdbc9"
