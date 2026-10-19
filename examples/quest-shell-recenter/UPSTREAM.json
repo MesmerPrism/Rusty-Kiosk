@@ -1,0 +1,12 @@
+{
+  "schema": "rusty.kiosk.shell_recenter.upstream.v1",
+  "repository": "https://github.com/MesmerPrism/rusty-quest",
+  "revision": "ea04e352276dbf181d7acd90669e8ed010b4d5c7",
+  "tree": "69f0cb4cd7b0aa9de32b6b217c82cd9d90297dc4",
+  "provider": {
+    "path": "tools/shell_recenter/quest_shell_recenter.py",
+    "sha256": "64bac0a11ff24922b7c64c877bfa3cb92674cc4abfe346e6d491d0114bccdbc9"
+  },
+  "module": "apps/shell-recenter-android",
+  "license": "AGPL-3.0-or-later"
+}

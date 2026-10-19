@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-  [switch]$SkipAssemble
+  [switch]$SkipAssemble,
+  [string]$QuestShellRecenterUpstreamRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +11,16 @@ if ($PSVersionTable.PSEdition -ne 'Core' -or $PSVersionTable.PSVersion -lt [vers
   throw 'Rusty Kiosk checks require PowerShell 7.6 or newer through pwsh.'
 }
 & (Join-Path $PSScriptRoot 'Test-QuestNavigatorVisibility.ps1') -RepoRoot $repoRoot
+$priorQuestRecenterRoot = $env:QUEST_SHELL_RECENTER_UPSTREAM_ROOT
+try {
+  if ($QuestShellRecenterUpstreamRoot) {
+    $env:QUEST_SHELL_RECENTER_UPSTREAM_ROOT = (Resolve-Path -LiteralPath $QuestShellRecenterUpstreamRoot).Path
+  }
+  & python -B -m unittest discover -s (Join-Path $repoRoot 'examples/quest-shell-recenter/tests') -v
+  if ($LASTEXITCODE -ne 0) { throw 'Quest shell recenter developer consumer checks failed.' }
+} finally {
+  $env:QUEST_SHELL_RECENTER_UPSTREAM_ROOT = $priorQuestRecenterRoot
+}
 
 $manifestPath = Join-Path $repoRoot 'app\src\main\AndroidManifest.xml'
 $serviceXmlPath = Join-Path $repoRoot 'app\src\main\res\xml\kiosk_accessibility_service.xml'
