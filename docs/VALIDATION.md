@@ -2,6 +2,14 @@
 
 ## Host gate
 
+The separate shell recenter developer utility runs production consumer/process
+protocol tests from `examples/quest-shell-recenter/tests`. They cover pinned
+source admission, exact named dispatch, passive status, supported/unsupported
+availability projections, original error/pending preservation, interrupt custody
+and receipt identity rejection. Its producer fixture proves the host boundary
+only; shared Quest adapter tests and exact-device effect/cleanup evidence remain
+separate. The utility is not included in any Kiosk APK or release asset.
+
 The Visibility consumer additionally verifies all 14 vendored source/license
 files against `UPSTREAM.json` through `tools/Test-QuestNavigatorVisibility.ps1`.
 Pass `-UpstreamRoot <exact-clean-Quest-checkout>` for direct canonical comparison.

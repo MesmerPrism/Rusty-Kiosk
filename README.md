@@ -12,6 +12,9 @@ Friends testing the co-installable pre-release should instead follow the
 guided Windows installer, and Kiosk Labs release.
 
 The project is intentionally not a Home replacement or managed-device kiosk.
+The separate [Quest shell recenter developer utility](examples/quest-shell-recenter/README.md)
+consumes the pinned reusable Quest adapter through an explicitly privileged
+host path. It is outside the Kiosk APKs and Launcher Lite's Store behavior.
 **User controls** now offers an explicit **Visibility menu closing** option
 alongside the default Accessibility recovery. It uses the exact shared Quest
 observer and keeps Kiosk's target, escape and fixed-broadcast policy in the app.

@@ -28,6 +28,10 @@ distribution and target identity do not grant additional runtime authority.
 The [reusable utility example catalogue](../examples/README.md) documents
 separate consumer compositions. It does not add boot, BLE, WebSocket, or other
 capabilities to the main app, setup helper, or fixed-target Launcher.
+The standalone [shell recenter developer utility](../examples/quest-shell-recenter/README.md)
+invokes the exact pinned Quest host provider. Quest owns privileged shell
+identity, the fixed AppFunction and original retirement; the utility owns
+only profile admission, console controls and the unchanged typed projection.
 
 The main APK never receives secure-settings authority. The helper exposes no
 shell, terminal, free-form string operation, package/component choice, file
