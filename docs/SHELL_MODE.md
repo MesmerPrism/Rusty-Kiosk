@@ -90,5 +90,9 @@ are forbidden. It is not normal retirement and never clears the app ledger.
 The owner gate checks the shared inventory, production coordinator/preference
 ledger and mode admission, both standalone channel builds/D8 packaging, pure
 native lifetime/parser tests, quarantine damage controls and desktop scenarios.
+Host interleaving tests compile the exact production `nativeEvent` and
+`sampleTarget` method bodies with deterministic scheduling doubles: late
+protocol replies after STOP or generation replacement admit no new escape,
+close or target-state update. Previously admitted originals still drain.
 Physical Home behavior and visible effect require separate exact-artifact
 hardware evidence.

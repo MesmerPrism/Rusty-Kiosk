@@ -23,13 +23,14 @@ $d8 = @(Get-ChildItem -LiteralPath (Join-Path $AndroidSdkRoot 'build-tools') -Di
 if ($d8.Count -ne 1) { throw 'Install Android SDK build-tools with D8.' }
 $d8jar = Join-Path $d8[0].FullName 'lib/d8.jar'
 foreach ($inputPath in @($java,$javac,$jar,$android,$d8jar)) { if (-not (Test-Path -LiteralPath $inputPath -PathType Leaf)) { throw "Missing tool input: $inputPath" } }
+& (Join-Path $PSScriptRoot 'Test-RustyKioskShellCompanionInterleavings.ps1') -JavaHome $JavaHome | Out-Host
 $build = Join-Path $module ('build/' + [Guid]::NewGuid().ToString('N'))
 $classes = Join-Path $build 'classes'; $tests = Join-Path $build 'tests'; $dex = Join-Path $build 'dex'; $generated = Join-Path $build 'generated'
 New-Item -ItemType Directory -Path $classes,$tests,$dex,$generated -Force | Out-Null
 $sources = @(Get-ChildItem -LiteralPath (Join-Path $module 'src/main/java') -Recurse -Filter '*.java' | Sort-Object FullName)
 $factory = Join-Path $repo 'vendor/quest-shell-context/src/main/java/io/github/mesmerprism/rustyquest/shellrecenter/ShellApplicationContext.java'
 $testSources = @(Get-ChildItem -LiteralPath (Join-Path $module 'src/test/java') -Recurse -Filter '*.java' | Sort-Object FullName)
-$inputs = @($sources.FullName) + @($factory,$upstreamPath,(Join-Path $repo 'vendor/quest-shell-context/LICENSE')) + @($testSources.FullName) + @($java,$javac,$jar,$android,$d8jar,$PSCommandPath,(Join-Path $PSScriptRoot 'Test-QuestShellContext.ps1'))
+$inputs = @($sources.FullName) + @($factory,$upstreamPath,(Join-Path $repo 'vendor/quest-shell-context/LICENSE')) + @($testSources.FullName) + @($java,$javac,$jar,$android,$d8jar,$PSCommandPath,(Join-Path $PSScriptRoot 'Test-QuestShellContext.ps1'),(Join-Path $PSScriptRoot 'Test-RustyKioskShellCompanionInterleavings.ps1'),(Join-Path $module 'src/host-test/ProtocolInterleavingTests.java.in'))
 $pins = @($inputs | ForEach-Object { [ordered]@{ path=$_; sha256=(Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant() } })
 $sourceInventory = @(@($sources.FullName) + @($factory,$upstreamPath) | Sort-Object | ForEach-Object {
   [IO.Path]::GetRelativePath($repo,$_).Replace('\','/') + ' ' + (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()

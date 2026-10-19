@@ -203,6 +203,8 @@ public final class Main {
             Bundle reply=call(value.open?"native-open":"native-closed",input);
             main.post(() -> {
                 event("NATIVE_DECISION",replyJson(reply).put("event_uptime_ms",value.uptimeMs));
+                // A protocol reply is not admission for a new UI effect after revocation.
+                if (stopped || g!=generation) return;
                 String action=reply.getString("action");
                 if ("escape".equals(action)) {
                     generation=0; candidate=null; qualifiedGeneration=0; lastFocused=null;
@@ -358,7 +360,7 @@ public final class Main {
                 protocol(() -> { try { Bundle reply=call("target-state",extras().putLongValue("generation",g)
                     .putBooleanValue("own_focused",focused).putLongValue("observed_uptime_ms",sampledAt));
                     main.post(() -> {
-                        if (generation!=g) return;
+                        if (stopped || generation!=g) return;
                         String status=reply.getString("status");
                         if ("target_qualified".equals(status) || "target_observed".equals(status) || "target_focus_unchanged".equals(status)
                                 || "awaiting_target_focus".equals(status)) { lastFocused=focused;
