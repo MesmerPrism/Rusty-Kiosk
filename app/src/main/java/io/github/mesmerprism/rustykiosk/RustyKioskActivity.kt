@@ -111,7 +111,6 @@ class RustyKioskActivity : AppSystemActivity() {
       if (shellReturn) null else launchIntent.getStringExtra(RustyKioskCliProtocol.EXTRA_PENDING_REQUEST_ID)
     super.onCreate(savedInstanceState)
     if (shellReturnLifecycle.rejected) { finish(); return }
-    if (shellReturn) setIntent(mainIntent()) // The first resume remains fenced; later ordinary recreation is ordinary.
     // Meta's VR keyboard can have an active served EditText and report mInputShown=true while its
     // compositor surface remains hidden. This activity-window flag is Meta's Spatial SDK
     // compatibility route for keeping the system IME surface visible above the immersive scene.
@@ -141,12 +140,13 @@ class RustyKioskActivity : AppSystemActivity() {
 
   override fun onNewIntent(intent: Intent) {
     if (intent.action == ShellReturnPolicy.ACTION) {
+      setIntent(intent) // Retain the binding through first resume, including recreation or rejection.
       if (!acceptShellReturn(intent)) { finish(); return }
-      setIntent(mainIntent())
       super.onNewIntent(intent)
       refreshCatalogue("shell-return")
       return // Shell dispatch already requested one fresh task; never schedule the generic delayed restart.
     }
+    shellReturnLifecycle.ordinaryIntent()
     if (intent.action == GuardContract.ACTION_RETURN_TO_KIOSK) {
       setIntent(mainIntent())
       guardLaunchHandoffLease.clear()
@@ -169,6 +169,7 @@ class RustyKioskActivity : AppSystemActivity() {
       finish()
       return // A superseded Shell intent must not run ordinary resume's disarm.
     }
+    if (intent.action == ShellReturnPolicy.ACTION) setIntent(mainIntent())
     mainHandler.removeCallbacks(readinessRefresh)
     mainHandler.postDelayed(readinessRefresh, 1000L)
     passthroughController?.let {

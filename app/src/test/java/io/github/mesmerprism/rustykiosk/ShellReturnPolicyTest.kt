@@ -145,6 +145,31 @@ class ShellReturnPolicyTest {
     assertEquals(1, owner.requests)
   }
 
+  @Test fun genuineOrdinaryOrGenericIntentReplacesPendingShellClassification() {
+    for (mode in listOf(GuardMode.ACCESSIBILITY, GuardMode.VISIBILITY, GuardMode.SHELL)) {
+      val owner = Owner(); owner.third()
+      val lifecycle = ShellReturnLifecycle(owner.store); assertTrue(lifecycle.arrive(42))
+      owner.store.arm(target, "Replacement", mode = mode)
+      assertTrue(lifecycle.pending)
+      lifecycle.ordinaryIntent() // Actual non-Shell onNewIntent route, including generic returns.
+      assertFalse(lifecycle.pending); assertFalse(lifecycle.rejected); assertTrue(lifecycle.resumeAllowed())
+      owner.store.disarm("rusty-kiosk-resumed") // Genuine ordinary resume keeps its original authority.
+      assertNull(owner.store.loadArmed())
+    }
+  }
+
+  @Test fun pendingShellIdentitySurvivesUntilResumeAndRecreationCannotBecomeOrdinary() {
+    val owner = Owner(); owner.third()
+    val lifecycle = ShellReturnLifecycle(owner.store); assertTrue(lifecycle.arrive(42))
+    assertTrue(lifecycle.pending)
+    val recreated = ShellReturnLifecycle(owner.store)
+    assertFalse(recreated.arrive(42)) // Retained Shell intent sees ARRIVED, not a new unused escape.
+    assertFalse(recreated.resumeAllowed())
+    assertTrue(lifecycle.pending); assertTrue(lifecycle.resumeAllowed()); assertFalse(lifecycle.pending)
+    owner.store.disarm("rusty-kiosk-resumed")
+    assertTrue(lifecycle.resumeAllowed()) // Later ordinary wearer resumes remain ordinary.
+  }
+
   private class Preferences {
     val live = mutableMapOf<String, Any?>()
     var commits = true

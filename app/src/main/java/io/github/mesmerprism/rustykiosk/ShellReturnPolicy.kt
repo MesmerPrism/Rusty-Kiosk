@@ -28,6 +28,9 @@ internal class ShellReturnLifecycle(private val store: GuardStateStore) {
   private var generation: Long? = null
   var rejected: Boolean = false
     private set
+  val pending: Boolean get() = generation != null
+
+  fun ordinaryIntent() { generation = null; rejected = false }
 
   fun arrive(requested: Long?): Boolean {
     val accepted = requested != null && store.acceptShellReturnArrival(requested)

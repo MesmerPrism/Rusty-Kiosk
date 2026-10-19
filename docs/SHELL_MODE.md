@@ -24,7 +24,10 @@ persisted disarm reason. Delivery and first resume reject intervening Normal
 launch, mode change, new generation, duplicate delivery or failed storage before
 their source paths can disarm newer state. Ordinary wearer resume and existing
 Accessibility/Visibility returns keep their own behavior. These are source
-admission/delivery fences, not a background-launch, compositor or OS ordering
+fences: a genuine non-Shell intent clears pending Shell classification, while
+the Shell intent keeps its binding through first resume and recreation.
+They are
+not a background-launch, compositor or OS ordering
 guarantee; independent real Accessibility/focus observations remain authoritative.
 
 ## Authority and custody
