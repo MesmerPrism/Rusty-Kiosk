@@ -91,6 +91,7 @@ class RustyKioskActivity : AppSystemActivity() {
     }
   private var pendingCliRequestId: String? = null
   private var pendingRequirementCliRequest: RustyKioskCliRequest? = null
+  private val shellReturnLifecycle by lazy(LazyThreadSafetyMode.NONE) { ShellReturnLifecycle(GuardStateStore(this)) }
 
   override fun registerFeatures(): List<SpatialFeature> =
     listOf(
@@ -104,9 +105,13 @@ class RustyKioskActivity : AppSystemActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     val launchIntent = intent
+    val shellReturn = launchIntent.action == ShellReturnPolicy.ACTION
+    if (shellReturn) acceptShellReturn(launchIntent)
     pendingCliRequestId =
-      launchIntent.getStringExtra(RustyKioskCliProtocol.EXTRA_PENDING_REQUEST_ID)
+      if (shellReturn) null else launchIntent.getStringExtra(RustyKioskCliProtocol.EXTRA_PENDING_REQUEST_ID)
     super.onCreate(savedInstanceState)
+    if (shellReturnLifecycle.rejected) { finish(); return }
+    if (shellReturn) setIntent(mainIntent()) // The first resume remains fenced; later ordinary recreation is ordinary.
     // Meta's VR keyboard can have an active served EditText and report mInputShown=true while its
     // compositor surface remains hidden. This activity-window flag is Meta's Spatial SDK
     // compatibility route for keeping the system IME surface visible above the immersive scene.
@@ -121,7 +126,7 @@ class RustyKioskActivity : AppSystemActivity() {
         selectedKey = browsingState.selectedKey,
       )
     guardLaunchHandoffLease.clear()
-    launchController.disarm(
+    if (!shellReturn) launchController.disarm(
       if (launchIntent.action == GuardContract.ACTION_RETURN_TO_KIOSK) {
         "triple-home-return-created"
       } else {
@@ -135,6 +140,13 @@ class RustyKioskActivity : AppSystemActivity() {
   }
 
   override fun onNewIntent(intent: Intent) {
+    if (intent.action == ShellReturnPolicy.ACTION) {
+      if (!acceptShellReturn(intent)) { finish(); return }
+      setIntent(mainIntent())
+      super.onNewIntent(intent)
+      refreshCatalogue("shell-return")
+      return // Shell dispatch already requested one fresh task; never schedule the generic delayed restart.
+    }
     if (intent.action == GuardContract.ACTION_RETURN_TO_KIOSK) {
       setIntent(mainIntent())
       guardLaunchHandoffLease.clear()
@@ -153,6 +165,10 @@ class RustyKioskActivity : AppSystemActivity() {
 
   override fun onResume() {
     super.onResume()
+    if (!shellReturnLifecycle.resumeAllowed()) {
+      finish()
+      return // A superseded Shell intent must not run ordinary resume's disarm.
+    }
     mainHandler.removeCallbacks(readinessRefresh)
     mainHandler.postDelayed(readinessRefresh, 1000L)
     passthroughController?.let {
@@ -189,6 +205,7 @@ class RustyKioskActivity : AppSystemActivity() {
 
   override fun onSceneReady() {
     super.onSceneReady()
+    if (shellReturnLifecycle.rejected) return
     scene.setReferenceSpace(ReferenceSpace.LOCAL_FLOOR)
     scene.setViewOrigin(0.0f, 0.0f, VIEW_ORIGIN_Z_METERS, 180.0f)
     passthroughController =
@@ -1085,6 +1102,12 @@ class RustyKioskActivity : AppSystemActivity() {
       RETURN_RESTART_DELAY_MS,
     )
     finishAndRemoveTask()
+  }
+
+  private fun acceptShellReturn(intent: Intent): Boolean {
+    @Suppress("DEPRECATION")
+    val generation = runCatching { intent.extras?.get(ShellReturnPolicy.EXTRA_GENERATION) as? Long }.getOrNull()
+    return shellReturnLifecycle.arrive(generation)
   }
 
   private fun mainIntent(): Intent =

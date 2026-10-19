@@ -15,6 +15,18 @@ target qualification, generation, third-Home escape and disarm policy. This is
 a platform-dependent developer path, not managed kiosk, Guardian control,
 input interception, remapping, or proof of a visible effect.
 
+Provider calls authenticate on the original Binder thread, then serialize policy
+with wearer actions on the app main thread. Third-Home verifies the current
+Shell generation, disarms and requests one fixed fresh self-task in that same
+turn. The helper's escape reply is observation only; it never runs a delayed
+`am start`. A distinct Shell return intent binds the escaped generation and
+persisted disarm reason. Delivery and first resume reject intervening Normal
+launch, mode change, new generation, duplicate delivery or failed storage before
+their source paths can disarm newer state. Ordinary wearer resume and existing
+Accessibility/Visibility returns keep their own behavior. These are source
+admission/delivery fences, not a background-launch, compositor or OS ordering
+guarantee; independent real Accessibility/focus observations remain authoritative.
+
 ## Authority and custody
 
 The companion compiles the unchanged shared Quest `ShellApplicationContext`

@@ -85,7 +85,7 @@ public final class ProtocolInterleavingTests {
         newerEscape.generation=43; newerEscape.main.one();
         check(newerEscape.returns==0); check(newerEscape.generation==43);
         ProtocolInterleavingTests liveEscape=nativeReply("escape"); liveEscape.main.one();
-        check(liveEscape.returns==1); check(liveEscape.generation==0);
+        check(liveEscape.returns==0); check(liveEscape.generation==0); // App owns return; helper observes only.
         ProtocolInterleavingTests stoppedClose=nativeReply("close"); stoppedClose.stop("explicit-stop"); stoppedClose.main.one();
         check(stoppedClose.scheduled==0); check(stoppedClose.candidate==null);
         ProtocolInterleavingTests liveClose=nativeReply("close"); liveClose.main.one();

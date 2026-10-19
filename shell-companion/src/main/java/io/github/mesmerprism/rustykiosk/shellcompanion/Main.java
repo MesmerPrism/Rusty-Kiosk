@@ -44,7 +44,7 @@ public final class Main {
     ExternalProvider provider;
     Object manager, request;
     Method execute, resultDocument;
-    java.lang.Process reader, escape;
+    java.lang.Process reader;
     Thread readerThread;
     int producerPid, readerPid, calls;
     String producerBirth, readerBirth;
@@ -52,7 +52,7 @@ public final class Main {
     long lastPoll, lastIdentity, lastSample;
     long capabilityDispatch;
     Boolean lastFocused;
-    boolean ready, registered, stopped, finished, outputHeld, readerEof, sampling, escapeKnown = true;
+    boolean ready, registered, stopped, finished, outputHeld, readerEof, sampling;
     boolean pollBusy, registrationBusy, withdrawalStarted, withdrawn;
     int retirements;
     boolean claimBusy;
@@ -208,7 +208,8 @@ public final class Main {
                 String action=reply.getString("action");
                 if ("escape".equals(action)) {
                     generation=0; candidate=null; qualifiedGeneration=0; lastFocused=null;
-                    event("CURRENT_GUARD_ESCAPED",json("generation",g)); returnToKiosk(); return;
+                    // The app already admitted its fixed return on app main. This reply is observation only.
+                    event("CURRENT_GUARD_ESCAPED",json("generation",g)); return;
                 }
                 if (!stopped && g==generation && "close".equals(action) && state.eligible(edge)) {
                     String id=reply.getString("command_id"); canonicalUuid(id);
@@ -386,14 +387,6 @@ public final class Main {
         if (!boot.equals(read("/proc/sys/kernel/random/boot_id").trim()) || !producerBirth.equals(birth(producerPid))
                 || !META.equals(read("/proc/"+producerPid+"/cmdline").split("\u0000",2)[0])) throw new IllegalStateException("native-producer-changed");
     }
-    void returnToKiosk() {
-        escapeKnown=false;
-        sample(() -> { try {
-            String answer=command("/system/bin/am","start","-a","io.github.mesmerprism.rustykiosk.action.FOREGROUND_GUARD_RETURN",
-                "-c","android.intent.category.LAUNCHER","-n",CompanionIdentity.COMPONENT,"-f","0x34000000");
-            main.post(() -> { escapeKnown=true; event("FIXED_KIOSK_RETURN_RETIRED",json("transport_returned",true)); finishIfKnown(); });
-        } catch(Throwable e) { main.post(() -> { outputHeld=true; fail("fixed-kiosk-return",e); }); } });
-    }
     void stop(String why) {
         if (!stopped) { stopped=true; state.stop(); candidate=null; event("ADMISSION_STOPPED",json("reason",why)); }
         if (reader!=null && reader.isAlive()) reader.destroy(); // Own log reader only; never an original UI caller.
@@ -411,7 +404,7 @@ public final class Main {
                 .put("reason",reason==null?"":reason.substring(0,Math.min(reason.length(),512)))); stop(where);
     }
     void finishIfKnown() {
-        if (!stopped || finished || state.pending() || enabledRead.pending() || claimBusy || registrationBusy || original!=null || outputHeld || !escapeKnown || retirements!=0
+        if (!stopped || finished || state.pending() || enabledRead.pending() || claimBusy || registrationBusy || original!=null || outputHeld || retirements!=0
                 || (registered&&!withdrawn) || sampling || pollBusy || protocolJobs.get()!=0 || sampleJobs.get()!=0
                 || (reader!=null && !readerEof)) return;
         finished=true;

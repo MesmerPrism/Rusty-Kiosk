@@ -34,11 +34,11 @@ class ShellCompanionProvider : ContentProvider() {
       else -> throw IllegalArgumentException("Unknown operation")
     }
     require(input.keySet().all { it in COMMON || it in specific }) { "Unknown field" }
-    val now = SystemClock.uptimeMillis()
     return ShellCompanionBridge.withCoordinator(ctx) { coordinator ->
+      val now = SystemClock.uptimeMillis() // Actual app-main admission time, after any Binder queueing.
       val targetBefore = if (method == "close-result") coordinator.originalTarget else coordinator.armedTarget
       val generation = if ("generation" in specific) input.required<Long>("generation") else null
-      val reply = when (method) {
+      var reply = when (method) {
         "register" -> coordinator.register(identity, input.required("ready"), now)
         "poll" -> coordinator.heartbeat(identity, now)
         "target-state" -> coordinator.targetState(identity, generation!!, input.required("own_focused"), now,
@@ -74,7 +74,11 @@ class ShellCompanionProvider : ContentProvider() {
         }
         if (reply.action == "escape") record(GuardTimingPhase.ESCAPE)
       }
-      if (reply.disarm) {
+      if (reply.action == "escape") {
+        check(targetBefore != null)
+        if (!ShellCompanionBridge.returnFromShell(ctx, targetBefore))
+          reply = ShellCompanionReply("stale_escape_rejected")
+      } else if (reply.disarm) {
         val active = GuardStateStore(ctx).loadArmed()
         check(active == null || (active.mode == GuardMode.SHELL &&
           active.generation == targetBefore?.generation)) { "Refusing to revoke another guard generation" }

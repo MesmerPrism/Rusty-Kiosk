@@ -116,6 +116,21 @@ internal class GuardStateStore(
 
   fun selectedMode(): GuardMode = GuardMode.fromId(preferences.getString(KEY_SELECTED_MODE, null))
 
+  /** Existing persisted generation/reason fences only this Shell intent, never ordinary resume. */
+  fun acceptShellReturnArrival(generation: Long): Boolean = runCatching {
+    matchesShellReturn(generation, ShellReturnPolicy.ESCAPED) &&
+      preferences.edit().putString(KEY_LAST_DISARM_REASON, ShellReturnPolicy.ARRIVED).commit()
+  }.getOrDefault(false)
+
+  fun canResumeShellReturn(generation: Long): Boolean = matchesShellReturn(generation, ShellReturnPolicy.ARRIVED)
+
+  private fun matchesShellReturn(generation: Long, reason: String): Boolean = runCatching {
+    generation != 0L && !preferences.getBoolean(KEY_ARMED, false) &&
+      preferences.getLong(KEY_GENERATION, 0L) == generation &&
+      preferences.getString(KEY_MODE, null) == GuardMode.SHELL.id &&
+      preferences.getString(KEY_LAST_DISARM_REASON, null) == reason
+  }.getOrDefault(false)
+
   fun setSelectedMode(mode: GuardMode) {
     check(mode != GuardMode.UNAVAILABLE)
     if (mode != selectedMode()) disarm("kiosk-mode-changed")

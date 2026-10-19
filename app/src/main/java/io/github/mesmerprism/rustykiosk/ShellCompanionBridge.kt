@@ -1,13 +1,18 @@
 package io.github.mesmerprism.rustykiosk
 
 import android.content.Context
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import java.util.UUID
+import java.util.concurrent.FutureTask
 import org.json.JSONObject
 
 /** In-process app authority shared by the UI and the call-only shell provider. */
 internal object ShellCompanionBridge {
   private val lock = Any()
+  private val main = Handler(Looper.getMainLooper())
   private var instance: ShellCompanionCoordinator? = null
   private fun coordinator(context: Context): ShellCompanionCoordinator = instance ?: ShellCompanionCoordinator(
     StoredShellOriginalLedger(context.applicationContext.getSharedPreferences(StoredShellOriginalLedger.PREFERENCES, Context.MODE_PRIVATE)),
@@ -50,13 +55,33 @@ internal object ShellCompanionBridge {
   fun metricsSummary(context: Context): String = GuardTimingStore(context).summary()
   fun metricsJson(context: Context): JSONObject = GuardTimingStore(context).snapshotJson()
 
-  fun <T> withCoordinator(context: Context, operation: (ShellCompanionCoordinator) -> T): T = synchronized(lock) {
-    val coordinator = coordinator(context)
-    if (!coordinator.synchronizeTarget(GuardStateStore(context).loadArmed()?.asShellTarget())) {
-      GuardStateStore(context).disarm("shell-control-plane-restarted-or-revoked")
-      check(GuardStateStore(context).loadArmed() == null) { "Could not persist shell revocation" }
+  fun <T> withCoordinator(context: Context, operation: (ShellCompanionCoordinator) -> T): T {
+    // Provider authentication happens on the original Binder thread before this hop.
+    // Never hold lock while waiting for main. Original IPC completes genuinely; no timeout/retry.
+    if (Looper.myLooper() != main.looper) {
+      val pending = FutureTask { withCoordinator(context, operation) }
+      check(main.post(pending)) { "App main authority unavailable" }
+      return pending.get()
     }
-    operation(coordinator)
+    return synchronized(lock) {
+      val coordinator = coordinator(context)
+      if (!coordinator.synchronizeTarget(GuardStateStore(context).loadArmed()?.asShellTarget())) {
+        GuardStateStore(context).disarm("shell-control-plane-restarted-or-revoked")
+        check(GuardStateStore(context).loadArmed() == null) { "Could not persist shell revocation" }
+      }
+      operation(coordinator)
+    }
+  }
+
+  fun returnFromShell(context: Context, expected: ShellGuardTarget): Boolean {
+    check(Looper.myLooper() == main.looper)
+    return ShellReturnPolicy.dispatch(GuardStateStore(context), expected) { generation ->
+      // A local request only. Background launch and OS focus/delivery remain device-unqualified.
+      context.startActivity(Intent(ShellReturnPolicy.ACTION, null, context, RustyKioskActivity::class.java)
+        .putExtra(ShellReturnPolicy.EXTRA_GENERATION, generation)
+        .addCategory(Intent.CATEGORY_LAUNCHER)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+    }
   }
 
   private fun GuardConfig.asShellTarget() = ShellGuardTarget(generation, target.packageName, target.activityName, mode)
