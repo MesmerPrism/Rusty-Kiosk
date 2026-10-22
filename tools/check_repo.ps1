@@ -942,6 +942,8 @@ try {
   }
 
   $env:RUSTY_KIOSK_LAUNCHER_DISTRIBUTION = 'Store'
+  & pwsh -NoProfile -ExecutionPolicy Bypass -File .\tools\Test-RustyKioskCatalogV2Boundary.ps1
+  if ($LASTEXITCODE -ne 0) { throw 'Encrypted catalogue summary boundary gate failed.' }
   & pwsh -NoProfile -ExecutionPolicy Bypass -File $appLaunchOptionsBoundaryTestPath
   if ($LASTEXITCODE -ne 0) {
     throw "App launch-options boundary gate failed with exit code $LASTEXITCODE."

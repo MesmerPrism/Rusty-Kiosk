@@ -142,6 +142,8 @@ pwsh -NoProfile -ExecutionPolicy Bypass `
 | Command | Value | Equivalent app action |
 | --- | --- | --- |
 | `status` | none | Refresh and report current app/control state |
+| `request-catalog-summary` | none | Open User controls and report pending wearer consent; never grant from the host |
+| `revoke-catalog-summary` | none | Revoke summary consent through the same visible control handler |
 | `show-controls` / `show-apps` | none | Switch the one panel between its two surfaces |
 | `reload` | none | Press **Reload** |
 | `focus-search` | none | Focus the native search field and request the Meta keyboard |

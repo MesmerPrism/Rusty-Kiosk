@@ -8,6 +8,7 @@ import {
   selectKioskMode,
   scenarioState,
   selectedEntry,
+  setCatalogSummarySharing,
   visibleEntries,
 } from "./panel-model.mjs";
 
@@ -66,3 +67,11 @@ for (const kioskMode of ["shell", "accessibility", "visibility"]) {
 assert.equal(guardReady({ ...ready.userControls, kioskMode: "unavailable" }), false);
 assert.equal(importPreviewState({ ...ready, userControls: { ...ready.userControls, kioskMode: "future" } }).userControls.kioskMode, "unavailable");
 console.log("Rusty Kiosk browser panel model passed.");
+
+assert.equal(setCatalogSummarySharing(ready, true).userControls.catalogSummaryGranted, false);
+const linked = { ...ready, userControls: { ...ready.userControls, operatorBridgeEnabled: true } };
+const shared = setCatalogSummarySharing(linked, true);
+assert.equal(shared.userControls.catalogSummaryGranted, true);
+assert.equal(setCatalogSummarySharing(shared, false).userControls.catalogSummaryGranted, false);
+assert.equal(importPreviewState(shared).userControls.catalogSummaryGranted, true);
+assert.equal(importPreviewState({ ...shared, userControls: { ...shared.userControls, operatorBridgeEnabled: false } }).userControls.catalogSummaryGranted, false);

@@ -264,6 +264,7 @@ class RustyKioskActivity : AppSystemActivity() {
         applyPassthroughStyle(KioskPassthroughStyle.CONTOUR_LUT, "panel-contour")
       },
       onToggleOperatorBridge = ::toggleOperatorBridge,
+      onToggleCatalogSummary = ::toggleCatalogSummary,
       onRotateOperatorBridgeCode = ::rotateOperatorBridgeCode,
       onRequestInstallerPermission = ::requestInstallerPermission,
       onExitToMetaHome = ::exitToMetaHome,
@@ -636,6 +637,15 @@ class RustyKioskActivity : AppSystemActivity() {
         if (setupHelperClient.isInstalled()) requestSetupOperationFromCli(request, SetupHelperOperation.STATUS)
         else cliOutcome(true, true, "Current Rusty Kiosk state recorded.")
       }
+      RustyKioskCliCommand.REQUEST_CATALOG_SUMMARY -> {
+        state = state.copy(userControlsOpen = true)
+        refreshUserControls("The PC requested catalogue summary. Use Share catalogue summary to consent.")
+        cliOutcome(true, false, "Wearer consent is pending in User controls; no catalogue grant was created.")
+      }
+      RustyKioskCliCommand.REVOKE_CATALOG_SUMMARY -> {
+        setCatalogSummaryGranted(false)
+        cliOutcome(true, true, "Catalogue summary sharing revoked; encrypted sessions invalidated.")
+      }
       RustyKioskCliCommand.SHOW_CONTROLS -> {
         state = state.copy(userControlsOpen = true)
         cliOutcome(true, true, "User controls opened.")
@@ -958,6 +968,20 @@ class RustyKioskActivity : AppSystemActivity() {
     )
   }
 
+  private fun toggleCatalogSummary() {
+    val granted = !operatorBridgeSettings.snapshot().catalogSummaryGranted
+    setCatalogSummaryGranted(granted)
+  }
+
+  private fun setCatalogSummaryGranted(granted: Boolean) {
+    operatorBridgeSettings.setV2CatalogSummaryGranted(granted)
+    refreshUserControls(if (granted) {
+      "Encrypted catalogue summary sharing is on. Labels, tags and opaque app identities are shared."
+    } else {
+      "Catalogue summary sharing revoked. Existing encrypted sessions were invalidated."
+    })
+  }
+
   private fun rotateOperatorBridgeCode() {
     operatorBridgeSettings.rotatePairingCode()
     refreshUserControls(
@@ -1055,6 +1079,7 @@ class RustyKioskActivity : AppSystemActivity() {
       accessibilityEnabled = isGuardEnabled(),
       operatorBridgeEnabled = bridge.enabled,
       operatorBridgeRunning = bridge.enabled && bridge.running && bridge.transitionConverged,
+      catalogSummaryGranted = bridge.catalogSummaryGranted,
       operatorBridgeEndpoint = bridge.endpoint,
       operatorBridgePairingCode = bridge.pairingCode,
       installerAllowed = bridge.installerAllowed,

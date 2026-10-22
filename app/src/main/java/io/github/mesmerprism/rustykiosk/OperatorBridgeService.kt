@@ -28,7 +28,12 @@ class OperatorBridgeService : Service() {
     createNotificationChannel()
   }
 
-  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+  override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
+    synchronized(OperatorBridgeTransitionLock.monitor) {
+      onStartCommandLocked(intent, flags, startId)
+    }
+
+  private fun onStartCommandLocked(intent: Intent?, flags: Int, startId: Int): Int {
     val snapshot = settings.snapshot()
     val requestedAction = if (intent?.action == ACTION_STOP) {
       OperatorBridgeRequestedAction.STOP
@@ -64,7 +69,7 @@ class OperatorBridgeService : Service() {
     if (serverGeneration != expectedGeneration) stopBridge()
     if (server == null) {
       runCatching {
-          OperatorBridgeHttpServer(this, settings.pairingCode()).also { http ->
+          OperatorBridgeHttpServer(this, settings.pairingCode(), expectedGeneration).also { http ->
             http.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false)
             server = http
             serverGeneration = expectedGeneration
@@ -98,6 +103,7 @@ class OperatorBridgeService : Service() {
 
   private fun stopBridge(): Long? {
     val stoppedGeneration = serverGeneration
+    DirectOperatorV2GrantMutex.locked { ProcessDirectOperatorV2Sessions.manager.clear() }
     server?.stop()
     server = null
     serverGeneration = null
@@ -127,22 +133,54 @@ class OperatorBridgeService : Service() {
   }
 }
 
-private class OperatorBridgeHttpServer(
+internal class OperatorBridgeHttpServer(
   private val context: android.content.Context,
   private val pairingKey: String,
+  private val bridgeGeneration: Long,
 ) : NanoHTTPD(OperatorBridgeSettings.PORT) {
+  @Volatile private var v2Active = true
+  override fun stop() {
+    synchronized(OperatorBridgeTransitionLock.monitor) {
+      v2Active = false
+      DirectOperatorV2GrantMutex.locked { ProcessDirectOperatorV2Sessions.manager.clear() }
+    }
+    super.stop()
+  }
+
   private val replayStore = OperatorBridgeReplayStore(context)
   private val tagStore = TagFileStore(context)
   private val cliStore = RustyKioskCliStore(context)
   private val installStore = RustyKioskInstallStore(context)
   private val sessionStore = OperatorBridgeSessionStore(context)
   private val bridgeSettings = OperatorBridgeSettings(context)
+  private val v2Endpoint = DirectOperatorV2Endpoint(
+    sessions = ProcessDirectOperatorV2Sessions.manager,
+    profile = bridgeSettings::directV2Profile,
+    pairingCode = bridgeSettings::pairingCode,
+    snapshot = KioskCatalogOwner(context)::snapshot,
+    currentGeneration = {
+      val state = bridgeSettings.snapshot()
+      v2Active && state.enabled && state.bridgeGeneration == bridgeGeneration
+    },
+    locked = { block -> synchronized(OperatorBridgeTransitionLock.monitor) {
+      DirectOperatorV2GrantMutex.locked(block)
+    } },
+  )
+  private val v2HttpAdapter = DirectOperatorV2HttpAdapter(v2Endpoint)
   private val stagingDirectory =
     (context.getExternalFilesDir("operator-staging")
         ?: File(context.filesDir, "operator-staging"))
       .also(File::mkdirs)
 
   override fun serve(session: IHTTPSession): Response {
+    if (session.uri.startsWith("/v2/")) {
+      val result = v2HttpAdapter.serve(session.method.name, session.uri,
+        session.queryParameterString, session.headers, session.inputStream)
+      return newFixedLengthResponse(
+        Response.Status.lookup(result.status) ?: Response.Status.UNAUTHORIZED,
+        "application/json", ByteArrayInputStream(result.body), result.body.size.toLong(),
+      )
+    }
     val target = requestTarget(session)
     if (session.method == Method.GET && session.uri == PATH_CONTRACT) {
       return publicContract()

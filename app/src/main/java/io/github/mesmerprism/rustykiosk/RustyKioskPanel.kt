@@ -78,6 +78,7 @@ internal fun RustyKioskPanel(
   onDisableAccessibility: () -> Unit,
   onUseNaturalPassthrough: () -> Unit,
   onUseContourPassthrough: () -> Unit,
+  onToggleCatalogSummary: () -> Unit = {},
   onExitToMetaHome: () -> Unit,
   onLaunchRequirementSelected: (AppLaunchRequirement) -> Unit = {},
   onKioskModeSelected: (GuardMode) -> Unit = {},
@@ -120,6 +121,7 @@ internal fun RustyKioskPanel(
       if (state.userControlsOpen) {
         UserControlCenter(
           controls = state.userControls,
+          onToggleCatalogSummary = onToggleCatalogSummary,
           onKioskModeSelected = onKioskModeSelected,
           onCheckSetupHelper = onCheckSetupHelper,
           onRequestWifiAdb = onRequestWifiAdb,
@@ -677,6 +679,7 @@ private fun UserControlCenter(
   onDisableAccessibility: () -> Unit,
   onUseNaturalPassthrough: () -> Unit,
   onUseContourPassthrough: () -> Unit,
+  onToggleCatalogSummary: () -> Unit,
   onExitToMetaHome: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
@@ -684,6 +687,16 @@ private fun UserControlCenter(
     modifier = modifier.testTag(RustyKioskPanelControls.USER_CONTROLS),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+      Text(if (controls.catalogSummaryGranted) "Catalogue summary: shared" else "Catalogue summary: off")
+      OutlinedButton(
+        onClick = onToggleCatalogSummary,
+        enabled = controls.operatorBridgeEnabled,
+        modifier = Modifier.testTag(RustyKioskPanelControls.CATALOG_SUMMARY_TOGGLE),
+      ) { Text(if (controls.catalogSummaryGranted) "Revoke catalogue summary" else "Share catalogue summary") }
+    }
+    Text("Shares labels, tags and opaque app identities with the paired PC. Detail and launch are unavailable.",
+      style = MaterialTheme.typography.bodySmall)
     Text("Transparent, reversible setup", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     Text("Kiosk mode: ${controls.kioskModeLabel}", style = MaterialTheme.typography.titleMedium)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -59,6 +59,8 @@ kotlin {
     kotlin.srcDir(stageLaunchOptionModels.map { it.destinationFile.get().asFile.parentFile })
     kotlin.include(
       "CatalogModels.kt",
+      "AppSigningEvidence.kt",
+      "KioskCatalogDigest.kt",
       "AppLaunchOptionModels.kt",
       "GuardMode.kt",
       "BootRequestStatus.kt",

@@ -335,3 +335,16 @@ or app-owned background plane. ISDK 0.13.2 contributes only its internal
 non-exported `ChannelBrokerService`; no other service, receiver or provider is
 admitted. Legacy `launcher` Labs Store and Business handoffs remain
 separate. See [Launcher Lite](LAUNCHER_LITE.md).
+
+## Encrypted catalogue summary owner
+
+`DirectOperatorV2Endpoint` owns the closed summary-only wire dispatch around the
+retained HKDF/AES-GCM parser and session manager. `DirectOperatorV2HttpAdapter`
+owns fixed bounded HTTP framing; `OperatorBridgeService` keeps its current HMAC,
+USB session, staging and install routes. `KioskCatalogOwner` is a read-only
+PackageManager/tag adapter into the source-bound identity and snapshot factory.
+`OperatorBridgeSettings` owns persisted summary consent and epochs. The current
+Activity owns the explicit wearer grant and shared visible/typed revoke handler;
+a typed request opens consent pending. Browser/native projections carry that
+same state and stable control tag. Detail and catalogue launch are inactive.
+See `DIRECT_OPERATOR.md` for lock order, expiry and revocation semantics.

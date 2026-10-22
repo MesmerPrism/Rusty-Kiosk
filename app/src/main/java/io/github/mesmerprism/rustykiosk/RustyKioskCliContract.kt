@@ -11,6 +11,8 @@ import java.util.UUID
 internal enum class RustyKioskCliCommand(val wireName: String, val valueRule: CliValueRule) {
   STATUS("status", CliValueRule.NONE),
   SHOW_CONTROLS("show-controls", CliValueRule.NONE),
+  REQUEST_CATALOG_SUMMARY("request-catalog-summary", CliValueRule.NONE),
+  REVOKE_CATALOG_SUMMARY("revoke-catalog-summary", CliValueRule.NONE),
   SHOW_APPS("show-apps", CliValueRule.NONE),
   RELOAD("reload", CliValueRule.NONE),
   FOCUS_SEARCH("focus-search", CliValueRule.NONE),
@@ -470,6 +472,9 @@ internal class RustyKioskCliStore(
         .put("passthrough_lut_applied", controls.passthroughLutApplied)
         .put("operator_bridge_enabled", controls.operatorBridgeEnabled)
         .put("operator_bridge_running", controls.operatorBridgeRunning)
+        .put("catalog_summary_granted", controls.catalogSummaryGranted)
+        .put("catalog_detail_granted", false)
+        .put("catalog_launch_active", false)
         .put("operator_bridge_endpoint", controls.operatorBridgeEndpoint ?: JSONObject.NULL)
         .put("installer_allowed", controls.installerAllowed)
         .put("guard_armed", guardArmed)

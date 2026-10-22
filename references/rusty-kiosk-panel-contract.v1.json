@@ -62,7 +62,8 @@
     "rusty-kiosk-meta-home-exit",
     "rusty-kiosk-mode-accessibility",
     "rusty-kiosk-mode-shell",
-    "rusty-kiosk-mode-visibility"
+    "rusty-kiosk-mode-visibility",
+    "rusty-kiosk-catalog-summary-toggle"
   ],
   "preview": {
     "synthetic_only": true,

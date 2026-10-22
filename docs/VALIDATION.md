@@ -369,3 +369,16 @@ uses a separate create-new `store-assets-distinct-v2` directory, preserving
 the old on-device assets. The default v1 flow remains available.
 Hash uniqueness is insufficient for Store scene diversity: visually review
 all five genuine images together before any separate listing resubmission.
+
+## Encrypted catalogue interoperability
+
+`tools/Test-RustyKioskCatalogV2.ps1 -QfmSourceRoot <task-owned-exact-checkout>`
+runs production Kotlin against the pinned published QFM consumer. The external
+checkout must be clean and match the script's exact source pin; it is used as a
+ProjectReference and owns its own ignored build output. The harness uses framed
+stdin/stdout and an HttpMessageHandler, with no listener, headset or global
+credential enrollment. Evidence includes actual subprocess-response bytes and
+producer/consumer source hashes. Reuse the current USB bootstrap, bridge action,
+request tombstone and install commitment tests; the ordinary repository gate
+still runs all Kotlin tests, lint, manifests and assemblies. The separate HTTP
+adapter tests cover exact routes and fixed bounded request framing.

@@ -17,6 +17,7 @@ internal data class OperatorBridgeSnapshot(
   val installerAllowed: Boolean,
   val lastError: String?,
   val bridgeGeneration: Long,
+  val catalogSummaryGranted: Boolean = false,
 )
 
 internal enum class OperatorBridgeRequestedAction { START, STOP }
@@ -70,29 +71,34 @@ internal class OperatorBridgeSettings(context: Context) {
   private val preferences =
     appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
 
-  fun snapshot(): OperatorBridgeSnapshot = synchronized(STATE_LOCK) {
-    val enabled = preferences.getBoolean(KEY_ENABLED, false)
-    val generation = generationLocked()
-    OperatorBridgeSnapshot(
-      enabled = enabled,
-      running = preferences.getBoolean(KEY_RUNNING, false),
-      transitionConverged = OperatorBridgeActionPolicy.isTransitionConverged(
-        enabled,
-        generation,
-        preferences.getBoolean(KEY_RUNNING, false),
-        preferences.getLong(KEY_RUNNING_GENERATION, 0L),
-      ),
-      endpoint = preferredIpv4()?.let { "http://$it:$PORT" },
-      pairingCode = pairingCode(),
-      installerAllowed = appContext.packageManager.canRequestPackageInstalls(),
-      lastError = preferences.getString(KEY_LAST_ERROR, null),
-      bridgeGeneration = generation,
-    )
+  fun snapshot(): OperatorBridgeSnapshot = synchronized(OperatorBridgeTransitionLock.monitor) {
+    DirectOperatorV2GrantMutex.locked {
+      synchronized(STATE_LOCK) {
+        val enabled = preferences.getBoolean(KEY_ENABLED, false)
+        val generation = generationLocked()
+        OperatorBridgeSnapshot(
+          enabled = enabled,
+          running = preferences.getBoolean(KEY_RUNNING, false),
+          transitionConverged = OperatorBridgeActionPolicy.isTransitionConverged(
+            enabled,
+            generation,
+            preferences.getBoolean(KEY_RUNNING, false),
+            preferences.getLong(KEY_RUNNING_GENERATION, 0L),
+          ),
+          endpoint = preferredIpv4()?.let { "http://$it:$PORT" },
+          pairingCode = pairingCode(),
+          installerAllowed = appContext.packageManager.canRequestPackageInstalls(),
+          lastError = preferences.getString(KEY_LAST_ERROR, null),
+          bridgeGeneration = generation,
+          catalogSummaryGranted = enabled && v2StateLocked().summaryGranted,
+        )
+      }
+    }
   }
 
   /** Returns true only when this request changed a wearer-disabled bridge to enabled. */
   fun setEnabled(enabled: Boolean): Boolean = synchronized(OperatorBridgeTransitionLock.monitor) {
-    setEnabledLocked(enabled)
+    DirectOperatorV2GrantMutex.locked { setEnabledLocked(enabled) }
   }
 
   /** Fails closed if another wearer/provider transition advanced the expected generation. */
@@ -101,7 +107,7 @@ internal class OperatorBridgeSettings(context: Context) {
       if (expectedGeneration <= 0L || generation() != expectedGeneration) {
         return@synchronized false
       }
-      setEnabledLocked(enabled)
+      DirectOperatorV2GrantMutex.locked { setEnabledLocked(enabled) }
       true
     }
 
@@ -114,7 +120,9 @@ internal class OperatorBridgeSettings(context: Context) {
       } else {
         nextGeneration(previousGeneration)
       }
+      if (!enabled) revokeV2CatalogGrantsLocked()
       if (enabled != wasEnabled) {
+        ProcessDirectOperatorV2Sessions.manager.clear()
         OperatorBridgeSessionStore(appContext).revokeGeneration(previousGeneration)
       }
       preferences.edit()
@@ -160,13 +168,87 @@ internal class OperatorBridgeSettings(context: Context) {
     }
 
   fun rotatePairingCode(): String = synchronized(OperatorBridgeTransitionLock.monitor) {
-    val code = generatePairingCode()
-    synchronized(STATE_LOCK) {
-      preferences.edit().putString(KEY_PAIRING_CODE, code).commit()
+    DirectOperatorV2GrantMutex.locked {
+      val code = generatePairingCode()
+      synchronized(STATE_LOCK) {
+        require(preferences.edit().putString(KEY_PAIRING_CODE, code)
+          .putString(KEY_OWNER_EPOCH, randomToken()).commit())
+        persistV2StateLocked(newV2State())
+        ProcessDirectOperatorV2Sessions.manager.clear()
+      }
+      setEnabledLocked(false)
+      code
     }
-    setEnabled(false)
-    code
   }
+
+  /** Only the Activity's explicit wearer control calls this granting route. */
+  fun setV2CatalogSummaryGranted(granted: Boolean) =
+    synchronized(OperatorBridgeTransitionLock.monitor) {
+      DirectOperatorV2GrantMutex.locked {
+        synchronized(STATE_LOCK) {
+          require(!granted || preferences.getBoolean(KEY_ENABLED, false)) {
+            "Enable the direct link before sharing catalogue summary."
+          }
+          val current = v2StateLocked()
+          persistV2StateLocked(current.copy(
+            summaryGranted = granted,
+            summaryGrantEpoch = randomToken(),
+            detailGranted = false,
+            detailGrantEpoch = randomToken(),
+          ))
+          ProcessDirectOperatorV2Sessions.manager.clear()
+        }
+      }
+    }
+
+  fun directV2Profile(): DirectOperatorV2Profile =
+    synchronized(OperatorBridgeTransitionLock.monitor) {
+      DirectOperatorV2GrantMutex.locked {
+        synchronized(STATE_LOCK) {
+          val state = v2StateLocked()
+          val ownerEpoch = preferences.getString(KEY_OWNER_EPOCH, null)
+            ?.takeIf { Regex("^[A-Za-z0-9_-]{16,96}$").matches(it) }
+            ?: randomToken().also {
+              require(preferences.edit().putString(KEY_OWNER_EPOCH, it).commit())
+            }
+          DirectOperatorV2Profile(
+            state.pairingId, state.keyEpoch, ownerEpoch, state.kdfSalt,
+            DirectOperatorV2Grant(preferences.getBoolean(KEY_ENABLED, false) && state.summaryGranted,
+              state.summaryGrantEpoch),
+            DirectOperatorV2Grant(false, state.detailGrantEpoch),
+          )
+        }
+      }
+    }
+
+  private fun revokeV2CatalogGrantsLocked() {
+    val state = v2StateLocked()
+    persistV2StateLocked(state.copy(summaryGranted = false, summaryGrantEpoch = randomToken(),
+      detailGranted = false, detailGrantEpoch = randomToken()))
+    ProcessDirectOperatorV2Sessions.manager.clear()
+  }
+
+  private fun v2StateLocked(): DirectOperatorV2SettingsState {
+    preferences.getString(KEY_V2_STATE, null)?.let { raw ->
+      DirectOperatorV2SettingsState.parseStrict(raw)?.takeIf { !it.detailGranted }?.let { return it }
+    }
+    return newV2State().also(::persistV2StateLocked)
+  }
+
+  private fun persistV2StateLocked(state: DirectOperatorV2SettingsState) {
+    require(preferences.edit().putString(KEY_V2_STATE, state.toJson().toString()).commit()) {
+      "Catalogue consent could not be persisted."
+    }
+  }
+
+  private fun newV2State() = DirectOperatorV2SettingsState(
+    randomToken(), randomToken(),
+    DirectOperatorV2Base64.encode(ByteArray(DirectOperatorV2Crypto.KDF_SALT_BYTES)
+      .also(SecureRandom()::nextBytes)),
+    false, randomToken(), false, randomToken(),
+  )
+
+  private fun randomToken() = DirectOperatorV2Base64.encode(ByteArray(24).also(SecureRandom()::nextBytes))
 
   fun pairingCode(): String = synchronized(STATE_LOCK) {
     preferences.getString(KEY_PAIRING_CODE, null)
@@ -243,6 +325,8 @@ internal class OperatorBridgeSettings(context: Context) {
     private const val KEY_RUNNING_GENERATION = "running_generation"
     private const val KEY_PAIRING_CODE = "pairing_code"
     private const val KEY_LAST_ERROR = "last_error"
+    private const val KEY_V2_STATE = "direct_v2_state"
+    private const val KEY_OWNER_EPOCH = "catalog_owner_epoch"
     private const val KEY_GENERATION = "bridge_generation"
     private const val CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
     private val STATE_LOCK = Any()
