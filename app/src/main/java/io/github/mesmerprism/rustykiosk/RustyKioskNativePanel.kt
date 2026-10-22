@@ -636,8 +636,12 @@ internal class RustyKioskNativePanel(
       "Catalogue summary: off. Sharing includes labels, tags and opaque app identities."
     }
     catalogSummaryButton.text = if (controls.catalogSummaryGranted) "Revoke catalogue summary" else "Share catalogue summary"
-    catalogSummaryButton.isEnabled = controls.operatorBridgeEnabled
-    operatorBridgeButton.text = if (controls.operatorBridgeEnabled) "Disable direct link" else "Enable direct link"
+    catalogSummaryButton.isEnabled = controls.operatorBridgeEnabled && !controls.operatorBridgePersistenceBlocked
+    operatorBridgeButton.text = when {
+      controls.operatorBridgePersistenceBlocked -> "Enable direct link to recover"
+      controls.operatorBridgeEnabled -> "Disable direct link"
+      else -> "Enable direct link"
+    }
     operatorBridgeButton.setOnClickListener { onToggleOperatorBridge() }
     rotateOperatorBridgeButton.isEnabled = !controls.operatorBridgeRunning
     installerPermissionButton.visibility = if (controls.installerAllowed) View.GONE else View.VISIBLE

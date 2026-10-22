@@ -159,8 +159,7 @@ internal class OperatorBridgeHttpServer(
     pairingCode = bridgeSettings::pairingCode,
     snapshot = KioskCatalogOwner(context)::snapshot,
     currentGeneration = {
-      val state = bridgeSettings.snapshot()
-      v2Active && state.enabled && state.bridgeGeneration == bridgeGeneration
+      v2Active && bridgeSettings.acceptsGeneration(bridgeGeneration)
     },
     locked = { block -> synchronized(OperatorBridgeTransitionLock.monitor) {
       DirectOperatorV2GrantMutex.locked(block)
@@ -173,6 +172,10 @@ internal class OperatorBridgeHttpServer(
       .also(File::mkdirs)
 
   override fun serve(session: IHTTPSession): Response {
+    if (!v2Active || !bridgeSettings.acceptsGeneration(bridgeGeneration)) {
+      return unsignedJson(Response.Status.SERVICE_UNAVAILABLE,
+        failure("The direct-link generation is inactive or settings recovery is required."))
+    }
     if (session.uri.startsWith("/v2/")) {
       val result = v2HttpAdapter.serve(session.method.name, session.uri,
         session.queryParameterString, session.headers, session.inputStream)

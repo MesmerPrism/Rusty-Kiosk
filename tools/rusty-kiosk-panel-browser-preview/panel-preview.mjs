@@ -289,7 +289,7 @@ function renderUserControls() {
       render();
     });
   summaryToggle.id = "rusty-kiosk-catalog-summary-toggle";
-  summaryToggle.disabled = !controls.operatorBridgeEnabled;
+  summaryToggle.disabled = !controls.operatorBridgeEnabled || controls.operatorBridgePersistenceBlocked;
   elements.userControls.replaceChildren(
     node("div", { className: "control-center-heading" }, [
       node("h2", {}, ["Transparent, reversible setup"]),

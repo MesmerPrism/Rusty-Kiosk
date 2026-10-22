@@ -423,7 +423,8 @@ class RustyKioskOperatorProvider : ContentProvider() {
       if (snapshot.transitionConverged) OperatorRequestState.CONFIRMED.wireName
       else OperatorRequestState.PENDING.wireName,
     )
-    putString(RustyKioskOperatorContract.RESULT_MESSAGE, "Direct-link status read without issuing a credential.")
+    putString(RustyKioskOperatorContract.RESULT_MESSAGE,
+      snapshot.lastError ?: "Direct-link status read without issuing a credential.")
   }
 
   private fun contractResult(): Bundle =

@@ -75,3 +75,6 @@ assert.equal(shared.userControls.catalogSummaryGranted, true);
 assert.equal(setCatalogSummarySharing(shared, false).userControls.catalogSummaryGranted, false);
 assert.equal(importPreviewState(shared).userControls.catalogSummaryGranted, true);
 assert.equal(importPreviewState({ ...shared, userControls: { ...shared.userControls, operatorBridgeEnabled: false } }).userControls.catalogSummaryGranted, false);
+
+const blockedLink = { ...linked, userControls: { ...linked.userControls, operatorBridgePersistenceBlocked: true } };
+assert.equal(setCatalogSummarySharing(blockedLink, true).userControls.catalogSummaryGranted, false);

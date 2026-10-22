@@ -275,6 +275,7 @@ internal class DirectOperatorV2SessionManager(
       }
     return try {
       val currentTime = checkedNow()
+      require(currentTime <= responseAllocation.expiresAtMs) { "The original request expired before response encryption." }
       val expiresAt =
         minOf(responseAllocation.expiresAtMs, currentTime + MAX_REQUEST_LIFETIME_MS)
       val nonce =

@@ -91,6 +91,7 @@ export function scenarioState(name = "catalog-ready") {
       wirelessDebuggingEnabled: true,
       accessibilityEnabled: true,
       operatorBridgeEnabled: false,
+      operatorBridgePersistenceBlocked: false,
       catalogSummaryGranted: false,
       operationInProgress: null,
       message: "Dedicated setup helper is installed and provisioned.",
@@ -252,6 +253,7 @@ export function importPreviewState(value) {
       wirelessDebuggingEnabled: Boolean(value.userControls?.wirelessDebuggingEnabled),
       accessibilityEnabled: Boolean(value.userControls?.accessibilityEnabled),
       operatorBridgeEnabled: Boolean(value.userControls?.operatorBridgeEnabled),
+      operatorBridgePersistenceBlocked: Boolean(value.userControls?.operatorBridgePersistenceBlocked),
       catalogSummaryGranted: Boolean(value.userControls?.operatorBridgeEnabled) && Boolean(value.userControls?.catalogSummaryGranted),
       operationInProgress:
         value.userControls?.operationInProgress == null
@@ -311,6 +313,6 @@ function clone(value) {
 }
 
 export function setCatalogSummarySharing(state, granted) {
-  if (granted && !state.userControls.operatorBridgeEnabled) return state;
+  if (granted && (!state.userControls.operatorBridgeEnabled || state.userControls.operatorBridgePersistenceBlocked)) return state;
   return { ...state, userControls: { ...state.userControls, catalogSummaryGranted: granted } };
 }

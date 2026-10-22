@@ -185,6 +185,7 @@ internal data class UserControlState(
   val accessibilityEnabled: Boolean = false,
   val operatorBridgeEnabled: Boolean = false,
   val operatorBridgeRunning: Boolean = false,
+  val operatorBridgePersistenceBlocked: Boolean = false,
   val catalogSummaryGranted: Boolean = false,
   val operatorBridgeEndpoint: String? = null,
   val operatorBridgePairingCode: String = "",
@@ -241,6 +242,7 @@ internal data class UserControlState(
   val operatorBridgeStatusLabel: String
     get() =
       when {
+        operatorBridgePersistenceBlocked -> "Error"
         !operatorBridgeEnabled -> "Off"
         operatorBridgeRunning -> "Ready"
         operatorBridgeError != null -> "Error"

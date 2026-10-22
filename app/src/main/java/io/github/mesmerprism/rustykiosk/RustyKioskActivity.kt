@@ -643,8 +643,8 @@ class RustyKioskActivity : AppSystemActivity() {
         cliOutcome(true, false, "Wearer consent is pending in User controls; no catalogue grant was created.")
       }
       RustyKioskCliCommand.REVOKE_CATALOG_SUMMARY -> {
-        setCatalogSummaryGranted(false)
-        cliOutcome(true, true, "Catalogue summary sharing revoked; encrypted sessions invalidated.")
+        val changed = setCatalogSummaryGranted(false)
+        cliOutcome(changed, true, state.userControls.message)
       }
       RustyKioskCliCommand.SHOW_CONTROLS -> {
         state = state.copy(userControlsOpen = true)
@@ -953,8 +953,12 @@ class RustyKioskActivity : AppSystemActivity() {
   }
 
   private fun toggleOperatorBridge() {
-    val enable = !operatorBridgeSettings.snapshot().enabled
-    operatorBridgeSettings.setEnabled(enable)
+    val before = operatorBridgeSettings.snapshot()
+    val enable = before.persistenceBlocked || !before.enabled
+    if (runCatching { operatorBridgeSettings.setEnabled(enable) }.isFailure) {
+      refreshUserControls("Direct-link transition failed; access is blocked. Use Enable direct link to recover.")
+      return
+    }
     refreshUserControls(
       if (enable) {
         "Starting the authenticated local operator link. It exposes only fixed Rusty Kiosk operations."
@@ -973,20 +977,30 @@ class RustyKioskActivity : AppSystemActivity() {
     setCatalogSummaryGranted(granted)
   }
 
-  private fun setCatalogSummaryGranted(granted: Boolean) {
-    operatorBridgeSettings.setV2CatalogSummaryGranted(granted)
-    refreshUserControls(if (granted) {
-      "Encrypted catalogue summary sharing is on. Labels, tags and opaque app identities are shared."
-    } else {
-      "Catalogue summary sharing revoked. Existing encrypted sessions were invalidated."
-    })
-  }
+  private fun setCatalogSummaryGranted(granted: Boolean): Boolean =
+    runCatching { operatorBridgeSettings.setV2CatalogSummaryGranted(granted) }.fold(
+      onSuccess = {
+        refreshUserControls(if (granted) {
+          "Encrypted catalogue summary sharing is on. Labels, tags and opaque app identities are shared."
+        } else {
+          "Catalogue summary sharing revoked. Existing encrypted sessions were invalidated."
+        })
+        true
+      },
+      onFailure = {
+        refreshUserControls("Catalogue consent change failed; direct access is blocked. Use Enable direct link to recover.")
+        false
+      },
+    )
 
   private fun rotateOperatorBridgeCode() {
-    operatorBridgeSettings.rotatePairingCode()
-    refreshUserControls(
-      "Pairing code rotated and the direct link was disabled. Update the PC, then enable it again."
-    )
+    runCatching { operatorBridgeSettings.rotatePairingCode() }
+      .onSuccess {
+        refreshUserControls("Pairing code rotated and the direct link was disabled. Update the PC, then enable it again.")
+      }
+      .onFailure {
+        refreshUserControls("Pairing rotation failed; direct access is blocked. Use Enable direct link to recover.")
+      }
   }
 
   private fun requestInstallerPermission() {
@@ -1080,6 +1094,7 @@ class RustyKioskActivity : AppSystemActivity() {
       operatorBridgeEnabled = bridge.enabled,
       operatorBridgeRunning = bridge.enabled && bridge.running && bridge.transitionConverged,
       catalogSummaryGranted = bridge.catalogSummaryGranted,
+      operatorBridgePersistenceBlocked = bridge.persistenceBlocked,
       operatorBridgeEndpoint = bridge.endpoint,
       operatorBridgePairingCode = bridge.pairingCode,
       installerAllowed = bridge.installerAllowed,
@@ -1087,6 +1102,7 @@ class RustyKioskActivity : AppSystemActivity() {
       operationInProgress = stored.pendingOperation?.wireName,
       message =
         (messageOverride
+          ?: bridge.lastError
           ?: stored.message
           ?: if (installed) {
             "Wi-Fi ADB, Accessibility, direct PC access, and local installs are separate opt-ins."

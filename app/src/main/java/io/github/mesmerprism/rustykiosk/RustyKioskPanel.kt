@@ -280,7 +280,7 @@ private fun AppListRow(entry: CatalogEntry, selected: Boolean, onClick: () -> Un
     )
     if (entry.tags.isNotEmpty()) {
       Text(
-        entry.tags.sorted().joinToString(" Â· "),
+        entry.tags.sorted().joinToString(" · "),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.primary,
         maxLines = 1,
@@ -368,7 +368,7 @@ private fun AppDetails(
             shape = RoundedCornerShape(8.dp),
             contentPadding = ButtonDefaults.TextButtonContentPadding,
           ) {
-            Text("$tag Ã—")
+            Text("$tag ×")
           }
         }
       }
@@ -692,7 +692,7 @@ private fun UserControlCenter(
       Text(if (controls.catalogSummaryGranted) "Catalogue summary: shared" else "Catalogue summary: off")
       OutlinedButton(
         onClick = onToggleCatalogSummary,
-        enabled = controls.operatorBridgeEnabled,
+        enabled = controls.operatorBridgeEnabled && !controls.operatorBridgePersistenceBlocked,
         modifier = Modifier.testTag(RustyKioskPanelControls.CATALOG_SUMMARY_TOGGLE),
       ) { Text(if (controls.catalogSummaryGranted) "Revoke catalogue summary" else "Share catalogue summary") }
     }
@@ -772,7 +772,7 @@ private fun UserControlCenter(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      ControlCard("Wi-Fi ADB Â· explicit opt-in", Modifier.weight(1.0f)) {
+      ControlCard("Wi-Fi ADB · explicit opt-in", Modifier.weight(1.0f)) {
         Text(
           "The dedicated setup helper exposes only fixed Rusty Kiosk operations. USB-C provisions it once; no terminal app is needed.",
           style = MaterialTheme.typography.bodySmall,
@@ -821,7 +821,7 @@ private fun UserControlCenter(
         }
       }
 
-      ControlCard("Accessibility Â· explicit opt-in", Modifier.weight(1.0f)) {
+      ControlCard("Accessibility · explicit opt-in", Modifier.weight(1.0f)) {
         Text(
           "Enables the soft guard for kiosk launches only. It is disarmed while this Rusty Kiosk panel is visible.",
           style = MaterialTheme.typography.bodySmall,

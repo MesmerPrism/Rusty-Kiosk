@@ -453,12 +453,25 @@ class DirectOperatorV2ContractTest {
     assertTrue("Old open replay evidence was discarded", runCatching { fixture.open() }.isFailure)
   }
 
+  @Test
+  fun deadlineCrossingBetweenResponseAllocationAndFinalClockReadRefusesSeal() {
+    val fixture = Fixture()
+    val session = fixture.open()
+    val envelope = fixture.envelope(session, 1, "expiry_crossing_0001", lifetimeMs = 1_000)
+    val opened = fixture.manager.openRequest("POST", DirectOperatorV2RoutePolicy.CATALOG_SUMMARY_PATH,
+      envelope, fixture.profile)
+    fixture.advanceAtRead = fixture.clockReads + 3
+    assertTrue(runCatching { fixture.manager.sealResponse(opened, "secret".toByteArray(), fixture.profile) }.isFailure)
+  }
+
   private class Fixture(
     clearBeforeResponseEncrypt: Boolean = false,
     summaryGranted: Boolean = true,
     detailGranted: Boolean = false,
   ) {
     var now = 1_800_000_000_000L
+    var clockReads = 0
+    var advanceAtRead: Int? = null
     val profile =
       DirectOperatorV2Profile(
         pairingId = "pairing_identity_000000000001",
@@ -478,7 +491,11 @@ class DirectOperatorV2ContractTest {
       sessionManager =
         DirectOperatorV2SessionManager(
           CountingSecureRandom(),
-          now = { now },
+          now = {
+            clockReads++
+            if (clockReads == advanceAtRead) now += 1_001
+            now
+          },
           beforeResponseEncrypt = {
             if (clearBeforeResponseEncrypt) sessionManager.clear()
           },

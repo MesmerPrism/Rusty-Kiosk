@@ -189,6 +189,16 @@ is bridge transition, catalogue grant, settings state, then session state; passi
 PackageManager/tag collection runs outside those locks. Serialization and sealing
 recheck the current generation, profile and original request deadline together.
 
+Rotation commits the code, owner identity, fresh revoked v2 profile, disabled link
+and next generation in one preference transaction. Old USB credentials and
+process v2 keys retire before that write. A failed retirement, commit or Stop
+dispatch blocks new direct requests and reports error/unconverged status. It does
+not report durable revocation or completed Stop from Android's in-memory
+preference readback. **Enable direct link to recover** persists a fresh profile
+with both catalogue grants false and a new generation before access returns;
+failed recovery stays blocked. Consent persistence failures also report failure
+through the typed receipt and visible control instead of claiming success.
+
 Snapshots have an exact five-minute freshness window and at most 500 entries.
 Signer evidence failures omit entries and increase `permission_limited_count`.
 Labels normalize control characters and whitespace before hashing and encoding.
