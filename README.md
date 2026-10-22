@@ -302,9 +302,13 @@ session. A base APK and its splits are combined into one session.
 
 The direct protocol accepts only fixed endpoints. Requests expire, replay IDs
 are retained, request bodies are SHA-256 checked, and requests and responses
-are HMAC-SHA-256 signed. It is authenticated and integrity-protected, but the
-current HTTP transport is not encrypted; use a trusted local network or the
-PC's private hotspot. See [Direct operator link](docs/DIRECT_OPERATOR.md).
+are HMAC-SHA-256 signed on the existing `/v1` command/file/install routes.
+Those HTTP bodies remain unencrypted; use a trusted local network or the PC's
+private hotspot. Separately, the wearer can enable **Share catalogue summary**
+for the encrypted `/v2` catalogue protocol. It shares labels, tags and opaque app
+identities; detail and catalogue launch remain unavailable. USB bootstrap and
+direct-link enablement never grant catalogue consent. See
+[Direct operator link](docs/DIRECT_OPERATOR.md).
 
 An already authorized USB ADB shell may ask the fixed provider-v4 adapter to
 enable the listener and issue one 32-byte, five-minute session credential bound

@@ -93,10 +93,11 @@ requires enabled state, running state, and the internal running generation to
 converge on the current `bridge_generation`; the internal generation is not an
 additional host wire field.
 
-This provides authentication, integrity, expiry, and replay resistance. It does
-not encrypt HTTP bodies. Use a trusted local network or a private Windows
-hotspot. Transport encryption is a future protocol-version change, not an
-implicit property of v2.
+The existing `/v1` command, tag, staging and installer routes provide HMAC
+authentication, integrity, expiry and replay resistance without body encryption.
+Use a trusted local network or a private Windows hotspot for those routes.
+The separately granted encrypted catalogue protocol below does not change their
+credentials, effects or USB bootstrap sessions.
 
 ## Files and APKs
 
@@ -152,3 +153,70 @@ exposes read-only `/v1/kiosk/request-status` and exact queued-request
 `/v1/kiosk/cancel`; status never creates work. Requests expire after two
 minutes. Claimed, wearer-pending, and terminal operations cannot be cancelled,
 and process restart reconciliation never replays a claimed mutation.
+
+## Encrypted catalogue summary
+
+The wearer may enable **Share catalogue summary** in User controls after enabling
+the direct link. It is off by default and independent of USB bootstrap, link
+enablement, ADB, Accessibility and installation permission. It shares app labels,
+normalized tags, opaque signer-bound app identities and snapshot completeness.
+Package/component names and signing-certificate detail are omitted. Catalogue
+reads do not bring Kiosk forward, evaluate launch requirements, modify the tag
+file, or operate a guard, installer or setup helper.
+
+The fixed routes are `GET /v2/contract`, `POST /v2/session/open` and
+`POST /v2/catalog/summary`. The profile is `rusty-kiosk-direct-v2` with
+HKDF-SHA256 and directional AES-256-GCM keys. The pairing code authenticates
+session open; a current summary grant and exact pairing/key/owner/grant epochs
+are independently required. No USB bootstrap secret grants catalogue consent.
+Detail and app launch remain unavailable. Fixed inactive launch schema names in
+the public contract carry no launch authority.
+
+Sessions last at most 90 seconds and requests at most 30 seconds. Original
+request time bounds are checked again before collection, serialization and
+response sealing; a response cannot extend that request's deadline. Any observed
+backward UTC step destroys live session keys and refuses exchanges until the
+clock catches up with the process's prior observation. It creates no replacement
+grant. Replay identifiers remain retained through that clock refusal. New process
+sessions start empty; an existing valid persisted wearer grant may survive a
+process restart, while missing or damaged state resets to no grant.
+
+Disable the direct link, revoke catalogue summary, or rotate the pairing code to
+invalidate encrypted sessions. Disable and rotation revoke consent. Rotation
+changes the pairing/key/owner identity and leaves the link disabled. Delayed
+START actions must still match the current enabled bridge generation. Lock order
+is bridge transition, catalogue grant, settings state, then session state; passive
+PackageManager/tag collection runs outside those locks. Serialization and sealing
+recheck the current generation, profile and original request deadline together.
+
+Rotation commits the code, owner identity, fresh revoked v2 profile, disabled link
+and next generation in one preference transaction. Old USB credentials and
+process v2 keys retire before that write. A failed retirement, commit or Stop
+dispatch blocks new direct requests and reports error/unconverged status. It does
+not report durable revocation or completed Stop from Android's in-memory
+preference readback. **Enable direct link to recover** persists a fresh profile
+with both catalogue grants false and a new generation before access returns;
+failed recovery stays blocked. Consent persistence failures also report failure
+through the typed receipt and visible control instead of claiming success.
+
+Snapshots have an exact five-minute freshness window and at most 500 entries.
+Signer evidence failures omit entries and increase `permission_limited_count`.
+Labels normalize control characters and whitespace before hashing and encoding.
+An entry with more than 64 merged tags, invalid tag controls or no displayable
+label is omitted with `complete=false` and its candidate retained in
+`total_candidate_count`; this is not reported as a permission failure. A snapshot
+with more than 500 candidates reports truncation. The closed response shape lets
+the consumer distinguish incomplete evidence from an empty complete inventory.
+
+The typed `request-catalog-summary` action opens User controls and reports
+`pending_wearer_action`; only the wearer button grants consent. The typed
+`revoke-catalog-summary` action uses the same revoke handler. Ordinary `status`
+reports summary consent, false detail grant and inactive catalogue launch.
+
+For host conformance, run `tools/Test-RustyKioskCatalogV2.ps1 -QfmSourceRoot
+<task-owned-exact-checkout>`. It binds the published QFM source pin, compiles the
+actual Kotlin parser/session/snapshot serializer and runs the actual QFM
+`RustyKioskV2CatalogProvider.FetchAsync` and subprocess host over a framed process
+transport. Its in-memory profile never writes Windows Credential Manager. HTTP
+adapter tests separately exercise routing, fixed lengths, truncation and bounds.
+This host proof does not claim headset, keyboard, runtime or release qualification.

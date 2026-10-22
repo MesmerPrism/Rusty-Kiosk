@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <BaseOutputPath>$(MSBuildThisFileDirectory)../../artifacts/catalog-v2-interop/dotnet/bin/</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../../artifacts/catalog-v2-interop/dotnet/obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

@@ -62,6 +62,7 @@ internal class RustyKioskNativePanel(
   private val onUseNaturalPassthrough: () -> Unit,
   private val onUseContourPassthrough: () -> Unit,
   private val onToggleOperatorBridge: () -> Unit,
+  private val onToggleCatalogSummary: () -> Unit,
   private val onRotateOperatorBridgeCode: () -> Unit,
   private val onRequestInstallerPermission: () -> Unit,
   private val onExitToMetaHome: () -> Unit,
@@ -119,6 +120,8 @@ internal class RustyKioskNativePanel(
   private lateinit var operatorBridgeEndpoint: TextView
   private lateinit var operatorBridgeCode: TextView
   private lateinit var installerStatus: TextView
+  private lateinit var catalogSummaryButton: Button
+  private lateinit var catalogSummaryStatus: TextView
   private lateinit var operatorBridgeButton: Button
   private lateinit var rotateOperatorBridgeButton: Button
   private lateinit var pairingCodeVisibilityButton: Button
@@ -397,6 +400,12 @@ internal class RustyKioskNativePanel(
         addView(operatorBridgeEndpoint, margin(top = 3))
         addView(operatorBridgeCode, margin(top = 3))
         addView(installerStatus, margin(top = 3))
+        catalogSummaryStatus = text("", 13f, COLOR_MUTED)
+        catalogSummaryButton = button("Share catalogue summary", onToggleCatalogSummary).apply {
+          tag = RustyKioskPanelControls.CATALOG_SUMMARY_TOGGLE
+        }
+        addView(catalogSummaryStatus, margin(top = 3))
+        addView(catalogSummaryButton, margin(top = 7, height = 46))
         operatorBridgeButton = button("", onToggleOperatorBridge)
         rotateOperatorBridgeButton = button("Rotate pairing code", onRotateOperatorBridgeCode)
         pairingCodeVisibilityButton = button("Show pairing code", action = {
@@ -621,7 +630,18 @@ internal class RustyKioskNativePanel(
     accessibilityButton.setOnClickListener {
       if (controls.accessibilityEnabled) onDisableAccessibility() else onEnableAccessibility()
     }
-    operatorBridgeButton.text = if (controls.operatorBridgeEnabled) "Disable direct link" else "Enable direct link"
+    catalogSummaryStatus.text = if (controls.catalogSummaryGranted) {
+      "Catalogue summary: shared with the paired PC. Detail and launch are unavailable."
+    } else {
+      "Catalogue summary: off. Sharing includes labels, tags and opaque app identities."
+    }
+    catalogSummaryButton.text = if (controls.catalogSummaryGranted) "Revoke catalogue summary" else "Share catalogue summary"
+    catalogSummaryButton.isEnabled = controls.operatorBridgeEnabled && !controls.operatorBridgePersistenceBlocked
+    operatorBridgeButton.text = when {
+      controls.operatorBridgePersistenceBlocked -> "Enable direct link to recover"
+      controls.operatorBridgeEnabled -> "Disable direct link"
+      else -> "Enable direct link"
+    }
     operatorBridgeButton.setOnClickListener { onToggleOperatorBridge() }
     rotateOperatorBridgeButton.isEnabled = !controls.operatorBridgeRunning
     installerPermissionButton.visibility = if (controls.installerAllowed) View.GONE else View.VISIBLE

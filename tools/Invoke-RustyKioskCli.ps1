@@ -7,6 +7,8 @@ param(
   [ValidateSet(
     'status',
     'show-controls',
+    'request-catalog-summary',
+    'revoke-catalog-summary',
     'show-apps',
     'reload',
     'focus-search',

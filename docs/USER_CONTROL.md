@@ -109,6 +109,7 @@ there is no automatic fallback. See [Visibility mode](VISIBILITY_MODE.md).
 - The persistent pairing code is masked whenever the panel is created or the
   code changes. **Show pairing code** reveals it locally until **Hide** or the
   next panel/code transition; typed host status never exports it.
+- **Catalogue summary On / Off** is a separate wearer grant for encrypted labels, tags and opaque app identities. Detail and app launch remain unavailable.
 - **Local APK installer needs permission / wearer allowed** is Android
   `canRequestPackageInstalls()` readback, not an install-success claim.
 - **Meta Home Available** reflects the normal Home path and explicit exit.
@@ -153,6 +154,7 @@ It does not establish fully unattended Wi-Fi ADB restoration.
   without changing Accessibility or the preference for the next boot.
 - Press **Stop asking after restart** before disabling Wi-Fi ADB if both should
   stay off after the next boot.
+- Press **Revoke catalogue summary** to end encrypted inventory sharing and invalidate live sessions. A host request opens the controls with consent pending; it cannot grant consent.
 - Press **Disable direct link** to stop PC access without changing ADB,
   Accessibility, or launches. Rotate the pairing code to invalidate a saved PC
   credential; rotation also disables the link until re-enabled.

@@ -282,10 +282,21 @@ function renderUserControls() {
     return choice;
   });
 
+  const summaryToggle = button(
+    controls.catalogSummaryGranted ? "Revoke catalogue summary" : "Share catalogue summary",
+    "outline-button control-button", () => {
+      state = { ...state, userControls: { ...controls, catalogSummaryGranted: !controls.catalogSummaryGranted } };
+      render();
+    });
+  summaryToggle.id = "rusty-kiosk-catalog-summary-toggle";
+  summaryToggle.disabled = !controls.operatorBridgeEnabled || controls.operatorBridgePersistenceBlocked;
   elements.userControls.replaceChildren(
     node("div", { className: "control-center-heading" }, [
       node("h2", {}, ["Transparent, reversible setup"]),
       node("p", {}, [controls.message]),
+      node("p", {}, [controls.catalogSummaryGranted ? "Catalogue summary: shared" : "Catalogue summary: off"]),
+      node("p", {}, ["Shares labels, tags and opaque app identities with the paired PC. Detail and launch are unavailable."]),
+      summaryToggle,
       node("p", {}, [`Kiosk mode: ${controls.kioskMode} · synthetic platform readiness`]),
       node("p", {}, [controls.shellCompanionDescription]),
       node("div", { className: "control-actions" }, modeButtons),

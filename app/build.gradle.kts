@@ -147,3 +147,18 @@ dependencies {
 spatial {
   allowUsageDataCollection.set(false)
 }
+
+// The conformance harness runs the compiled production producer with the real external consumer.
+// This writes only ignored local output; no listener, headset, or profile store is involved.
+tasks.register("writeCatalogV2InteropClasspath") {
+  val runtime = tasks.named<Test>("testDebugUnitTest")
+  val output = rootProject.layout.projectDirectory.file("artifacts/catalog-v2-interop/classpath.txt")
+  val classpath = runtime.map { it.classpath.asPath }
+  dependsOn(runtime)
+  inputs.property("runtimeClasspath", classpath)
+  outputs.file(output)
+  doLast {
+    output.asFile.parentFile.mkdirs()
+    output.asFile.writeText(classpath.get())
+  }
+}

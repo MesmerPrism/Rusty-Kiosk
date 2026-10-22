@@ -37,6 +37,9 @@ internal class TagFileStore(context: Context) {
     return TagFileCodec.parseDocument(tagFile.readText(StandardCharsets.UTF_8))
   }
 
+  /** Passive catalogue reads never create a first-use tag file or observer. */
+  fun loadPassive(): TagFileDocument = PassiveTagFileReader.load(tagFile)
+
   fun setTags(entry: CatalogEntry, tags: Set<String>) {
     val current = loadDocument()
     writeAtomically(TagFileCodec.encode(TagDocumentEditor.setTags(current, entry, tags)))
@@ -99,5 +102,13 @@ internal class TagFileStore(context: Context) {
         FileObserver.CREATE or
         FileObserver.DELETE or
         FileObserver.MOVED_TO
+  }
+}
+
+internal object PassiveTagFileReader {
+  fun load(file: File): TagFileDocument {
+    if (!file.exists()) return TagFileCodec.parseDocument("{\"schema\":\"rusty.kiosk.app_tags.v1\",\"apps\":[]}")
+    require(file.isFile && file.length() <= TagFileCodec.MAX_BYTES) { "Tag file exceeds its fixed bound." }
+    return TagFileCodec.parseDocument(file.readText(StandardCharsets.UTF_8))
   }
 }

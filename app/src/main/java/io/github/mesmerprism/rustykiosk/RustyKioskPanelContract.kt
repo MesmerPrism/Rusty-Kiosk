@@ -31,5 +31,6 @@ internal object RustyKioskPanelControls {
   const val MODE_ACCESSIBILITY = "rusty-kiosk-mode-accessibility"
   const val MODE_SHELL = "rusty-kiosk-mode-shell"
   const val MODE_VISIBILITY = "rusty-kiosk-mode-visibility"
+  const val CATALOG_SUMMARY_TOGGLE = "rusty-kiosk-catalog-summary-toggle"
   const val META_HOME_EXIT = "rusty-kiosk-meta-home-exit"
 }

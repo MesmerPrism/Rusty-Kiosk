@@ -95,6 +95,7 @@ The isolated host points its Android source set directly at these production
 files:
 
 - `CatalogModels.kt`
+- `AppSigningEvidence.kt` and `KioskCatalogDigest.kt`
 - `GuardMode.kt`
 - `RustyKioskPanel.kt`
 - `RustyKioskPanelContract.kt`

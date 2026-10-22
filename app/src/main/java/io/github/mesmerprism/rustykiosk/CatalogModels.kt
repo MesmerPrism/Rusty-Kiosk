@@ -34,11 +34,13 @@ internal data class InstalledApp(
   val packageName: String,
   val target: LaunchTarget,
   val source: String,
+  val signingEvidence: AppSigningEvidence? = null,
 )
 
 internal data class InstalledPackage(
   val label: String,
   val packageName: String,
+  val signingEvidence: AppSigningEvidence? = null,
 )
 
 internal data class InstalledSnapshot(
@@ -121,6 +123,7 @@ internal data class CatalogEntry(
   val tags: Set<String>,
   val source: String,
   val launchRequirement: AppLaunchRequirement = AppLaunchRequirement.ANY,
+  val signingEvidence: AppSigningEvidence? = null,
 ) {
   val launchable: Boolean
     get() = installed && target != null
@@ -182,6 +185,8 @@ internal data class UserControlState(
   val accessibilityEnabled: Boolean = false,
   val operatorBridgeEnabled: Boolean = false,
   val operatorBridgeRunning: Boolean = false,
+  val operatorBridgePersistenceBlocked: Boolean = false,
+  val catalogSummaryGranted: Boolean = false,
   val operatorBridgeEndpoint: String? = null,
   val operatorBridgePairingCode: String = "",
   val installerAllowed: Boolean = false,
@@ -237,6 +242,7 @@ internal data class UserControlState(
   val operatorBridgeStatusLabel: String
     get() =
       when {
+        operatorBridgePersistenceBlocked -> "Error"
         !operatorBridgeEnabled -> "Off"
         operatorBridgeRunning -> "Ready"
         operatorBridgeError != null -> "Error"
@@ -288,6 +294,7 @@ internal object CatalogAssembler {
               installed = true,
               tags = emptySet(),
               source = app.source,
+              signingEvidence = app.signingEvidence,
             )
         }
         .toMutableMap()
@@ -331,6 +338,7 @@ internal object CatalogAssembler {
                 installed = true,
                 tags = record.tags,
                 source = "tag-file-installed-package",
+                signingEvidence = installedPackage.signingEvidence,
               )
           entries[packageName] = updated
         }

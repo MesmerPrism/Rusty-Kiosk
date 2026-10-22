@@ -115,6 +115,7 @@ foreach ($controlToken in @(
   'RustyKioskPanelControls.PASSTHROUGH_CONTROLS',
   'RustyKioskPanelControls.WIFI_ADB_CONTROLS',
   'RustyKioskPanelControls.ACCESSIBILITY_TOGGLE',
+  'RustyKioskPanelControls.CATALOG_SUMMARY_TOGGLE',
   'RustyKioskPanelControls.META_HOME_EXIT'
 )) {
   if (-not $productionPanel.Contains($controlToken)) {
