@@ -22,21 +22,27 @@ foreach (var scenario in new[] {
     "label-control", "many-tags", "success", "open-replay", "request-replay", "signer-missing", "truncated",
     "absent", "revoke-open", "revoke-admission", "revoke-dispatch", "revoke-seal",
     "generation", "rotation", "owner-rotation", "restart", "stale-snapshot", "future-snapshot",
-    "wrong-pairing", "wrong-device", "wrong-owner", "wrong-profile", "wrong-path", "wrong-method",
+    "wrong-pairing", "wrong-device", "wrong-owner", "wrong-profile", "selected-profile-mismatch", "wrong-path", "wrong-method",
     "duplicate-json", "extra-json", "bad-base64", "bad-request-ciphertext", "bad-request-nonce",
     "bad-request-counter", "bad-request-expiry", "bad-response-ciphertext", "bad-response-counter",
     "bad-content-length"
 }.Where(item => args.Length == 3 || item == args[3])) {
     var handler = new ProducerHandler(kotlin, scenario);
     using var client = new HttpClient(handler);
-    using var provider = new RustyKioskV2CatalogProvider(
-        new MemoryProfile(scenario == "wrong-device" ? "different-device" : deviceId,
-            scenario == "wrong-pairing" ? "1123-4567-89AB-CDEF-GHJK-MNPQ-RS" : pairingCode),
-        client, () => now);
-    var request = Request(scenario == "wrong-owner" ? "DifferentOwner_0000000001" : ownerEpoch);
+    var profiles = new MemoryProfile(scenario == "wrong-device" ? "different-device" : deviceId,
+        scenario == "wrong-pairing" ? "1123-4567-89AB-CDEF-GHJK-MNPQ-RS" : pairingCode);
+    using var provider = new RustyKioskV2CatalogProvider(profiles, client, () => now);
+    const string otherProfile = "profile.quest.interop.002";
+    using var validOtherIdentity = new RustyKioskV2ProviderProfile(otherProfile,
+        new Uri("http://192.168.1.44:39873/"), pairingCode.ToCharArray(), deviceId);
+    var request = Request(scenario == "wrong-owner" ? "DifferentOwner_0000000001" : ownerEpoch,
+        scenario == "wrong-profile" ? otherProfile : profileId);
+    request.Validate();
+    if (now < request.IssuedAtMs || now >= request.ExpiresAtMs)
+        throw new InvalidOperationException("Profile controls must have valid current freshness.");
     var expected = scenario is "label-control" or "many-tags" or "success" or "open-replay" or "request-replay" or "signer-missing" or "truncated";
     try {
-        using var exchange = await provider.FetchAsync(scenario == "wrong-profile" ? "another-profile" : profileId, request);
+        using var exchange = await provider.FetchAsync(scenario is "wrong-profile" or "selected-profile-mismatch" ? otherProfile : profileId, request);
         if (!expected) throw new InvalidOperationException($"Negative control accepted: {scenario}");
         using var catalog = JsonDocument.Parse(exchange.OwnerCatalogJson);
         var root = catalog.RootElement;
@@ -65,7 +71,14 @@ foreach (var scenario in new[] {
         results.Add(new { scenario, outcome = "verified", requests = handler.Count });
     } catch (RustyKioskV2ProviderException failure) {
         if (expected) throw new InvalidOperationException($"Actual Kotlin exchange failed: {scenario}: {failure.Code}", failure);
-        results.Add(new { scenario, outcome = "rejected", code = failure.Code, requests = handler.Count });
+        if (scenario == "wrong-profile" && (profiles.Calls != 1 || profiles.LastId != otherProfile ||
+            failure.Code != "provider_profile_unavailable" || handler.Count != 0))
+            throw new InvalidOperationException("Wrong-profile control did not reach the exact valid profile lookup.");
+        if (scenario == "selected-profile-mismatch" && (profiles.Calls != 0 || handler.Count != 0 ||
+            failure.Code != "request_freshness_invalid" || request.ProfileId == otherProfile))
+            throw new InvalidOperationException("Selected/request profile binding control was vacuous.");
+        results.Add(new { scenario, outcome = "rejected", code = failure.Code, requests = handler.Count,
+            profile_lookups = profiles.Calls, lookup_id = profiles.LastId });
     }
 }
 
@@ -86,9 +99,9 @@ using (var client = new HttpClient(handler)) {
 File.WriteAllText(Path.Combine(args[2], "interop-results.json"), JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
 Console.WriteLine($"Actual Kotlin -> production QFM: {results.Count} controls passed.");
 
-static RustyKioskV2CatalogProviderRequest Request(string owner = ownerEpoch) => RustyKioskV2CatalogProviderRequest.Parse(RequestBytes(owner));
-static byte[] RequestBytes(string owner = ownerEpoch) => JsonSerializer.SerializeToUtf8Bytes(new {
-    schema = RustyKioskV2ProviderContract.RequestSchema, profile_id = profileId,
+static RustyKioskV2CatalogProviderRequest Request(string owner = ownerEpoch, string profile = profileId) => RustyKioskV2CatalogProviderRequest.Parse(RequestBytes(owner, profile));
+static byte[] RequestBytes(string owner = ownerEpoch, string profile = profileId) => JsonSerializer.SerializeToUtf8Bytes(new {
+    schema = RustyKioskV2ProviderContract.RequestSchema, profile_id = profile,
     request_id = "catalog-request-interop-0001", device_id = deviceId, identity_revision = 7,
     capability_id = RustyKioskV2ProviderContract.CapabilityId, capability_evidence_revision = 11,
     route_id = RustyKioskV2ProviderContract.RouteId, expected_owner_epoch = owner,
@@ -96,7 +109,15 @@ static byte[] RequestBytes(string owner = ownerEpoch) => JsonSerializer.Serializ
 });
 
 sealed class MemoryProfile(string device, string code) : IRustyKioskV2ProviderProfileStore {
-    public RustyKioskV2ProviderProfile Open(string id) => new(id, new Uri("http://192.168.1.44:39873/"), code.ToCharArray(), device);
+    public int Calls { get; private set; }
+    public string? LastId { get; private set; }
+    public RustyKioskV2ProviderProfile Open(string id) {
+        Calls++;
+        LastId = id;
+        if (id != "profile.quest.interop.001")
+            throw RustyKioskV2ProviderException.Unavailable("provider_profile_unavailable");
+        return new(id, new Uri("http://192.168.1.44:39873/"), code.ToCharArray(), device);
+    }
 }
 
 sealed class ProducerHandler(KotlinProducer producer, string scenario) : HttpMessageHandler {

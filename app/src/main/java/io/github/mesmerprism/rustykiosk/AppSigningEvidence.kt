@@ -48,4 +48,3 @@ internal data class AppSigningEvidence(
     private val SHA256 = Regex("^[0-9a-f]{64}$")
   }
 }
-

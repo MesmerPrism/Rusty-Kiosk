@@ -280,7 +280,7 @@ private fun AppListRow(entry: CatalogEntry, selected: Boolean, onClick: () -> Un
     )
     if (entry.tags.isNotEmpty()) {
       Text(
-        entry.tags.sorted().joinToString(" · "),
+        entry.tags.sorted().joinToString(" Â· "),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.primary,
         maxLines = 1,
@@ -368,7 +368,7 @@ private fun AppDetails(
             shape = RoundedCornerShape(8.dp),
             contentPadding = ButtonDefaults.TextButtonContentPadding,
           ) {
-            Text("$tag ×")
+            Text("$tag Ã—")
           }
         }
       }
@@ -684,7 +684,8 @@ private fun UserControlCenter(
   modifier: Modifier = Modifier,
 ) {
   Column(
-    modifier = modifier.testTag(RustyKioskPanelControls.USER_CONTROLS),
+    modifier = modifier.testTag(RustyKioskPanelControls.USER_CONTROLS)
+      .verticalScroll(rememberScrollState()),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -768,10 +769,10 @@ private fun UserControlCenter(
       }
     }
     Row(
-      modifier = Modifier.fillMaxWidth().weight(1.0f),
+      modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-      ControlCard("Wi-Fi ADB · explicit opt-in", Modifier.weight(1.0f)) {
+      ControlCard("Wi-Fi ADB Â· explicit opt-in", Modifier.weight(1.0f)) {
         Text(
           "The dedicated setup helper exposes only fixed Rusty Kiosk operations. USB-C provisions it once; no terminal app is needed.",
           style = MaterialTheme.typography.bodySmall,
@@ -820,7 +821,7 @@ private fun UserControlCenter(
         }
       }
 
-      ControlCard("Accessibility · explicit opt-in", Modifier.weight(1.0f)) {
+      ControlCard("Accessibility Â· explicit opt-in", Modifier.weight(1.0f)) {
         Text(
           "Enables the soft guard for kiosk launches only. It is disarmed while this Rusty Kiosk panel is visible.",
           style = MaterialTheme.typography.bodySmall,
@@ -882,7 +883,7 @@ private fun ControlCard(
 ) {
   Column(
     modifier =
-      modifier.fillMaxHeight().border(1.dp, Divider, RoundedCornerShape(8.dp)).padding(14.dp),
+      modifier.border(1.dp, Divider, RoundedCornerShape(8.dp)).padding(14.dp),
     verticalArrangement = Arrangement.spacedBy(8.dp),
   ) {
     Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
