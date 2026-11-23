@@ -84,15 +84,44 @@ recovery open.
 [Attended boot qualification](https://github.com/MesmerPrism/meta-quest-agent-workflow/blob/39a4641d34d806a7604e61dd5dc9e810d86608df/docs/boot-wireless-adb-qualification.md) ·
 [Shell recenter](quest-shell-recenter/README.md)
 
-## Test the composition
+## Verify the desktop baseline
 
-Start after a cold boot on an enrolled headset. From a browser, verify status
+Run these checks from separate clean checkouts of the documented source
+revisions. They need no phone, headset, or ADB transport.
+
+- In Rusty Kiosk run `pwsh -NoProfile -File .\tools\check_repo.ps1`.
+  The [repository gate](../docs/VALIDATION.md) uses PowerShell 7.6 or newer,
+  Python and the Android build toolchain. It checks source contracts, Gradle
+  unit tests and lint, release-channel manifests, and the standalone autoboot
+  example build.
+- In QFM run `node --test tools/browser-ui/pwa.test.cjs` for the static shell.
+  Its [Chromium fixture](https://github.com/MesmerPrism/QuestIonAble-File-Manager/blob/44c469c02c6ee6b290616af16374f64cc43acaab/tools/browser-ui/README.md#L120-L135) exercises installation, offline reload, service-worker update,
+  and reconnect against a synthetic loopback server.
+- In Rusty Quest run `node --test web/ble-control/gatt-lifetime.test.cjs`.
+  The fixture exercises the shared browser GATT lifetime. A desktop browser's
+  Bluetooth chooser and a real headset connection are separate checks.
+
+For a standalone companion, first test that an enrolled session can report its
+own readiness and start and stop a bundled clip. Use a fixture to exercise
+enrollment rejection, stale status, reload, and a lost command response. On
+reconnect, look up the original request before offering another playback action.
+Require app-side evidence for playing, stopped, or completed. Keep the app's
+observed state distinct from a queued request or transport acknowledgment.
+
+## Test the composition on hardware
+
+Start after a cold boot on an enrolled headset. From a supported desktop
+Chromium browser, verify status
 and one app-owned effect with shell unavailable. Complete attended debugging
 approval and read back the current shell identity. Request one fixed privileged
 operation and verify its effect. Disconnect, look up the original result without
 replaying it, and prove Stop or expiry. Report companion readiness, wearer
 approval, shell readiness, and unknown operation outcomes separately.
 
-A future runnable example can use its own APK and build. Reuse owner adapters
-and keep its browser commands typed and bounded. The
+The ordinary app acceptance is complete when the wearer hears the clip start
+and stop while another immersive app retains XR focus. After a headset reboot,
+explicitly start the companion and repeat the connection. Test the public
+origin in the target mobile browser before qualifying the phone route. A
+future runnable example should use its own APK and build, reuse the owner
+adapters, and keep browser commands typed and bounded. The
 [utility catalogue](README.md) links the existing parts.
