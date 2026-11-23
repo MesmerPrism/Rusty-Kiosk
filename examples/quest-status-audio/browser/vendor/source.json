@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/MesmerPrism/rusty-quest",
+  "commit": "fb5781031a51bd0709a5941e0a271360b8db49d7",
+  "sourceDirectory": "web/ble-control",
+  "sha256": {
+    "gatt-lifetime.js": "39d2ea30ff804c028331a09b36dff91d5686dce96fb6dd7a5156f44cd13724ab",
+    "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+  }
+}

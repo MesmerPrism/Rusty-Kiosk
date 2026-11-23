@@ -1109,6 +1109,38 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Standalone Quest autoboot example gate failed with exit code $LASTEXITCODE."
   }
+  $statusAudioRoot = 'examples/quest-status-audio'
+  $androidNamespace = 'http://schemas.android.com/apk/res/android'
+  [xml]$statusAudioManifest = Get-Content -Raw -LiteralPath "$statusAudioRoot/src/main/AndroidManifest.xml"
+  $examplePermissions = @($statusAudioManifest.SelectNodes('/manifest/uses-permission | /manifest/uses-permission-sdk-23') |
+    ForEach-Object { $_.GetAttribute('name', $androidNamespace) })
+  $approvedPermissions = @(
+    'android.permission.BLUETOOTH_ADVERTISE', 'android.permission.BLUETOOTH_CONNECT',
+    'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
+    'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK', 'android.permission.POST_NOTIFICATIONS'
+  )
+  if (Compare-Object $approvedPermissions $examplePermissions -CaseSensitive) {
+    throw 'Standalone status/audio permission scope changed.'
+  }
+  $exampleComponents = @($statusAudioManifest.SelectNodes('/manifest/application/activity | /manifest/application/activity-alias | /manifest/application/service | /manifest/application/receiver | /manifest/application/provider'))
+  $exampleService = $statusAudioManifest.SelectSingleNode('/manifest/application/service')
+  $exampleActivity = $statusAudioManifest.SelectSingleNode('/manifest/application/activity')
+  if ($exampleComponents.Count -ne 2 -or $null -eq $exampleService -or $null -eq $exampleActivity -or
+      $statusAudioManifest.DocumentElement.SelectSingleNode('application').GetAttribute('allowBackup', $androidNamespace) -cne 'false' -or
+      $exampleActivity.GetAttribute('name', $androidNamespace) -cne '.CompanionActivity' -or
+      $exampleActivity.GetAttribute('exported', $androidNamespace) -cne 'true' -or
+      $exampleService.GetAttribute('name', $androidNamespace) -cne '.CompanionService' -or
+      $exampleService.GetAttribute('exported', $androidNamespace) -cne 'false' -or
+      $exampleService.GetAttribute('foregroundServiceType', $androidNamespace) -cne 'connectedDevice|mediaPlayback') {
+    throw 'Standalone status/audio component scope changed.'
+  }
+  $statusAudioBrowserTests = @(Get-ChildItem -LiteralPath "$statusAudioRoot/browser/test" -Filter '*.test.js' -File |
+    Select-Object -ExpandProperty FullName)
+  if ($statusAudioBrowserTests.Count -eq 0) { throw 'Standalone status/audio browser tests are missing.' }
+  & node --test @statusAudioBrowserTests
+  if ($LASTEXITCODE -ne 0) { throw 'Standalone status/audio browser checks failed.' }
+  & .\gradlew.bat -p $statusAudioRoot @exampleTasks
+  if ($LASTEXITCODE -ne 0) { throw "Standalone status/audio Android gate failed with exit code $LASTEXITCODE." }
   git diff --check
   if ($LASTEXITCODE -ne 0) {
     throw 'git diff --check failed.'

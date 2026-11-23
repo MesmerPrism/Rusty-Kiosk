@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Quest Status and Audio</string>
+    <string name="enable_session">Start Bluetooth session</string>
+    <string name="stop_session">Stop Bluetooth session</string>
+    <string name="instructions">Start a 15-minute session, then enter its code in the companion page. Keep Bluetooth on while testing.</string>
+    <string name="session_inactive">Bluetooth session stopped.</string>
+    <string name="session_starting">Starting Bluetooth…</string>
+    <string name="session_ready">Bluetooth is ready to pair.</string>
+    <string name="session_expired">Bluetooth session expired. Start a new session to pair again.</string>
+    <string name="bluetooth_unavailable">Bluetooth is unavailable. Turn on Bluetooth and try again.</string>
+    <string name="bluetooth_failed">The Bluetooth session could not start.</string>
+    <string name="permission_needed">Allow Nearby devices to start a Bluetooth session.</string>
+    <string name="pairing_code">Pairing code</string>
+    <string name="session_notification_channel">Bluetooth session</string>
+    <string name="session_notification_text">Companion can check status and play or stop the test clip.</string>
+</resources>

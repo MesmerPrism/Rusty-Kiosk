@@ -33,8 +33,9 @@ own evidence. Choose a package using the [distribution guide](../docs/UTILITY_DI
 
 ## 2. Use ordinary app permissions first
 
-Start with companion status and one app-owned effect, such as playing and
-stopping a short clip. A bounded headset probe used an ADB-gated debug trigger
+Start with the [standalone status and audio example](quest-status-audio/README.md).
+It uses a wearer-started Bluetooth session to read app-owned status and play or
+stop one bundled clip. An earlier bounded headset probe used an ADB-gated debug trigger
 and ordinary Android audio playback while another app retained XR focus.
 For sustained playback, test a user-started media service and expose its
 actual playback and stop state. The short probe leaves long-duration and
@@ -101,7 +102,7 @@ revisions. They need no phone, headset, or ADB transport.
   The fixture exercises the shared browser GATT lifetime. A desktop browser's
   Bluetooth chooser and a real headset connection are separate checks.
 
-For a standalone companion, first test that an enrolled session can report its
+For the standalone companion, first test that an enrolled session can report its
 own readiness and start and stop a bundled clip. Use a fixture to exercise
 enrollment rejection, stale status, reload, and a lost command response. On
 reconnect, look up the original request before offering another playback action.
@@ -121,7 +122,5 @@ approval, shell readiness, and unknown operation outcomes separately.
 The ordinary app acceptance is complete when the wearer hears the clip start
 and stop while another immersive app retains XR focus. After a headset reboot,
 explicitly start the companion and repeat the connection. Test the public
-origin in the target mobile browser before qualifying the phone route. A
-future runnable example should use its own APK and build, reuse the owner
-adapters, and keep browser commands typed and bounded. The
+origin in the target mobile browser before qualifying the phone route. The
 [utility catalogue](README.md) links the existing parts.
