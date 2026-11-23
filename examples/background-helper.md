@@ -79,13 +79,7 @@ In the Wi-Fi ADB boot test, a deferred request reached authenticated TLS only
 after wearer approval. This leaves unattended cold-boot-to-browser shell
 recovery open.
 
-The NESTIS Quest Fleet prototype is another boot-request reference. It has its
-own one-time setup grant and requests Android's Wireless Debugging when Wi-Fi
-is ready. Its linked revision has no embedded ADB client and leaves physical
-cold-boot shell qualification open.
-
 [Standalone autoboot](quest-autoboot/README.md) ·
-[NESTIS Quest Fleet prototype](https://github.com/nesti024/quest_fleet/blob/ea9d148b14e1b514a992881158d73a749705b834/android/wireless-adb/README.md) ·
 [Termux Wi-Fi and detached-worker results](https://github.com/MesmerPrism/quest-termux-lab/blob/3701e821bfe8e7b7e4759904cf5b77d079df1075/docs/QUEST_RESULTS_PUBLIC.md) ·
 [Attended boot qualification](https://github.com/MesmerPrism/meta-quest-agent-workflow/blob/39a4641d34d806a7604e61dd5dc9e810d86608df/docs/boot-wireless-adb-qualification.md) ·
 [Shell recenter](quest-shell-recenter/README.md)
