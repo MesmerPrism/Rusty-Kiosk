@@ -25,6 +25,17 @@ This guide covers the bundled Alpha.9 installation. See the
 [distribution guide](UTILITY_DISTRIBUTION.md) for the launcher, core and helper
 boundaries.
 
+Use the bundled Alpha.9 pair to reproduce USB provisioning and routine Kiosk
+control. With the restart preference enabled, its setup helper requests Wireless
+Debugging when it receives Android's boot-completed broadcast. The Wi-Fi-ready
+deferred request shipped in Alpha.10.
+The recorded Alpha.10 boot trial kept USB connected and reached authenticated
+Wireless Debugging after the wearer approved Meta's prompt. Test that behavior
+with the matching signed Alpha.10 pair. Visibility mode, Shell Navigator and
+encrypted catalogue summary were merged after Alpha.10 and each needs its own
+build and device evidence before it can be included in a tested release baseline.
+[Attended Alpha.10 boot qualification](https://github.com/MesmerPrism/meta-quest-agent-workflow/blob/39a4641d34d806a7604e61dd5dc9e810d86608df/docs/boot-wireless-adb-qualification.md#later-attended-boot-approval-result)
+
 ## What you need
 
 - a Meta Quest with Developer Mode enabled;
