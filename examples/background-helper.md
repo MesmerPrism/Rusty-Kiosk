@@ -31,6 +31,23 @@ own evidence. Choose a package using the [distribution guide](../docs/UTILITY_DI
 [Chrome local-network access](https://developer.chrome.com/docs/modern-web-guidance/guides/security/local-network-access) ·
 [Chrome Direct Sockets](https://developer.chrome.com/docs/iwa/direct-sockets)
 
+For the browser companion's next pairing revision, follow the Atmungsraum
+flow. The operator selects the headset in the browser chooser. The browser
+and Quest display the same comparison digits, and the operator confirms the
+match on both devices without entering a code. Save enrollment for the
+confirmed headset and reconnect when it becomes available. The browser must
+show when platform permission or a new confirmation is needed. The headset
+must let the wearer revoke enrollment. Enrollment identifies the controller.
+Starting or stopping the helper session still belongs to the wearer.
+
+Atmungsraum uses Bluetooth for discovery and an authenticated network
+connection for control. The current Kiosk status and audio example runs over
+Bluetooth and uses a manually entered session code. Test the new flow with a
+fresh browser setup, reconnect, selection with two nearby headsets, and
+revoked enrollment on physical devices before qualifying it for distribution.
+
+[Atmungsraum pairing and reconnect reference](https://github.com/GeorgeFejer91/viscereality.org/blob/5ecdbeefb53b017b7044d81d5ead1b3054d42272/atmungsraum/for-ai/PROJECT.md#L848-L854)
+
 ## 2. Use ordinary app permissions first
 
 Start with the [standalone status and audio example](quest-status-audio/README.md).
