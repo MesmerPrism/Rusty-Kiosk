@@ -76,6 +76,13 @@ and charging match the headset and that the clip starts and stops while another
 immersive app retains focus. Record platform prompts and app-level results
 separately.
 
+The 0.3 debug example passed button confirmation, reload reconnect,
+reconnect after stopping and restarting the headset session, and audible
+playback on a Quest 3S with Windows Edge at the development origin. Edge
+received the early Stop receipt while the wearer was in another immersive
+app. The mobile HTTPS trial and headset-side revocation remain separate
+hardware checks.
+
 The debug APK is a standalone developer-sideload example. A release-signed
 package with the same narrow permission and network scope can be considered
 for a Meta test channel or SideQuest after device qualification and review.
