@@ -41,8 +41,8 @@ Its optional Accessibility service is a foreground watchdog:
    normally.
 
 For reusable Quest utility composition, see the
-[example catalogue](examples/README.md). Its separate autoboot source and
-BLE/WebSocket integration guidance are outside Kiosk product release builds.
+[example catalogue](examples/README.md) and the [utility distribution guide](docs/UTILITY_DISTRIBUTION.md).
+The examples have separate builds and package identities.
 
 ## What the first example includes
 
@@ -152,9 +152,10 @@ The recommended installation route remains
 [QuestIonAble File Manager](https://mesmerprism.com/QuestIonAble-File-Manager/#kiosk),
 while advanced operators can inspect the standalone bundle on
 [GitHub Releases](https://github.com/MesmerPrism/Rusty-Kiosk/releases).
-The current stable published bundle is version `0.6.5`; the current
-co-installable Labs prerelease is `0.6.6-alpha.9`. Version `0.6.4` remains the
-watchdog-recovery reliability release and `0.6.3` the first published bundle.
+The published stable bundle is `0.6.5`. The latest co-installable Labs prerelease
+is `0.6.6-alpha.10`. The [Labs tester guide](docs/LABS_TESTING.md) pins the
+guided QFM installer to the `0.6.6-alpha.9` bundle it includes. Version `0.6.4`
+is the watchdog-recovery reliability release and `0.6.3` is the first published bundle.
 The earlier `v0.6.0`, `v0.6.1`, and `v0.6.2` tags are retained as
 pre-publication workflow-failure checkpoints and have no release assets.
 Manual release dispatch is intentionally an exact-tag recovery path. Invoke it

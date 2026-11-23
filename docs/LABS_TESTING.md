@@ -20,6 +20,10 @@ permissions visible to the wearer.
 
 These exact-version links are intentional. Labs releases are immutable
 prereleases and never replace the stable `latest` download.
+The separately published Kiosk `v0.6.6-alpha.10` has its own release assets.
+This guide covers the bundled Alpha.9 installation. See the
+[distribution guide](UTILITY_DISTRIBUTION.md) for the launcher, core and helper
+boundaries.
 
 ## What you need
 
