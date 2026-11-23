@@ -1,5 +1,8 @@
 # Launcher Lite hybrid update candidate
 
+For the Store, Meta preview and developer package boundaries, see the
+[utility distribution guide](UTILITY_DISTRIBUTION.md).
+
 [Rusty Launcher Lite](https://www.meta.com/en-gb/experiences/rusty-launcher-lite/1241943475671333/)
 is a published standalone Meta Store app. On 2026-10-05 its public listing
 reported version `0.2.0`, released 6 August 2026, with the existing 2D app-library

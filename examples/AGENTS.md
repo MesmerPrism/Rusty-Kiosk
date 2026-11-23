@@ -11,6 +11,11 @@ Kiosk app, setup helper, or fixed-target Launcher to make an example work.
 Keep private application semantics, configuration, signing material, device
 identities, and raw evidence out of this public repository.
 
+Update the [utility distribution guide](../docs/UTILITY_DISTRIBUTION.md) when a
+catalogued composition changes its package, grants, dependencies, lifecycle or
+delivery channel. Verify the exact artifact and distinguish a candidate channel
+from a released or device-qualified combination.
+
 Describe host checks as host checks. A build, fixture, or static check does not
 prove boot launch, wearer readiness, browser compatibility, command effect,
 or cleanup on a headset. Route live device work through `$meta-quest-workflow`.
