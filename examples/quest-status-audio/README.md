@@ -1,11 +1,12 @@
 # Quest status and audio example
 
-This standalone Quest APK lets a browser read battery level, charging, and
-session status. **Identify headset** plays a bundled five-second tone. The
-wearer starts a 15-minute Bluetooth session on Quest and authorizes the browser
-with the displayed code. The Quest app owns playback and reports the result of
-the exact request. Its launcher, package, service, permissions and build are
-independent of Rusty Kiosk and Launcher Lite.
+This standalone Quest APK lets a browser read battery level, charging and
+session status. **Identify headset** plays a bundled five-second tone.
+The wearer starts a 15-minute companion session on Quest. To pair a new
+browser, select the headset over Bluetooth and confirm that the digits match
+on both devices. The browser remembers the enrollment and reconnects over
+the local network when the headset is available. The Quest app owns
+playback and reports the result of each request.
 
 ## Build and try it
 
@@ -18,74 +19,65 @@ Gradle wrapper. The example uses Android 12 or later.
 
 The debug APK is under `examples/quest-status-audio/build/outputs/apk/debug/`.
 Install it through your authorized developer workflow and open **Quest Status
-and Audio** on the headset. Start a session and grant the requested Bluetooth
-permissions. The ongoing notification provides a local Stop action when
+and Audio** on the headset. Put the headset and browser on the same private
+Wi-Fi network. Tap **Start companion session** and grant Nearby Devices if
+prompted. The ongoing notification provides a local Stop action when
 notifications are permitted.
 
-Use a browser that supports Web Bluetooth. For a desktop trial, serve the
-`browser/` directory from loopback and open `http://127.0.0.1:8765`.
+For a desktop trial, use a browser with Web Bluetooth and serve the static
+files from the development origin allowed by the APK.
 
 ```powershell
 python -m http.server 8765 --bind 127.0.0.1 --directory examples/quest-status-audio/browser
 ```
 
-For a phone trial, serve the browser's static application files over HTTPS.
-Keep the phone within Bluetooth range of the headset. The browser uses its
-normal chooser and OS bond flow. The pairing code authorizes this app's
-session after the encrypted link is available. Type the code displayed on
-Quest, select the headset, and try
-**Identify headset** and **Stop playback**. Closing the browser or losing Bluetooth
-does not extend the Quest session. Stop the session on Quest to revoke its code
-and stop playback.
-[Chrome Web Bluetooth requirements](https://developer.chrome.com/docs/capabilities/bluetooth)
+Open `http://127.0.0.1:8765`. For an HTTPS trial, the example APK also
+allows the `https://mesmerprism.github.io` origin. Choose **Connect headset**,
+select the headset, and allow Local Network Access if the browser prompts.
+Confirm the matching digits in both places. Try **Identify headset** and
+**Stop playback**, then reload the page to check reconnect. When the saved
+address changes and automatic rediscovery is unavailable, select the same
+headset to reuse its enrollment. Use **Forget paired browsers** on Quest
+to revoke all its saved enrollments.
+[Chrome Local Network Access](https://developer.chrome.com/docs/modern-web-guidance/guides/security/local-network-access)
 
-Open the **Facilitator guide** on the page for setup and reset steps. When the
-page is hosted over HTTPS, its QR code opens the same page on another device.
-The code contains the page URL without its query or fragment. Each browser
-still pairs using the separate code shown on the headset.
+The page's **Facilitator guide** can display a QR link to the HTTPS page.
+The QR contains only the page URL. Each browser enrolls on its own.
 
 ## Behavior and authority
 
-- The visible Quest activity starts the foreground session. It expires after
-  15 minutes and requires a new wearer start after process death or reboot.
-  The app uses ordinary Bluetooth runtime grants and a user-visible connected
-  device foreground service. Media playback belongs to that app session.
-- The browser writes one typed request over encrypted GATT. Status, Play,
-  Stop, and read-only lookup are the complete command surface. Play always
-  selects the bundled clip. Stop applies only to this app's active clip.
-- Successful Bluetooth writes acknowledge delivery. The browser matches the
-  app's result by request ID before displaying an outcome. The Quest session
-  retains bounded effect records and refuses new effects if its record set is
-  full. Reconnect can look up the original effect within that session.
-- The pairing code stays in browser memory. The browser can retain the identity
-  of one unresolved command in the current tab across reload. Cached PWA files
-  are static. A cached page still requires the headset and its active session
-  for live controls.
-- A separate, encrypted read-only GATT characteristic reports battery level,
-  charging state, and whole seconds remaining with the authenticated session
-  identity. It is optional for compatibility with earlier example APKs. The
-  browser labels the last confirmed reading and estimates the countdown from
-  that reading. The headset remains authoritative for expiry.
+- The wearer starts the foreground session. It expires after 15 minutes
+  and requires a new wearer start after process death or reboot. Stop or
+  expiry closes the listener and stops playback. Enrollment persists across
+  sessions.
+- Bluetooth reads public installation identity and the LAN address. The
+  pairing exchange returns an encrypted enrollment ticket after both
+  confirmations. Kiosk uses the shared pairing protocol and authenticated
+  LAN request and reply format for status and audio. The
+  example's HTTP status and results are visible on the local network, so
+  use a trusted private network.
+- Status, Play, Stop and read-only receipt lookup are the command surface.
+  Play selects the bundled clip. Stop applies to the app's clip. An
+  authenticated reply carries the exact request ID and playback outcome.
+- The PWA stores enrollment per headset installation and remembers the current
+  selection. To check an unresolved request after reconnect, it verifies the
+  wearer-session identity and looks up the original ID without replaying it.
+  The headset remains authoritative for expiry and status.
 
-The example's v1 command profile uses one small GATT write and one read. A write carries
-version, operation and 16 bytes of pairing code or request identity. A read
-carries version, operation, result, playback state and the exact 16-byte
-identity. Successful pairing returns the current Quest session identity in
-that field. The browser compares it on reconnect before looking up a retained
-command. The 21-byte status read adds version, battery, charging, remaining
-seconds, and the same session identity. See the native and browser protocol
-tests for the numeric encoding.
+[Pairing client source pin](browser/vendor/quest-pairing.source.json) ·
+[Retained license](browser/vendor/quest-pairing.LICENSE)
 
 ## Verify and distribute
 
-Run the Android build and unit tests above, then run `node --test "test/*.test.js"` in
-`browser/` for the shared GATT pin, protocol, and simulated browser flows. Keep those
-results separate from actual pairing and playback. On a physical test, confirm
-the target mobile browser can connect to the HTTPS origin, hear the clip start
-and stop while an immersive app retains XR focus, and repeat the connection
-after explicitly starting a new session following reboot.
+Run the Android build and tests above, then run `node --test "test/*.test.js"`
+from `browser/`. On a physical test, confirm first pairing, saved reconnect
+after reload, reselecting the same headset, and revocation. Confirm that battery
+and charging match the headset and that the clip starts and stops while another
+immersive app retains focus. Record platform prompts and app-level results
+separately.
 
-The debug APK is the developer-sideload example. A release-signed package with
-the same narrow permission scope can be considered for a Meta test channel or
-SideQuest after device qualification and applicable review. Launcher Lite
-retains its separate Store build. See the [utility distribution guide](../../docs/UTILITY_DISTRIBUTION.md).
+The debug APK is a standalone developer-sideload example. A release-signed
+package with the same narrow permission and network scope can be considered
+for a Meta test channel or SideQuest after device qualification and review.
+Launcher Lite has its own Store build.
+[Utility distribution guide](../../docs/UTILITY_DISTRIBUTION.md)

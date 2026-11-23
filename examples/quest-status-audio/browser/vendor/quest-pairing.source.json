@@ -1,0 +1,15 @@
+{
+  "author": "George Fejer",
+  "commit": "5ecdbeefb53b017b7044d81d5ead1b3054d42272",
+  "source": "quest-pairing.js",
+  "license": "MIT",
+  "upstreamSha256": "848d752187059af73d3c9a697cc81727ca105f0051354b5def524b3caac29f3e",
+  "sha256": {
+    "quest-pairing.js": "651cf984c5645923989bd2586c0147da8178301bb18c0805ca05abae90c150e9",
+    "quest-pairing.LICENSE": "eb412411b17bbfdd37e1b3b60aecae36afa04e4c55de7387c77721a4c6ebd450"
+  },
+  "adaptations": [
+    "Inject the Kiosk transport",
+    "Use English copy and a browser label"
+  ]
+}

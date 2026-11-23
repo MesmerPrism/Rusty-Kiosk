@@ -1,12 +1,12 @@
 // Bump VERSION whenever the static shell changes. A waiting worker keeps its own cache.
-const VERSION = "2";
+const VERSION = "4";
 const SCOPE = self.registration.scope;
 const PREFIX = `quest-status-audio:${SCOPE}:`;
 const CACHE = PREFIX + VERSION;
 const INDEX = new URL("index.html", SCOPE).href;
 const ASSETS = new Set([
   "index.html", "styles.css", "app.js", "controller.js", "protocol.js", "page-qr.js",
-  "vendor/gatt-lifetime.js", "vendor/qrcode-generator.mjs", "manifest.webmanifest",
+  "quest-link.js", "vendor/quest-pairing.js", "vendor/qrcode-generator.mjs", "manifest.webmanifest",
   "icons/quest-audio-192.png", "icons/quest-audio-512.png",
 ].map((asset) => new URL(asset, SCOPE).href));
 

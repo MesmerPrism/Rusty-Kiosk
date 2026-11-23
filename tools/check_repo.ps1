@@ -1115,6 +1115,7 @@ try {
   $examplePermissions = @($statusAudioManifest.SelectNodes('/manifest/uses-permission | /manifest/uses-permission-sdk-23') |
     ForEach-Object { $_.GetAttribute('name', $androidNamespace) })
   $approvedPermissions = @(
+    'android.permission.ACCESS_NETWORK_STATE', 'android.permission.INTERNET',
     'android.permission.BLUETOOTH_ADVERTISE', 'android.permission.BLUETOOTH_CONNECT',
     'android.permission.FOREGROUND_SERVICE', 'android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE',
     'android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK', 'android.permission.POST_NOTIFICATIONS'

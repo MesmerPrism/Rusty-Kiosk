@@ -1,17 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Quest Status and Audio</string>
-    <string name="enable_session">Start Bluetooth session</string>
-    <string name="stop_session">Stop Bluetooth session</string>
-    <string name="instructions">Start a 15-minute session, then enter its code in the companion page. Keep Bluetooth on while testing.</string>
-    <string name="session_inactive">Bluetooth session stopped.</string>
-    <string name="session_starting">Starting Bluetooth…</string>
-    <string name="session_ready">Bluetooth is ready to pair.</string>
-    <string name="session_expired">Bluetooth session expired. Start a new session to pair again.</string>
-    <string name="bluetooth_unavailable">Bluetooth is unavailable. Turn on Bluetooth and try again.</string>
-    <string name="bluetooth_failed">The Bluetooth session could not start.</string>
-    <string name="permission_needed">Allow Nearby devices to start a Bluetooth session.</string>
-    <string name="pairing_code">Pairing code</string>
-    <string name="session_notification_channel">Bluetooth session</string>
+    <string name="enable_session">Start companion session</string>
+    <string name="stop_session">Stop companion session</string>
+    <string name="instructions">Start a 15-minute session. Keep your browser and headset on the same Wi-Fi. To pair a new browser, select this headset in the browser and confirm that the digits match on both devices.</string>
+    <string name="session_inactive">Companion session stopped.</string>
+    <string name="session_starting">Starting companion session…</string>
+    <string name="session_ready">Companion session ready.</string>
+    <string name="session_expired">Companion session expired. Start a new session to reconnect.</string>
+    <string name="bluetooth_failed">The companion session could not start.</string>
+    <string name="network_failed">The local network service could not start.</string>
+    <string name="discovery_unavailable">Bluetooth discovery is unavailable. Saved browsers can still reconnect on the same Wi-Fi.</string>
+    <string name="permission_needed">Allow Nearby devices to start a companion session.</string>
+    <string name="pairing_code">Confirm that these digits match the browser.</string>
+    <string name="confirm_match">Digits match</string>
+    <string name="reject_pairing">Reject pairing</string>
+    <string name="pairing_ended">That pairing request has ended.</string>
+    <string name="forget_browsers">Forget paired browsers</string>
+    <string name="forget_browsers_description">Remove access for every paired browser. Each browser will need confirmation to pair again.</string>
+    <string name="forget">Forget</string>
+    <string name="browsers_forgotten">Paired browsers removed.</string>
+    <string name="forget_failed">Paired browsers could not be removed.</string>
+    <string name="session_notification_channel">Companion session</string>
     <string name="session_notification_text">Companion can check status and play or stop the test clip.</string>
 </resources>

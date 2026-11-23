@@ -18,42 +18,35 @@ import android.content.Context;
 import android.os.Handler;
 import android.os.ParcelUuid;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
-/** One local GATT server and at most one connected peer. */
-@SuppressLint("MissingPermission") // The gate checks grants for start and every callback.
+/** Only the installation identity and LAN route are discoverable over BLE. */
+@SuppressLint("MissingPermission") // The wearer grants Nearby Devices before startup.
 final class CompanionGatt {
     private static final UUID SERVICE = UUID.fromString("2e1fb001-2d5c-44ed-93de-9ecd76c520d6");
-    private static final UUID WRITE = UUID.fromString("2e1fb002-2d5c-44ed-93de-9ecd76c520d6");
-    private static final UUID READ = UUID.fromString("2e1fb003-2d5c-44ed-93de-9ecd76c520d6");
-    private static final UUID SESSION_STATUS = UUID.fromString("2e1fb004-2d5c-44ed-93de-9ecd76c520d6");
+    private static final UUID DISCOVERY = UUID.fromString("2e1fb005-2d5c-44ed-93de-9ecd76c520d6");
+    private static final int MAX_ATTRIBUTE_BYTES = 512;
+    private static final int MAX_PEERS = 4;
 
     private static final class Peer {
-        final BluetoothDevice device;
-        Peer(BluetoothDevice device) { this.device = device; }
+        int mtu = 23;
+        byte[] snapshot;
     }
 
     private final Handler main;
-    private final CompanionProtocol protocol;
-    private final Supplier<CompanionStatus> sampleStatus;
-    private final BooleanSupplier live;
+    private final Supplier<byte[]> discovery;
     private final Runnable ready;
     private final Runnable failed;
-    private final Object peerLock = new Object();
-    private volatile boolean closed;
-    private volatile Peer announced;
-    private Peer active;
+    private final Map<BluetoothDevice, Peer> peers = new HashMap<>();
     private BluetoothGattServer server;
     private BluetoothLeAdvertiser advertiser;
 
-    CompanionGatt(Handler main, CompanionProtocol protocol, Supplier<CompanionStatus> sampleStatus,
-            BooleanSupplier live, Runnable ready, Runnable failed) {
+    CompanionGatt(Handler main, Supplier<byte[]> discovery, Runnable ready, Runnable failed) {
         this.main = main;
-        this.protocol = protocol;
-        this.sampleStatus = sampleStatus;
-        this.live = live;
+        this.discovery = discovery;
         this.ready = ready;
         this.failed = failed;
     }
@@ -65,35 +58,21 @@ final class CompanionGatt {
             if (adapter == null || !adapter.isEnabled()) return false;
             advertiser = adapter.getBluetoothLeAdvertiser();
             if (advertiser == null) return false;
-            server = manager.openGattServer(context, onGatt);
+            server = manager.openGattServer(context, callbacks);
             if (server == null) return false;
-
             BluetoothGattService service = new BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY);
-            BluetoothGattCharacteristic input = new BluetoothGattCharacteristic(WRITE,
-                    BluetoothGattCharacteristic.PROPERTY_WRITE,
-                    BluetoothGattCharacteristic.PERMISSION_WRITE_ENCRYPTED);
-            BluetoothGattCharacteristic output = new BluetoothGattCharacteristic(READ,
-                    BluetoothGattCharacteristic.PROPERTY_READ,
-                    BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED);
-            BluetoothGattCharacteristic status = new BluetoothGattCharacteristic(SESSION_STATUS,
-                    BluetoothGattCharacteristic.PROPERTY_READ,
-                    BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED);
-            return service.addCharacteristic(input) && service.addCharacteristic(output) &&
-                    service.addCharacteristic(status) && server.addService(service);
+            BluetoothGattCharacteristic address = new BluetoothGattCharacteristic(DISCOVERY,
+                    BluetoothGattCharacteristic.PROPERTY_READ, BluetoothGattCharacteristic.PERMISSION_READ);
+            return service.addCharacteristic(address) && server.addService(service);
         } catch (IllegalStateException | SecurityException unavailable) {
             return false;
         }
     }
 
     void close() {
-        synchronized (peerLock) {
-            closed = true;
-            announced = null;
-        }
-        active = null;
-        protocol.resetPeer();
+        peers.clear();
         if (advertiser != null) {
-            try { advertiser.stopAdvertising(onAdvertise); }
+            try { advertiser.stopAdvertising(advertising); }
             catch (IllegalStateException | SecurityException ignored) { }
             advertiser = null;
         }
@@ -104,129 +83,86 @@ final class CompanionGatt {
         }
     }
 
-    private boolean available() {
-        return !closed && server != null && live.getAsBoolean();
-    }
-
-    private boolean current(Peer peer) {
-        return peer != null && active == peer && announced == peer && available();
-    }
-
-    private Peer peerFor(BluetoothDevice device) {
-        Peer current = announced;
-        return current != null && current.device.equals(device) ? current : null;
-    }
-
     private void advertise() {
         try {
-            AdvertiseSettings settings = new AdvertiseSettings.Builder().setConnectable(true).build();
+            AdvertiseSettings settings = new AdvertiseSettings.Builder()
+                    .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+                    .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                    .setConnectable(true).build();
             AdvertiseData data = new AdvertiseData.Builder().addServiceUuid(new ParcelUuid(SERVICE)).build();
-            advertiser.startAdvertising(settings, data, onAdvertise);
+            advertiser.startAdvertising(settings, data, advertising);
         } catch (IllegalStateException | SecurityException unavailable) {
             failed.run();
         }
     }
 
-    private void reply(Peer peer, int requestId, int status, byte[] value) {
-        if (!current(peer)) return;
-        try { server.sendResponse(peer.device, requestId, status, 0, value); }
+    private void read(BluetoothDevice device, int requestId, int offset, UUID characteristic) {
+        Peer peer = peers.get(device);
+        if (server == null || peer == null) return;
+        if (!DISCOVERY.equals(characteristic)) {
+            reply(device, requestId, BluetoothGatt.GATT_FAILURE, offset, null);
+            return;
+        }
+        if (offset == 0) peer.snapshot = discovery.get();
+        byte[] snapshot = peer.snapshot;
+        if (snapshot == null || snapshot.length > MAX_ATTRIBUTE_BYTES) {
+            reply(device, requestId, BluetoothGatt.GATT_FAILURE, offset, null);
+        } else if (offset < 0 || offset > snapshot.length) {
+            reply(device, requestId, BluetoothGatt.GATT_INVALID_OFFSET, offset, null);
+        } else {
+            int end = Math.min(snapshot.length, offset + peer.mtu - 1);
+            reply(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, Arrays.copyOfRange(snapshot, offset, end));
+        }
+    }
+
+    private void reply(BluetoothDevice device, int requestId, int status, int offset, byte[] value) {
+        try { server.sendResponse(device, requestId, status, offset, value); }
         catch (IllegalStateException | SecurityException unavailable) { failed.run(); }
     }
 
-    private final AdvertiseCallback onAdvertise = new AdvertiseCallback() {
+    private final AdvertiseCallback advertising = new AdvertiseCallback() {
         @Override public void onStartSuccess(AdvertiseSettings settings) {
-            main.post(() -> { if (available()) ready.run(); });
+            main.post(() -> { if (server != null) ready.run(); });
         }
 
         @Override public void onStartFailure(int errorCode) {
-            main.post(() -> { if (available()) failed.run(); });
+            main.post(() -> { if (server != null) failed.run(); });
         }
     };
 
-    private final BluetoothGattServerCallback onGatt = new BluetoothGattServerCallback() {
+    private final BluetoothGattServerCallback callbacks = new BluetoothGattServerCallback() {
         @Override public void onServiceAdded(int status, BluetoothGattService service) {
             main.post(() -> {
-                if (!available()) return;
+                if (server == null) return;
                 if (status == BluetoothGatt.GATT_SUCCESS && SERVICE.equals(service.getUuid())) advertise();
                 else failed.run();
             });
         }
 
         @Override public void onConnectionStateChange(BluetoothDevice device, int status, int newState) {
-            synchronized (peerLock) {
-                if (closed) return;
-                Peer previous = announced;
-                if (status == BluetoothGatt.GATT_SUCCESS && newState == BluetoothProfile.STATE_CONNECTED) {
-                    if (previous != null) {
-                        if (!previous.device.equals(device)) {
-                            main.post(() -> rejectOtherPeer(device));
-                        }
-                        return;
-                    }
-                    Peer pending = new Peer(device);
-                    announced = pending;
-                    main.post(() -> {
-                        if (announced != pending || !available()) return;
-                        protocol.resetPeer();
-                        active = pending;
-                    });
-                } else if ((status != BluetoothGatt.GATT_SUCCESS || newState == BluetoothProfile.STATE_DISCONNECTED) &&
-                        previous != null && previous.device.equals(device)) {
-                    announced = null;
-                    main.post(() -> {
-                        if (active != previous) return;
-                        protocol.resetPeer();
-                        active = null;
-                    });
-                }
-            }
-        }
-
-        @Override public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset,
-                BluetoothGattCharacteristic characteristic) {
-            Peer requested = peerFor(device);
             main.post(() -> {
-                if (!current(requested)) return;
-                if (offset != 0) {
-                    reply(requested, requestId, BluetoothGatt.GATT_INVALID_OFFSET, null);
-                    return;
-                }
-                UUID characteristicId = characteristic.getUuid();
-                byte[] result = null;
-                if (READ.equals(characteristicId)) result = protocol.read();
-                else if (SESSION_STATUS.equals(characteristicId)) result = protocol.readSessionStatus(sampleStatus);
-                reply(requested, requestId, result != null ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE, result);
-            });
-        }
-
-        @Override public void onCharacteristicWriteRequest(BluetoothDevice device, int requestId,
-                BluetoothGattCharacteristic characteristic, boolean preparedWrite, boolean responseNeeded,
-                int offset, byte[] value) {
-            if (!responseNeeded) return;
-            Peer requested = peerFor(device);
-            // Copy only the small, closed packet before crossing threads.
-            byte[] packet = value != null && value.length == 2 + CompanionProtocol.ID_LENGTH ? value.clone() : null;
-            main.post(() -> {
-                try {
-                    if (!current(requested)) return;
-                    boolean accepted = offset == 0 && !preparedWrite && packet != null &&
-                            WRITE.equals(characteristic.getUuid()) && protocol.write(packet);
-                    reply(requested, requestId, accepted ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE, null);
-                } finally {
-                    if (packet != null) Arrays.fill(packet, (byte) 0);
+                if (server == null) return;
+                if (status != BluetoothGatt.GATT_SUCCESS || newState != BluetoothProfile.STATE_CONNECTED) {
+                    peers.remove(device);
+                } else if (peers.size() < MAX_PEERS || peers.containsKey(device)) {
+                    peers.put(device, new Peer());
+                } else {
+                    try { server.cancelConnection(device); }
+                    catch (IllegalStateException | SecurityException unavailable) { failed.run(); }
                 }
             });
         }
 
-        @Override public void onExecuteWrite(BluetoothDevice device, int requestId, boolean execute) {
-            Peer requested = peerFor(device);
-            main.post(() -> reply(requested, requestId, BluetoothGatt.GATT_FAILURE, null));
+        @Override public void onMtuChanged(BluetoothDevice device, int mtu) {
+            main.post(() -> {
+                Peer peer = peers.get(device);
+                if (peer != null && mtu >= 23 && mtu <= 517) peer.mtu = mtu;
+            });
+        }
+
+        @Override public void onCharacteristicReadRequest(
+                BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+            main.post(() -> read(device, requestId, offset, characteristic.getUuid()));
         }
     };
-
-    private void rejectOtherPeer(BluetoothDevice device) {
-        if (!available() || peerFor(device) != null) return;
-        try { server.cancelConnection(device); }
-        catch (IllegalStateException | SecurityException unavailable) { failed.run(); }
-    }
 }

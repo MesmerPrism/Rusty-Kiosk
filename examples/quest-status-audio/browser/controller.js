@@ -1,23 +1,20 @@
-import "./vendor/gatt-lifetime.js";
-import {
-  COMMAND_UUID, DETAILS_UUID, decodeHeadsetDetails, decodeResult, encodeRequest, identityBytes, identityHex,
-  isIdentity, Opcode, parsePairingCode, RESULT_UUID, Result, SERVICE_UUID,
-} from "./protocol.js";
+import { pairPhone } from "./vendor/quest-pairing.js";
+import { discoverHeadset, endpoint, GatewayError, openGateway, validEnrollment } from "./quest-link.js";
+import { decodeHeadsetDetails, decodeResult, identityHex, isIdentity, Opcode, Result, SERVICE_UUID } from "./protocol.js";
 
 export const REQUEST_KEY = "quest-status-audio:unresolved-v1";
+const SELECTED_KEY = "quest-status-audio:selected-headset";
 const INVALID_PENDING = Symbol("invalid pending request");
-const SETUP_TIMEOUT_MS = 45_000;
-const TRANSFER_TIMEOUT_MS = 10_000;
-const { OperationQueue } = globalThis.QuestBleLifetime;
+const RETRY_MS = 8000;
+const STATUS_PROBE_MS = 8000;
+const enrollmentKey = device => `quest-status-audio:enrollment/${device}`;
 const RESULT_VERBS = {
   [Result.OK]: "confirmed",
   [Result.REJECTED]: "rejected",
   [Result.FAILED]: "reported a failure for",
 };
 
-class BluetoothTimeout extends Error {}
-
-function validDeviceId(id) {
+function validBrowserId(id) {
   return typeof id === "string" && id.length > 0 && id.length <= 256 && !/[\u0000-\u001f\u007f]/.test(id);
 }
 
@@ -27,54 +24,97 @@ function readJournal(storage) {
     if (raw == null) return null;
     const item = JSON.parse(raw);
     if (item && Object.keys(item).length === 4 && isIdentity(item.id) && isIdentity(item.epoch)
-        && validDeviceId(item.deviceId) && (item.opcode === Opcode.PLAY || item.opcode === Opcode.STOP)) {
-      return item;
-    }
+      && isIdentity(item.installation) && (item.opcode === Opcode.PLAY || item.opcode === Opcode.STOP)) return item;
   } catch {
-    // A damaged journal is still evidence that a prior outcome may be unknown.
+    // An unreadable journal is still evidence that a prior outcome may be unknown.
   }
   return INVALID_PENDING;
 }
 
-function withDeadline(operation, ms) {
-  let timer;
-  const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new BluetoothTimeout("Bluetooth operation timed out")), ms);
-  });
-  return Promise.race([operation, deadline]).finally(() => clearTimeout(timer));
+function readEnrollment(storage, device) {
+  try {
+    const id = device ?? storage?.getItem(SELECTED_KEY);
+    if (!isIdentity(id)) return null;
+    const record = JSON.parse(storage?.getItem(enrollmentKey(id)));
+    if (record?.device !== id || !validEnrollment(record.enrollment)) return null;
+    return { device: id, address: endpoint(record.address), enrollment: record.enrollment,
+      bluetoothId: validBrowserId(record.bluetoothId) ? record.bluetoothId : undefined };
+  } catch { return null; }
+}
+
+function frame(value, length) {
+  if (typeof value !== "string" || value.length !== 2 * length || !/^[a-f0-9]+$/.test(value)) {
+    throw new Error("Invalid headset frame.");
+  }
+  const bytes = Uint8Array.from(value.match(/../g), byte => Number.parseInt(byte, 16));
+  return new DataView(bytes.buffer);
 }
 
 export class CompanionController {
-  constructor({ bluetooth, storage, randomBytes = () => crypto.getRandomValues(new Uint8Array(16)),
-    wallTime = () => Date.now(), elapsedTime = () => performance.now(), onChange = () => {} }) {
-    Object.assign(this, { bluetooth, storage, randomBytes, wallTime, elapsedTime, onChange });
+  constructor({ bluetooth, storage, enrollmentStorage, fetcher = fetch,
+    randomBytes = () => crypto.getRandomValues(new Uint8Array(16)), wallTime = () => Date.now(),
+    elapsedTime = () => performance.now(), onChange = () => {} }) {
+    Object.assign(this, { bluetooth, storage, enrollmentStorage, fetcher, randomBytes, wallTime, elapsedTime, onChange });
     this.link = null;
+    this.saved = readEnrollment(enrollmentStorage);
     this.pending = readJournal(storage);
-    this.state = { phase: "disconnected", playback: null, note: "", busy: false, hasPending: false,
-      details: null, detailsStatus: "unavailable", remainingSeconds: null, sessionExpired: false };
+    this.comparison = null;
+    this.auto = true;
+    this.retryAt = 0;
+    this.state = { phase: "disconnected", stage: null, playback: null, note: "", busy: false, hasPending: false,
+      details: null, detailsStatus: "unavailable", remainingSeconds: null, sessionExpired: false,
+      pairingCode: null, remembered: Boolean(this.saved) };
     if (this.pending) this.publish({ note: "A previous playback request has an unknown outcome." });
   }
 
   publish(changes) {
-    this.state = { ...this.state, ...changes, hasPending: this.pending !== null };
+    this.state = { ...this.state, ...changes, hasPending: this.pending !== null, remembered: Boolean(this.saved) };
     this.onChange(this.state);
   }
 
   requireCurrent(link) {
-    if (this.link !== link) throw new Error("Bluetooth connection ended");
+    if (this.link !== link) throw new Error("Headset connection ended.");
+    link.abort.signal.throwIfAborted();
   }
 
   retire(link, note, sessionExpired = false) {
     if (this.link !== link) return;
     this.link = null;
-    link.device?.removeEventListener("gattserverdisconnected", link.disconnected);
-    if (link.device?.gatt.connected) link.device.gatt.disconnect();
-    this.publish({ phase: "disconnected", playback: null, busy: false, note, sessionExpired,
-      detailsStatus: this.state.details ? "stale" : "unavailable", remainingSeconds: null });
+    link.abort.abort();
+    if (this.comparison?.link === link) this.answerPairing(false);
+    this.retryAt = this.elapsedTime() + RETRY_MS;
+    this.publish({ phase: "disconnected", stage: null, pairingCode: null, playback: null, busy: false,
+      note, sessionExpired, detailsStatus: this.state.details ? "stale" : "unavailable", remainingSeconds: null });
   }
 
   disconnect() {
+    this.auto = false;
+    this.suspend();
+  }
+
+  suspend() {
     if (this.link) this.retire(this.link, this.pending ? "The previous playback request is still unknown." : "");
+  }
+
+  resumeSaved() {
+    this.auto = true;
+    return this.reconnect({ immediate: true });
+  }
+
+  forgetHeadset() {
+    this.disconnect();
+    if (!this.saved) return;
+    if (this.enrollmentStorage) {
+      try {
+        this.enrollmentStorage.removeItem(enrollmentKey(this.saved.device));
+        this.enrollmentStorage.removeItem(SELECTED_KEY);
+      } catch {
+        this.publish({ note: "This browser could not remove the saved headset." });
+        return;
+      }
+    }
+    this.saved = null;
+    this.publish({ note: "Headset forgotten on this browser. Use the headset app to revoke access." });
   }
 
   tick() {
@@ -82,141 +122,186 @@ export class CompanionController {
     if (link?.deadline == null) return;
     const remainingSeconds = Math.max(0, Math.ceil((link.deadline - this.elapsedTime()) / 1000));
     if (remainingSeconds === 0) {
-      const note = "Session time elapsed. Start a new session on the headset for a new code.";
+      const note = "Session time elapsed. Start a new session on the headset.";
       this.retire(link, this.pending ? `${note} The previous playback request is still unknown.` : note, true);
     } else if (this.state.remainingSeconds !== remainingSeconds) {
       this.publish({ remainingSeconds });
     }
   }
 
-  async connect(code) {
-    if (this.link) return;
-    if (!this.bluetooth?.requestDevice) {
-      this.publish({ note: "Use a browser that supports Web Bluetooth on this site." });
-      return;
-    }
-    const secret = parsePairingCode(code);
-    if (!secret) {
-      this.publish({ note: "Enter the 32-character pairing code shown on the headset." });
-      return;
-    }
-
-    const link = {};
-    link.queue = new OperationQueue(() => this.requireCurrent(link));
+  begin(stage) {
+    const link = { abort: new AbortController() };
     this.link = link;
-    this.publish({ phase: "connecting", busy: true, playback: null, note: "", details: null,
-      detailsStatus: "unavailable", remainingSeconds: null, sessionExpired: false });
+    this.publish({ phase: "connecting", stage, busy: true, playback: null, note: "", pairingCode: null,
+      detailsStatus: this.state.details ? "stale" : "unavailable", remainingSeconds: null, sessionExpired: false });
+    return link;
+  }
 
+  updateStage(link, stage) {
+    this.requireCurrent(link);
+    this.publish({ stage });
+  }
+
+  remember(record) {
+    this.saved = record;
+    if (!this.enrollmentStorage) return false;
     try {
-      // Invoke the chooser before yielding to preserve the browser's click activation.
-      const device = await this.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
-      this.requireCurrent(link);
-      if (!device.gatt || !validDeviceId(device.id)) throw new Error("Invalid Bluetooth device");
-      link.device = device;
-      link.disconnected = () => {
-        this.tick();
-        const note = this.pending ? "Connection lost. The previous playback request is still unknown." : "Connection lost.";
-        this.retire(link, note);
-      };
-      device.addEventListener("gattserverdisconnected", link.disconnected);
+      this.enrollmentStorage.setItem(enrollmentKey(record.device), JSON.stringify(record));
+      this.enrollmentStorage.setItem(SELECTED_KEY, record.device);
+      return true;
+    } catch { return false; }
+  }
 
-      const connecting = device.gatt.connect().then((gatt) => {
-        if (this.link !== link && this.link?.device?.gatt !== device.gatt && device.gatt.connected) {
-          device.gatt.disconnect();
-        }
-        return gatt;
-      });
-      const gatt = await withDeadline(connecting, SETUP_TIMEOUT_MS);
-      this.requireCurrent(link);
-      const service = await withDeadline(gatt.getPrimaryService(SERVICE_UUID), SETUP_TIMEOUT_MS);
-      this.requireCurrent(link);
-      link.service = service;
-      link.write = await withDeadline(service.getCharacteristic(COMMAND_UUID), SETUP_TIMEOUT_MS);
-      this.requireCurrent(link);
-      link.read = await withDeadline(service.getCharacteristic(RESULT_UUID), SETUP_TIMEOUT_MS);
+  compare(link, { code, signal }) {
+    this.requireCurrent(link);
+    signal.throwIfAborted();
+    return new Promise(resolve => {
+      this.comparison = { link, resolve };
+      this.publish({ pairingCode: code, note: "Compare the digits, then confirm on both devices." });
+    });
+  }
 
-      const auth = await this.exchange(link, Opcode.AUTH, secret, SETUP_TIMEOUT_MS);
-      secret.fill(0);
-      this.requireCurrent(link);
-      if (auth.opcode !== Opcode.AUTH || auth.result !== Result.OK || !isIdentity(auth.id)) {
-        this.retire(link, "Pairing failed. Check the headset's current code or start a new session for a new code.");
-        return;
-      }
-      link.epoch = auth.id;
-      await this.readStatus(link);
-      await this.readDetails(link);
-      if (this.pending) await this.recover(link);
-      this.requireCurrent(link);
-      this.publish({ phase: "connected", busy: false });
-    } catch {
-      this.retire(link, this.pending
-        ? "Connection interrupted. The previous playback request is still unknown."
-        : "Could not pair with the headset. Check Bluetooth and try again.");
-    } finally {
-      secret.fill(0);
+  answerPairing(approved) {
+    const comparison = this.comparison;
+    if (!comparison) return;
+    this.comparison = null;
+    comparison.resolve(approved === true);
+    if (this.link === comparison.link) {
+      this.publish({ pairingCode: null, note: approved ? "Waiting for confirmation on the headset." : "" });
     }
   }
 
-  async exchange(link, opcode, id, timeout = TRANSFER_TIMEOUT_MS) {
-    const packet = encodeRequest(opcode, id);
+  async connect() {
+    if (this.link || !this.bluetooth?.requestDevice) return;
+    this.auto = true;
+    const link = this.begin("discovering");
     try {
-      return await withDeadline(link.queue.run(link, async () => {
-        await link.write.writeValueWithResponse(packet);
-        this.requireCurrent(link);
-        const view = await link.read.readValue();
-        return decodeResult(view);
-      }), timeout);
-    } finally {
-      packet.fill(0);
+      // The explicit click supplies browser activation for this chooser.
+      const device = await this.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
+      this.requireCurrent(link);
+      const seen = await discoverHeadset(device, link.abort.signal);
+      this.updateStage(link, "network");
+      const gateway = await openGateway(seen.endpoint, { installation: seen.owner.device, seen: seen.owner,
+        signal: link.abort.signal, fetcher: this.fetcher });
+      this.requireCurrent(link);
+      const saved = this.saved?.device === gateway.owner.device ? this.saved
+        : readEnrollment(this.enrollmentStorage, gateway.owner.device);
+      const record = { device: gateway.owner.device, address: seen.endpoint, bluetoothId: device.id };
+      if (saved) {
+        try {
+          await this.attach(link, gateway, { ...record, enrollment: saved.enrollment });
+          return;
+        } catch (error) {
+          if (!(error instanceof GatewayError) || error.status !== 403) throw error;
+        }
+      }
+      this.updateStage(link, "pairing");
+      const ticket = await pairPhone({ owner: gateway.owner, signal: link.abort.signal, transport: gateway.pairing,
+        onCode: prompt => this.compare(link, prompt) });
+      this.requireCurrent(link);
+      const enrolled = { ...record, enrollment: { controller: ticket.controller, key: ticket.key } };
+      // Both devices already approved enrollment. Preserve it even if the first status reply is lost.
+      this.remember(enrolled);
+      await this.attach(link, gateway, enrolled);
+    } catch (error) {
+      this.fail(link, error);
     }
+  }
+
+  async reconnect({ immediate = false } = {}) {
+    if (this.link || !this.auto || !this.saved || (!immediate && this.elapsedTime() < this.retryAt)) return;
+    const saved = this.saved;
+    const link = this.begin("reconnecting");
+    try {
+      try {
+        await this.attachSaved(link, saved);
+      } catch (error) {
+        this.requireCurrent(link);
+        if (error instanceof GatewayError && error.status === 403) throw error;
+        if (!saved.bluetoothId || !this.bluetooth?.getDevices) throw error;
+        const devices = await this.bluetooth.getDevices();
+        this.requireCurrent(link);
+        const device = devices.find(item => item.id === saved.bluetoothId);
+        if (!device) throw error;
+        const seen = await discoverHeadset(device, link.abort.signal);
+        if (seen.owner.device !== saved.device) throw new Error("The granted Bluetooth device is not the saved headset.");
+        await this.attachSaved(link, { ...saved, address: seen.endpoint }, seen.owner);
+      }
+    } catch (error) {
+      this.fail(link, error, true);
+    }
+  }
+
+  async attachSaved(link, record, seen) {
+    const gateway = await openGateway(record.address, { installation: record.device, seen,
+      signal: link.abort.signal, fetcher: this.fetcher });
+    await this.attach(link, gateway, record);
+  }
+
+  async attach(link, gateway, record) {
+    this.requireCurrent(link);
+    this.publish({ stage: "authenticating", note: "" });
+    link.installation = gateway.owner.device;
+    link.exchange = await gateway.authenticate(record.enrollment);
+    await this.readStatus(link);
+    this.requireCurrent(link);
+    const persisted = this.remember(record);
+    if (this.pending) await this.recover(link);
+    this.requireCurrent(link);
+    this.publish({ phase: "connected", stage: null, busy: false, pairingCode: null,
+      note: this.state.note || (persisted ? "" : "This browser could not save the headset for automatic reconnect.") });
+  }
+
+  fail(link, error, automatic = false) {
+    if (this.link !== link) return;
+    const stage = this.state.stage;
+    let note;
+    if (automatic) {
+      note = error instanceof GatewayError && error.status === 403
+        ? "This browser’s enrollment was rejected. Select the headset to pair again."
+        : "Saved headset unavailable. Start its session or select it again to refresh its address.";
+    } else if (stage === "discovering") {
+      note = error?.name === "NotFoundError"
+        ? "No headset selected. Start a session and try Connect headset again."
+        : "Bluetooth discovery failed. Check Bluetooth permissions and keep the headset session running.";
+    } else if (stage === "network") {
+      note = "The headset’s local address could not be reached or verified. Use the same network and allow local network access in the browser.";
+    } else if (stage === "pairing") {
+      note = error instanceof TypeError ? "Pairing lost the local network connection." : error?.message || "Pairing ended.";
+    } else {
+      note = "Headset status could not be authenticated. Check the active headset session.";
+    }
+    this.retire(link, this.pending ? `${note} The previous playback request is still unknown.` : note);
   }
 
   newId() {
     const bytes = this.randomBytes();
-    if (!(bytes instanceof Uint8Array) || bytes.length !== 16 || !isIdentity(identityHex(bytes))) throw new Error("Invalid generated identity");
-    return bytes;
+    const id = bytes instanceof Uint8Array ? identityHex(bytes) : "";
+    if (!isIdentity(id)) throw new Error("Invalid generated identity.");
+    return id;
   }
 
   async readStatus(link) {
     const id = this.newId();
-    const receipt = await this.exchange(link, Opcode.STATUS, id);
+    const requestedAt = this.elapsedTime();
+    const response = await link.exchange("status", { id });
     this.requireCurrent(link);
-    if (receipt.opcode !== Opcode.STATUS || receipt.id !== identityHex(id) || receipt.result !== Result.OK) {
-      throw new Error("Status receipt did not match");
+    const receipt = decodeResult(frame(response.result, 20));
+    if (receipt.opcode !== Opcode.STATUS || receipt.id !== id || receipt.result !== Result.OK) {
+      throw new Error("Status receipt did not match.");
     }
+    link.lastStatusAt = this.elapsedTime();
     this.publish({ playback: receipt.playback });
-  }
-
-  async readDetails(link) {
-    let observation;
-    try {
-      observation = await withDeadline(link.queue.run(link, async () => {
-        if (link.detailsChannel === undefined) {
-          try {
-            link.detailsChannel = await link.service.getCharacteristic(DETAILS_UUID);
-          } catch (error) {
-            if (error.name !== "NotFoundError") throw error;
-            link.detailsChannel = null;
-          }
-          this.requireCurrent(link);
-        }
-        if (!link.detailsChannel) return null;
-        const requestedAt = this.elapsedTime();
-        const snapshot = decodeHeadsetDetails(await link.detailsChannel.readValue());
-        return { snapshot, requestedAt };
-      }), TRANSFER_TIMEOUT_MS);
-    } catch (error) {
-      if (error instanceof BluetoothTimeout) throw error;
-    }
-
-    this.requireCurrent(link);
-    if (!observation || observation.snapshot.epoch !== link.epoch) {
+    let snapshot;
+    try { snapshot = decodeHeadsetDetails(frame(response.details, 21)); }
+    catch { /* Keep the last confirmed details if this observation was invalid. */ }
+    if (!snapshot || (link.epoch && snapshot.epoch !== link.epoch)) {
       this.publish({ detailsStatus: this.state.details ? "stale" : "unavailable" });
       return;
     }
-
-    const { battery, charging, remainingSeconds } = observation.snapshot;
-    link.deadline = observation.requestedAt + remainingSeconds * 1000;
+    link.epoch = snapshot.epoch;
+    const { battery, charging, remainingSeconds } = snapshot;
+    link.deadline = requestedAt + remainingSeconds * 1000;
     this.publish({ details: { battery, charging, remainingSeconds, confirmedAt: this.wallTime() },
       detailsStatus: "current" });
     this.tick();
@@ -230,11 +315,16 @@ export class CompanionController {
     this.publish({ busy: true });
     try {
       await this.readStatus(link);
-      await this.readDetails(link);
       this.requireCurrent(link);
       this.publish({ busy: false });
     } catch {
       this.retire(link, this.pending ? "Status unavailable. The previous playback request is still unknown." : "Headset status unavailable.");
+    }
+  }
+
+  probeStatus() {
+    if (this.state.phase === "connected" && this.elapsedTime() - this.link.lastStatusAt >= STATUS_PROBE_MS) {
+      return this.refresh();
     }
   }
 
@@ -243,9 +333,7 @@ export class CompanionController {
       this.storage.removeItem(REQUEST_KEY);
       this.pending = null;
       return true;
-    } catch {
-      return false;
-    }
+    } catch { return false; }
   }
 
   dismissPending() {
@@ -261,13 +349,13 @@ export class CompanionController {
 
   async recover(link) {
     const entry = this.pending;
-    if (entry === INVALID_PENDING || entry.epoch !== link.epoch || entry.deviceId !== link.device.id) {
+    if (entry === INVALID_PENDING || entry.epoch !== link.epoch || entry.installation !== link.installation) {
       this.publish({ note: "The saved request could not be matched to this headset session. Its outcome is unknown." });
       return;
     }
-    const receipt = await this.exchange(link, Opcode.LOOKUP, identityBytes(entry.id));
+    const response = await link.exchange("receipt", { id: entry.id });
     this.requireCurrent(link);
-    this.settle(entry, receipt, true);
+    this.settle(entry, decodeResult(frame(response.result, 20)), true);
   }
 
   settle(entry, receipt, previous = false) {
@@ -279,20 +367,22 @@ export class CompanionController {
     const description = previous ? `previous ${action}` : action;
     const note = `The headset ${RESULT_VERBS[receipt.result]} the ${description} request.`;
     const cleared = this.clearPending();
-    this.publish({
-      playback: previous ? this.state.playback : receipt.playback,
-      note: cleared ? note : `${note} This browser could not clear the saved request.`,
-    });
+    this.publish({ playback: previous ? this.state.playback : receipt.playback,
+      note: cleared ? note : `${note} This browser could not clear the saved request.` });
   }
 
   async #effect(opcode) {
     this.tick();
     const link = this.link;
     if (this.state.phase !== "connected" || this.state.busy || this.pending) return;
+    if (!link.epoch) {
+      this.publish({ note: "The current headset session could not be verified. Refresh its status before controlling playback." });
+      return;
+    }
     let id;
     try {
       id = this.newId();
-      this.startJournal({ opcode, id: identityHex(id), epoch: link.epoch, deviceId: link.device.id });
+      this.startJournal({ opcode, id, epoch: link.epoch, installation: link.installation });
     } catch {
       this.publish({ note: "This browser could not store the request. No playback command was sent." });
       return;
@@ -300,9 +390,9 @@ export class CompanionController {
     const entry = this.pending;
     this.publish({ busy: true, note: "" });
     try {
-      const receipt = await this.exchange(link, opcode, id);
+      const response = await link.exchange("command", { opcode, id });
       this.requireCurrent(link);
-      this.settle(entry, receipt);
+      this.settle(entry, decodeResult(frame(response.result, 20)));
       this.publish({ busy: false });
     } catch {
       this.retire(link, "Connection interrupted. The playback request has an unknown outcome.");

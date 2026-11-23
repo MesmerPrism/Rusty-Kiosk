@@ -2,6 +2,7 @@ package io.github.mesmerprism.queststatusaudioexample;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Typeface;
@@ -23,9 +24,13 @@ public final class CompanionActivity extends Activity {
     private final Handler main = new Handler(Looper.getMainLooper());
     private Button start;
     private Button stop;
+    private Button approve;
+    private Button reject;
+    private Button forget;
     private TextView status;
     private TextView codeLabel;
     private TextView code;
+    private CompanionService.PairingPrompt displayedPrompt;
     private boolean startRequested;
     private int localMessage;
     private final Runnable refresh = new Runnable() {
@@ -52,6 +57,14 @@ public final class CompanionActivity extends Activity {
         codeLabel = text(content, R.string.pairing_code, 16);
         code = text(content, 0, 22);
         code.setTypeface(Typeface.MONOSPACE);
+        approve = new Button(this);
+        approve.setText(R.string.confirm_match);
+        approve.setOnClickListener(view -> decide(true));
+        content.addView(approve);
+        reject = new Button(this);
+        reject.setText(R.string.reject_pairing);
+        reject.setOnClickListener(view -> decide(false));
+        content.addView(reject);
         start = new Button(this);
         start.setText(R.string.enable_session);
         start.setOnClickListener(view -> requestSession());
@@ -65,6 +78,10 @@ public final class CompanionActivity extends Activity {
             render();
         });
         content.addView(stop);
+        forget = new Button(this);
+        forget.setText(R.string.forget_browsers);
+        forget.setOnClickListener(view -> confirmForget());
+        content.addView(forget);
         setContentView(scroll);
         render();
     }
@@ -77,6 +94,23 @@ public final class CompanionActivity extends Activity {
     @Override protected void onPause() {
         main.removeCallbacks(refresh);
         super.onPause();
+    }
+
+    private void decide(boolean allow) {
+        localMessage = CompanionService.decidePairing(displayedPrompt, allow) ? 0 : R.string.pairing_ended;
+        render();
+    }
+
+    private void confirmForget() {
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.forget_browsers)
+                .setMessage(R.string.forget_browsers_description)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.forget, (dialog, which) -> {
+                    localMessage = CompanionService.forgetBrowsers() ? R.string.browsers_forgotten : R.string.forget_failed;
+                    render();
+                })
+                .show();
     }
 
     private void requestSession() {
@@ -127,12 +161,18 @@ public final class CompanionActivity extends Activity {
         int message = localMessage != 0 ? localMessage : startRequested ? R.string.session_starting : current.message();
         String statusText = getString(message);
         if (!statusText.contentEquals(status.getText())) status.setText(statusText);
-        String secret = current.code();
-        codeLabel.setVisibility(secret == null ? View.GONE : View.VISIBLE);
-        code.setVisibility(secret == null ? View.GONE : View.VISIBLE);
-        if (secret == null || !secret.contentEquals(code.getText())) code.setText(secret);
+        displayedPrompt = CompanionService.pendingPairing();
+        boolean comparing = displayedPrompt != null;
+        String digits = comparing ? displayedPrompt.code() : "";
+        codeLabel.setVisibility(comparing ? View.VISIBLE : View.GONE);
+        code.setVisibility(comparing ? View.VISIBLE : View.GONE);
+        if (!digits.contentEquals(code.getText())) code.setText(digits);
+        approve.setVisibility(comparing ? View.VISIBLE : View.GONE);
+        approve.setEnabled(comparing && !displayedPrompt.headsetConfirmed());
+        reject.setVisibility(comparing ? View.VISIBLE : View.GONE);
         start.setEnabled(!active);
         stop.setEnabled(active);
+        forget.setVisibility(active && CompanionService.hasEnrollment() ? View.VISIBLE : View.GONE);
     }
 
     private TextView text(LinearLayout content, int resource, int size) {

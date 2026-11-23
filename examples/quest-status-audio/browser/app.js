@@ -3,6 +3,8 @@ import { renderPageQr, shareablePageUrl } from "./page-qr.js";
 
 const PLAYBACK_LABELS = ["Idle", "Playing", "Stopped", "Completed", "Unavailable"];
 const CONNECTION_LABELS = { disconnected: "Disconnected", connecting: "Connecting…", connected: "Connected" };
+const CONNECTION_STAGES = { discovering: "Find a headset", network: "Opening local connection…",
+  pairing: "Confirm pairing", reconnecting: "Reconnecting…", authenticating: "Checking headset access…" };
 const CHARGING_LABELS = ["Unknown", "On battery", "Charging", "Full"];
 const DETAILS_LABELS = { unavailable: "Unavailable", current: "Confirmed", stale: "Last known" };
 const clockLabel = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" });
@@ -17,18 +19,22 @@ function remainingLabel(seconds) {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function browserStorage() {
+function browserStorage(name) {
   try {
-    return globalThis.sessionStorage;
+    return globalThis[name];
   } catch {
     return null;
   }
 }
 
-export function mount({ document, bluetooth, storage }) {
-  const form = document.getElementById("pair-form");
-  const input = document.getElementById("pairing-code");
+export function mount({ document, bluetooth, storage, enrollmentStorage }) {
   const pair = document.getElementById("pair");
+  const approval = document.getElementById("pair-approval");
+  const comparison = document.getElementById("pairing-code");
+  const approve = document.getElementById("pair-confirm");
+  const reject = document.getElementById("pair-reject");
+  const reconnect = document.getElementById("reconnect");
+  const forget = document.getElementById("forget");
   const connection = document.getElementById("connection");
   const disconnect = document.getElementById("disconnect");
   const playback = document.getElementById("playback");
@@ -47,12 +53,18 @@ export function mount({ document, bluetooth, storage }) {
   function render(state) {
     const connected = state.phase === "connected";
     const connecting = state.phase === "connecting";
-    form.hidden = connected;
-    input.disabled = connecting || !bluetooth;
-    pair.disabled = connecting || !bluetooth;
-    setText(connection, state.sessionExpired ? "Session expired" : CONNECTION_LABELS[state.phase]);
+    const showApproval = Boolean(state.pairingCode);
+    const focusApproval = showApproval && approval.hidden;
+    pair.hidden = connected || connecting;
+    pair.disabled = !bluetooth?.requestDevice;
+    reconnect.hidden = connected || connecting || !state.remembered;
+    forget.hidden = connecting || !state.remembered;
+    approval.hidden = !showApproval;
+    setText(comparison, state.pairingCode ?? "");
+    setText(connection, state.sessionExpired ? "Session expired" : CONNECTION_STAGES[state.stage] ?? CONNECTION_LABELS[state.phase]);
     connection.dataset.phase = state.phase;
-    disconnect.hidden = !connected;
+    disconnect.hidden = !connected && !connecting;
+    setText(disconnect, connecting ? "Cancel connection" : "Disconnect");
     setText(playback, PLAYBACK_LABELS[state.playback] ?? "Unavailable");
     setText(detailsStatus, DETAILS_LABELS[state.detailsStatus]);
     setText(battery, state.details?.battery == null ? "—" : `${state.details.battery}%`);
@@ -67,24 +79,25 @@ export function mount({ document, bluetooth, storage }) {
     play.disabled = !connected || state.busy || state.hasPending;
     stop.disabled = !connected || state.busy || state.hasPending;
     refresh.disabled = !connected || state.busy;
-    const message = state.note || (bluetooth ? "" : "Web Bluetooth is unavailable. Open this page in a supported browser over HTTPS.");
+    const message = state.note || (bluetooth?.requestDevice || state.remembered ? "" :
+      "Web Bluetooth is unavailable. Open this page in a supported browser over HTTPS to pair.");
     setText(note, message);
     dismiss.hidden = !state.hasPending;
     dismiss.disabled = state.busy;
+    if (focusApproval) approve.focus({ preventScroll: true });
   }
 
-  const controller = new CompanionController({ bluetooth, storage, onChange: render });
+  const controller = new CompanionController({ bluetooth, storage, enrollmentStorage, onChange: render });
   render(controller.state);
 
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const code = input.value;
-    input.value = "";
-    void controller.connect(code);
-  });
+  pair.addEventListener("click", () => void controller.connect());
+  reconnect.addEventListener("click", () => void controller.resumeSaved());
+  forget.addEventListener("click", () => controller.forgetHeadset());
+  approve.addEventListener("click", () => controller.answerPairing(true));
+  reject.addEventListener("click", () => controller.answerPairing(false));
   disconnect.addEventListener("click", () => {
     controller.disconnect();
-    input.focus();
+    (reconnect.hidden ? pair : reconnect).focus();
   });
   play.addEventListener("click", () => void controller.play());
   stop.addEventListener("click", () => void controller.stop());
@@ -127,10 +140,23 @@ function mountGuide() {
   });
 }
 
-const controller = mount({ document, bluetooth: navigator.bluetooth, storage: browserStorage() });
+const controller = mount({ document, bluetooth: navigator.bluetooth, storage: browserStorage("sessionStorage"),
+  enrollmentStorage: browserStorage("localStorage") });
 mountGuide();
-globalThis.setInterval(() => controller.tick(), 1000);
-globalThis.addEventListener("pagehide", () => controller.disconnect());
+const checkVisibleConnection = (immediate = false) => {
+  if (document.hidden) return;
+  if (controller.state.phase === "connected") void controller.probeStatus();
+  else void controller.reconnect({ immediate });
+};
+globalThis.setInterval(() => {
+  controller.tick();
+  checkVisibleConnection();
+}, 1000);
+globalThis.addEventListener("pagehide", () => controller.suspend());
+globalThis.addEventListener("pageshow", () => checkVisibleConnection(true));
+globalThis.addEventListener("online", () => checkVisibleConnection(true));
+document.addEventListener("visibilitychange", () => checkVisibleConnection(true));
+checkVisibleConnection(true);
 
 if ("serviceWorker" in navigator && globalThis.isSecureContext) {
   navigator.serviceWorker.register("./sw.js").catch(() => {

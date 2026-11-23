@@ -1,13 +1,11 @@
 package io.github.mesmerprism.queststatusaudioexample;
 
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
-/** One wearer-start session. All operations run on the GATT owner's thread. */
+/** Wearer-session effect journal. Only the authenticated gateway may call it. */
 final class CompanionProtocol {
     static final int ID_LENGTH = 16;
     static final int IDLE = 0;
@@ -16,16 +14,15 @@ final class CompanionProtocol {
     static final int COMPLETED = 3;
     static final int UNAVAILABLE = 4;
 
-    private static final int AUTH = 0;
-    private static final int STATUS = 1;
-    private static final int PLAY = 2;
-    private static final int STOP = 3;
-    private static final int LOOKUP = 4;
+    static final int STATUS = 1;
+    static final int PLAY = 2;
+    static final int STOP = 3;
+    static final int LOOKUP = 4;
+
     private static final int OK = 0;
     private static final int REJECTED = 1;
     private static final int UNKNOWN = 2;
     private static final int FAILED = 3;
-    private static final int MAX_AUTH_FAILURES = 5;
     private static final int MAX_EFFECTS = 64;
     private static final byte[] ZERO_ID = new byte[ID_LENGTH];
 
@@ -42,82 +39,60 @@ final class CompanionProtocol {
         }
     }
 
-    private final byte[] code;
     private final byte[] epoch;
     private final Playback playback;
     private final Map<RequestId, byte[]> effects = new HashMap<>();
-    private boolean authenticated;
-    private int authFailures;
-    private byte[] reply;
+    private boolean ended;
 
-    CompanionProtocol(byte[] code, byte[] epoch, Playback playback) {
-        if (code.length != ID_LENGTH || epoch.length != ID_LENGTH) {
-            throw new IllegalArgumentException("Invalid session identifier length");
+    CompanionProtocol(byte[] epoch, Playback playback) {
+        if (epoch.length != ID_LENGTH || Arrays.equals(epoch, ZERO_ID)) {
+            throw new IllegalArgumentException("Invalid session identity");
         }
-        this.code = code.clone();
         this.epoch = epoch.clone();
         this.playback = playback;
     }
 
-    void resetPeer() {
-        authenticated = false;
-        reply = null;
-    }
-
     void end() {
-        resetPeer();
-        authFailures = MAX_AUTH_FAILURES;
-        Arrays.fill(code, (byte) 0);
+        ended = true;
         effects.clear();
     }
 
-    byte[] read() {
-        return reply == null ? null : reply.clone();
+    byte[] details(CompanionStatus sample) {
+        requireLive();
+        return sample.encode(epoch);
     }
 
-    byte[] readSessionStatus(Supplier<CompanionStatus> sample) {
-        return authenticated ? sample.get().encode(epoch) : null;
-    }
-
-    boolean write(byte[] packet) {
-        if (packet.length != 2 + ID_LENGTH || packet[0] != 1) return false;
-        int opcode = packet[1] & 0xff;
-        if (opcode > LOOKUP || (opcode != AUTH && !authenticated)) return false;
-        byte[] id = Arrays.copyOfRange(packet, 2, packet.length);
-        if (opcode == AUTH) {
-            authenticated = authFailures < MAX_AUTH_FAILURES && MessageDigest.isEqual(id, code);
-            Arrays.fill(id, (byte) 0);
-            if (!authenticated && authFailures < MAX_AUTH_FAILURES) ++authFailures;
-            reply = frame(AUTH, authenticated ? OK : REJECTED, UNAVAILABLE,
-                    authenticated ? epoch : ZERO_ID);
-            return true;
+    byte[] exchange(int opcode, byte[] id) {
+        requireLive();
+        if (opcode < STATUS || opcode > LOOKUP || id.length != ID_LENGTH || Arrays.equals(id, ZERO_ID)) {
+            throw new IllegalArgumentException("Invalid companion operation");
         }
-        if (Arrays.equals(id, ZERO_ID)) return false;
-        if (opcode == STATUS) {
-            reply = frame(STATUS, OK, playback.read(), id);
-            return true;
-        }
+        if (opcode == STATUS) return frame(STATUS, OK, playback.read(), id);
 
         RequestId key = RequestId.from(id);
         byte[] original = effects.get(key);
         if (opcode == LOOKUP) {
-            reply = original == null ? frame(LOOKUP, UNKNOWN, playback.read(), id) : original;
-        } else if (original != null) {
-            reply = original[1] == opcode ? original : frame(opcode, REJECTED, playback.read(), id);
-        } else if (effects.size() >= MAX_EFFECTS) {
-            reply = frame(opcode, REJECTED, playback.read(), id);
-        } else {
-            byte[] uncertain = frame(opcode, UNKNOWN, UNAVAILABLE, id);
-            effects.put(key, uncertain);
-            try {
-                boolean applied = opcode == PLAY ? playback.play() : playback.stop();
-                reply = frame(opcode, applied ? OK : FAILED, playback.read(), id);
-            } catch (RuntimeException effectUnknown) {
-                reply = uncertain;
-            }
-            effects.put(key, reply);
+            return original == null ? frame(LOOKUP, UNKNOWN, playback.read(), id) : original.clone();
         }
-        return true;
+        if (original != null) {
+            return original[1] == opcode ? original.clone() : frame(opcode, REJECTED, playback.read(), id);
+        }
+        if (effects.size() >= MAX_EFFECTS) return frame(opcode, REJECTED, playback.read(), id);
+
+        byte[] uncertain = frame(opcode, UNKNOWN, UNAVAILABLE, id);
+        effects.put(key, uncertain);
+        try {
+            boolean applied = opcode == PLAY ? playback.play() : playback.stop();
+            byte[] result = frame(opcode, applied ? OK : FAILED, playback.read(), id);
+            effects.put(key, result);
+            return result.clone();
+        } catch (RuntimeException effectUnknown) {
+            return uncertain.clone();
+        }
+    }
+
+    private void requireLive() {
+        if (ended) throw new IllegalStateException("Companion session ended");
     }
 
     private static byte[] frame(int opcode, int result, int state, byte[] id) {

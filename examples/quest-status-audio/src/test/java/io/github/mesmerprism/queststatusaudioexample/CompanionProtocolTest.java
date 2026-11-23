@@ -5,172 +5,75 @@ import static android.os.BatteryManager.BATTERY_STATUS_CHARGING;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.junit.Test;
 
 public final class CompanionProtocolTest {
-    private final byte[] code = fill(0x12);
-    private final byte[] epoch = fill(0x34);
+    private final byte[] epoch = id(42);
     private final FakePlayback playback = new FakePlayback();
-    private final CompanionProtocol protocol = new CompanionProtocol(code, epoch, playback);
+    private final CompanionProtocol protocol = new CompanionProtocol(epoch, playback);
 
-    @Test public void authenticatesOnlyExactPacketsAndGatesReads() {
-        assertNull(protocol.read());
-        assertFalse(protocol.write(packet(1, id(1))));
-        assertFalse(protocol.write(packet(2, id(2))));
-        assertFalse(protocol.write(Arrays.copyOf(packet(0, code), 17)));
-        byte[] wrongVersion = packet(0, code);
-        wrongVersion[0] = 2;
-        assertFalse(protocol.write(wrongVersion));
+    @Test public void rejectsInvalidOperationsBeforeDispatch() {
+        assertThrows(IllegalArgumentException.class, () -> protocol.exchange(0, id(1)));
+        assertThrows(IllegalArgumentException.class, () -> protocol.exchange(5, id(1)));
+        assertThrows(IllegalArgumentException.class, () -> protocol.exchange(2, id(0)));
+        assertThrows(IllegalArgumentException.class, () -> protocol.exchange(2, new byte[15]));
         assertEquals(0, playback.plays);
-        assertTrue(protocol.write(packet(0, fill(0x79))));
-        assertArrayEquals(reply(0, 1, 4, new byte[16]), protocol.read());
-        authenticate();
-        assertFalse(protocol.write(packet(2, new byte[16])));
-        assertTrue(protocol.write(packet(1, id(1))));
-        assertArrayEquals(reply(1, 0, 0, id(1)), protocol.read());
-        assertFalse(protocol.write(packet(5, id(1))));
     }
 
-    @Test public void reconnectRequiresAuthAndCanLookUpWithoutReplaying() {
-        authenticate();
-        assertTrue(protocol.write(packet(2, id(2))));
-        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.read());
-        protocol.resetPeer();
-        assertNull(protocol.read());
-        assertFalse(protocol.write(packet(4, id(2))));
-        authenticate();
-        assertTrue(protocol.write(packet(4, id(2))));
-        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.read());
-        assertTrue(protocol.write(packet(2, id(2))));
-        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.read());
-        assertTrue(protocol.write(packet(3, id(2))));
-        assertArrayEquals(reply(3, 1, 1, id(2)), protocol.read());
+    @Test public void looksUpTheOriginalResultWithoutReplayingIt() {
+        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.exchange(2, id(2)));
+        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.exchange(4, id(2)));
+        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.exchange(2, id(2)));
+        assertArrayEquals(reply(3, 1, 1, id(2)), protocol.exchange(3, id(2)));
         assertEquals(1, playback.plays);
         assertEquals(0, playback.stops);
-        assertTrue(protocol.write(packet(4, id(9))));
-        assertArrayEquals(reply(4, 2, 1, id(9)), protocol.read());
-    }
-
-    @Test public void keepsFailureBudgetAcrossConnectionsUntilNewSession() {
-        for (int i = 0; i < 5; ++i) {
-            assertTrue(protocol.write(packet(0, fill(0x78))));
-            assertArrayEquals(reply(0, 1, 4, new byte[16]), protocol.read());
-            protocol.resetPeer();
-        }
-        assertTrue(protocol.write(packet(0, code)));
-        assertArrayEquals(reply(0, 1, 4, new byte[16]), protocol.read());
-        assertFalse(protocol.write(packet(3, id(3))));
-        assertEquals(0, playback.stops);
-    }
-
-    @Test public void reportsOriginalEffectAndCurrentPlaybackSeparately() {
-        authenticate();
-        playback.canPlay = false;
-        protocol.write(packet(2, id(1)));
-        assertArrayEquals(reply(2, 3, 0, id(1)), protocol.read());
-        playback.canPlay = true;
-        protocol.write(packet(2, id(1)));
-        assertArrayEquals(reply(2, 3, 0, id(1)), protocol.read());
-        protocol.write(packet(2, id(2)));
-        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.read());
-        playback.state = 3;
-        protocol.write(packet(1, id(3)));
-        assertArrayEquals(reply(1, 0, 3, id(3)), protocol.read());
-        protocol.write(packet(4, id(2)));
-        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.read());
-        protocol.write(packet(3, id(4)));
-        assertArrayEquals(reply(3, 0, 2, id(4)), protocol.read());
-        assertEquals(2, playback.plays);
+        assertArrayEquals(reply(4, 2, 1, id(9)), protocol.exchange(4, id(9)));
+        assertArrayEquals(reply(3, 0, 2, id(3)), protocol.exchange(3, id(3)));
         assertEquals(1, playback.stops);
     }
 
-    @Test public void rejectsNewEffectsRatherThanForgettingOldIds() {
-        authenticate();
-        for (int i = 1; i <= 64; ++i) {
-            assertTrue(protocol.write(packet(2, id(i))));
-            assertEquals(0, protocol.read()[2]);
-        }
-        assertTrue(protocol.write(packet(2, id(65))));
-        assertArrayEquals(reply(2, 1, 1, id(65)), protocol.read());
-        assertTrue(protocol.write(packet(2, id(1))));
-        assertArrayEquals(reply(2, 0, 1, id(1)), protocol.read());
-        assertEquals(64, playback.plays);
-        assertTrue(protocol.write(packet(1, id(66))));
-        assertArrayEquals(reply(1, 0, 1, id(66)), protocol.read());
-    }
-
-    @Test public void effectThrowCannotReplayTheSameRequest() {
-        authenticate();
+    @Test public void retainsAnUnknownResultAfterAnEffectThrows() {
         playback.throwAfterPlay = true;
-        assertTrue(protocol.write(packet(2, id(1))));
-        assertArrayEquals(reply(2, 2, 4, id(1)), protocol.read());
+        assertArrayEquals(reply(2, 2, 4, id(1)), protocol.exchange(2, id(1)));
         playback.throwAfterPlay = false;
-        assertTrue(protocol.write(packet(2, id(1))));
-        assertArrayEquals(reply(2, 2, 4, id(1)), protocol.read());
+        assertArrayEquals(reply(2, 2, 4, id(1)), protocol.exchange(4, id(1)));
+        assertArrayEquals(reply(2, 2, 4, id(1)), protocol.exchange(2, id(1)));
         assertEquals(1, playback.plays);
     }
 
-    @Test public void statusReadSamplesOnlyTheCurrentAuthenticatedPeer() {
-        AtomicInteger samples = new AtomicInteger();
-        Supplier<CompanionStatus> status = () -> {
-            samples.incrementAndGet();
-            return CompanionStatus.fromBatteryReading(87, 100, BATTERY_STATUS_CHARGING, BATTERY_PLUGGED_USB, 300_000);
-        };
+    @Test public void rejectsNewEffectsRatherThanForgettingOldIds() {
+        for (int i = 1; i <= 64; ++i) {
+            assertEquals(0, protocol.exchange(2, id(i))[2]);
+        }
+        assertArrayEquals(reply(2, 1, 1, id(65)), protocol.exchange(2, id(65)));
+        assertArrayEquals(reply(2, 0, 1, id(1)), protocol.exchange(4, id(1)));
+        assertArrayEquals(reply(1, 0, 1, id(66)), protocol.exchange(1, id(66)));
+        assertEquals(64, playback.plays);
+    }
 
-        assertNull(protocol.readSessionStatus(status));
-        assertTrue(protocol.write(packet(0, fill(0x78))));
-        assertNull(protocol.readSessionStatus(status));
-        assertEquals(0, samples.get());
+    @Test public void reportsFailedPlaybackAndCanStartAnotherRequest() {
+        playback.canPlay = false;
+        assertArrayEquals(reply(2, 3, 0, id(1)), protocol.exchange(2, id(1)));
+        playback.canPlay = true;
+        assertArrayEquals(reply(2, 0, 1, id(2)), protocol.exchange(2, id(2)));
+    }
 
-        authenticate();
-        byte[] frame = new byte[21];
-        frame[0] = 1;
-        frame[1] = 87;
-        frame[2] = 2;
-        frame[3] = 1;
-        frame[4] = 44;
+    @Test public void statusKeepsTheSameSessionMarkerUntilTheOwnerClosesIt() {
+        CompanionStatus status = CompanionStatus.fromBatteryReading(
+                87, 100, BATTERY_STATUS_CHARGING, BATTERY_PLUGGED_USB, 300_000);
+        byte[] frame = Arrays.copyOf(new byte[] {1, 87, 2, 1, 44}, 21);
         System.arraycopy(epoch, 0, frame, 5, epoch.length);
-        assertArrayEquals(frame, protocol.readSessionStatus(status));
-        assertArrayEquals(reply(0, 0, 4, epoch), protocol.read());
-
-        protocol.resetPeer();
-        assertNull(protocol.readSessionStatus(status));
-        authenticate();
-        assertArrayEquals(frame, protocol.readSessionStatus(status));
+        assertArrayEquals(frame, protocol.details(status));
+        assertArrayEquals(reply(1, 0, 0, id(1)), protocol.exchange(1, id(1)));
         protocol.end();
-        assertNull(protocol.readSessionStatus(status));
-        assertEquals(2, samples.get());
-    }
-
-    private void authenticate() {
-        assertTrue(protocol.write(packet(0, code)));
-        assertArrayEquals(reply(0, 0, 4, epoch), protocol.read());
-    }
-
-    private static byte[] packet(int opcode, byte[] id) {
-        byte[] packet = new byte[18];
-        packet[0] = 1;
-        packet[1] = (byte) opcode;
-        System.arraycopy(id, 0, packet, 2, 16);
-        return packet;
+        assertThrows(IllegalStateException.class, () -> protocol.details(status));
+        assertThrows(IllegalStateException.class, () -> protocol.exchange(4, id(1)));
     }
 
     private static byte[] reply(int opcode, int result, int state, byte[] id) {
-        byte[] packet = new byte[20];
-        packet[0] = 1;
-        packet[1] = (byte) opcode;
-        packet[2] = (byte) result;
-        packet[3] = (byte) state;
-        System.arraycopy(id, 0, packet, 4, 16);
+        byte[] packet = Arrays.copyOf(new byte[] {1, (byte) opcode, (byte) result, (byte) state}, 20);
+        System.arraycopy(id, 0, packet, 4, id.length);
         return packet;
-    }
-
-    private static byte[] fill(int value) {
-        byte[] bytes = new byte[16];
-        Arrays.fill(bytes, (byte) value);
-        return bytes;
     }
 
     private static byte[] id(int value) {

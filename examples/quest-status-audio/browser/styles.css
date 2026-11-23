@@ -54,16 +54,13 @@ section, .guide {
   background: var(--surface);
 }
 
-.section-heading, .actions, .pairing-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
+.section-heading, .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.625rem; }
 .section-heading { justify-content: space-between; margin-block-end: 1rem; }
 .connection, .playback { color: var(--muted); font-weight: 600; }
 .connection[data-phase="connected"] { color: var(--connected); }
 
 #pair-help { margin-block-end: 0.875rem; color: var(--muted); }
-label { display: block; margin-block-end: 0.5rem; font-weight: 600; }
-input, button { box-sizing: border-box; min-height: 2.75rem; padding: 0.55rem 0.875rem; border: 1px solid var(--border); border-radius: 0.5rem; color: var(--text); background: var(--surface); font: inherit; }
-input { flex: 1 1 14rem; min-width: 0; }
-input::placeholder { color: var(--muted); }
+button { box-sizing: border-box; min-height: 2.75rem; padding: 0.55rem 0.875rem; border: 1px solid var(--border); border-radius: 0.5rem; color: var(--text); background: var(--surface); font: inherit; }
 button { font-weight: 650; cursor: pointer; }
 button:hover:not(:disabled) { border-color: var(--accent); }
 button.primary { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
@@ -72,6 +69,8 @@ button:disabled { opacity: 0.55; cursor: default; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .note:not(:empty) { margin-block-start: 1rem; color: var(--muted); }
 #dismiss { margin-block-start: 0.75rem; white-space: normal; }
+.pair-approval { margin-block-start: 1rem; padding-block-start: 1rem; border-top: 1px solid var(--border); }
+.pairing-code { margin-block: 0.5rem; font-family: ui-monospace, monospace; font-size: 1.8rem; letter-spacing: 0.17em; }
 
 .measurements { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.75rem; margin: 0; }
 .measurements dt { color: var(--muted); font-size: 0.875rem; }
@@ -84,6 +83,5 @@ button:disabled { opacity: 0.55; cursor: default; }
 #guide-qr { max-inline-size: min(100%, 15rem); block-size: auto; margin-block: 0.75rem; image-rendering: pixelated; }
 
 @media (max-width: 28rem) {
-  .pairing-controls > * { width: 100%; }
   .actions button { flex: 1 1 auto; }
 }

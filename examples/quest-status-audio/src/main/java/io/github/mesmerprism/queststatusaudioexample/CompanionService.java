@@ -19,8 +19,10 @@ import android.os.Looper;
 import android.os.SystemClock;
 import java.security.SecureRandom;
 import java.util.Arrays;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-/** Owns a finite, wearer-start Bluetooth session even when the Activity loses focus. */
+/** Owns a finite wearer-start session and its authenticated app operations. */
 public final class CompanionService extends Service {
     static final String START = "io.github.mesmerprism.queststatusaudioexample.action.START";
     private static final String STOP = "io.github.mesmerprism.queststatusaudioexample.action.STOP";
@@ -29,26 +31,62 @@ public final class CompanionService extends Service {
     private static final long SESSION_MS = CompanionStatus.MAX_REMAINING_SECONDS * 1000L;
     private static final long STARTUP_TIMEOUT_MS = 8000;
 
-    record Snapshot(long expiresAt, String code, int message) {
+    record PairingPrompt(String id, String code, boolean headsetConfirmed) {}
+
+    record Snapshot(long expiresAt, int message) {
         boolean active() { return expiresAt > SystemClock.elapsedRealtime(); }
     }
 
-    private static Snapshot snapshot = new Snapshot(0, null, R.string.session_inactive);
+    private static Snapshot snapshot = new Snapshot(0, R.string.session_inactive);
+    private static CompanionService current;
 
     private final Handler main = new Handler(Looper.getMainLooper());
     private final SecureRandom random = new SecureRandom();
     private final Runnable expiry = () -> end(R.string.session_expired);
-    private final Runnable startupTimeout = () -> end(R.string.bluetooth_failed);
+    private final Runnable startupTimeout = this::finishWithoutDiscovery;
     private long expiresAt;
     private CompanionGatt gatt;
+    private CompanionGateway gateway;
     private CompanionProtocol protocol;
     private TestClipPlayback playback;
 
     static Snapshot snapshot() {
         if (snapshot.expiresAt() != 0 && !snapshot.active()) {
-            return new Snapshot(0, null, R.string.session_expired);
+            return new Snapshot(0, R.string.session_expired);
         }
         return snapshot;
+    }
+
+    static PairingPrompt pendingPairing() {
+        if (current == null || current.gateway == null || !snapshot().active()) return null;
+        JSONObject pending = current.gateway.pendingPrompt();
+        return pending == null ? null : new PairingPrompt(pending.optString("pairing_id"),
+                pending.optString("code"), pending.optBoolean("headset_confirmed"));
+    }
+
+    static boolean decidePairing(PairingPrompt shown, boolean allow) {
+        PairingPrompt live = pendingPairing();
+        if (shown == null || live == null || !shown.equals(live)) return false;
+        try {
+            current.gateway.decide(live.id(), allow);
+            return true;
+        } catch (RuntimeException stale) {
+            return false;
+        }
+    }
+
+    static boolean hasEnrollment() {
+        return current != null && current.gateway != null && current.gateway.hasEnrollment();
+    }
+
+    static boolean forgetBrowsers() {
+        if (current == null || current.gateway == null || !snapshot().active()) return false;
+        try {
+            current.gateway.revokeAll();
+            return true;
+        } catch (Exception failed) {
+            return false;
+        }
     }
 
     static boolean hasBluetoothPermissions(Context context) {
@@ -62,7 +100,7 @@ public final class CompanionService extends Service {
         String action = intent == null ? null : intent.getAction();
         if (!START.equals(action)) {
             end(R.string.session_inactive);
-        } else if (gatt == null || SystemClock.elapsedRealtime() >= expiresAt) {
+        } else if (gateway == null || SystemClock.elapsedRealtime() >= expiresAt) {
             clearSession();
             startSession();
         }
@@ -70,7 +108,7 @@ public final class CompanionService extends Service {
     }
 
     @Override public void onDestroy() {
-        if (snapshot.expiresAt() != 0) snapshot = new Snapshot(0, null, R.string.session_inactive);
+        if (snapshot.expiresAt() != 0) snapshot = new Snapshot(0, R.string.session_inactive);
         clearSession();
         super.onDestroy();
     }
@@ -82,7 +120,7 @@ public final class CompanionService extends Service {
         }
 
         expiresAt = SystemClock.elapsedRealtime() + SESSION_MS;
-        snapshot = new Snapshot(expiresAt, null, R.string.session_starting);
+        snapshot = new Snapshot(expiresAt, R.string.session_starting);
         try {
             updateForeground(false);
         } catch (IllegalStateException | SecurityException unavailable) {
@@ -90,24 +128,68 @@ public final class CompanionService extends Service {
             return;
         }
 
-        byte[] code = randomId();
-        byte[] epoch = randomId();
-        String visibleCode = hex(code);
         playback = new TestClipPlayback(this, main, this::updateForeground);
-        protocol = new CompanionProtocol(code, epoch, playback);
-        Arrays.fill(code, (byte) 0);
-        gatt = new CompanionGatt(main, protocol, this::readSessionStatus, this::usable,
-                () -> {
-                    main.removeCallbacks(startupTimeout);
-                    snapshot = new Snapshot(expiresAt, visibleCode, R.string.session_ready);
-                },
-                () -> end(R.string.bluetooth_failed));
-        if (!gatt.start(this)) {
-            end(R.string.bluetooth_unavailable);
+        protocol = new CompanionProtocol(randomId(), playback);
+        try {
+            gateway = new CompanionGateway(this, main, this::usable, this::exchange);
+            if (!gateway.start()) {
+                end(R.string.network_failed);
+                return;
+            }
+        } catch (Exception networkFailed) {
+            end(R.string.network_failed);
             return;
         }
+        current = this;
+        gatt = new CompanionGatt(main, gateway::discovery,
+                () -> {
+                    main.removeCallbacks(startupTimeout);
+                    snapshot = new Snapshot(expiresAt, R.string.session_ready);
+                },
+                this::finishWithoutDiscovery);
         main.postDelayed(expiry, SESSION_MS);
+        if (!gatt.start(this)) {
+            finishWithoutDiscovery();
+            return;
+        }
         main.postDelayed(startupTimeout, STARTUP_TIMEOUT_MS);
+    }
+
+    private void finishWithoutDiscovery() {
+        main.removeCallbacks(startupTimeout);
+        if (gatt != null) gatt.close();
+        gatt = null;
+        if (gateway != null) snapshot = new Snapshot(expiresAt, R.string.discovery_unavailable);
+    }
+
+    private JSONObject exchange(String action, JSONObject payload) throws JSONException {
+        if (!usable() || protocol == null) throw new SecurityException("Companion session ended");
+        String id = payload.optString("id");
+        if (!id.matches("[a-f0-9]{32}")) throw new IllegalArgumentException("Invalid request ID");
+        int opcode = switch (action) {
+            case "status" -> CompanionProtocol.STATUS;
+            case "receipt" -> CompanionProtocol.LOOKUP;
+            case "command" -> {
+                if (!(payload.opt("opcode") instanceof Integer value)
+                        || value != CompanionProtocol.PLAY && value != CompanionProtocol.STOP) {
+                    throw new IllegalArgumentException("Unsupported companion command");
+                }
+                yield value;
+            }
+            default -> throw new IllegalArgumentException("Unsupported companion operation");
+        };
+        if (payload.length() != ("command".equals(action) ? 2 : 1)) {
+            throw new IllegalArgumentException("Unexpected companion request fields");
+        }
+        byte[] input = new byte[CompanionProtocol.ID_LENGTH];
+        for (int position = 0; position < input.length; position++) {
+            int offset = position * 2;
+            input[position] = (byte) ((Character.digit(id.charAt(offset), 16) << 4)
+                    | Character.digit(id.charAt(offset + 1), 16));
+        }
+        JSONObject response = new JSONObject().put("result", hex(protocol.exchange(opcode, input)));
+        if (opcode == CompanionProtocol.STATUS) response.put("details", hex(protocol.details(readSessionStatus())));
+        return response;
     }
 
     private CompanionStatus readSessionStatus() {
@@ -130,19 +212,11 @@ public final class CompanionService extends Service {
     }
 
     private boolean usable() {
-        if (SystemClock.elapsedRealtime() >= expiresAt) {
-            end(R.string.session_expired);
-            return false;
-        }
-        if (!hasBluetoothPermissions(this)) {
-            end(R.string.permission_needed);
-            return false;
-        }
-        return true;
+        return SystemClock.elapsedRealtime() < expiresAt && hasBluetoothPermissions(this);
     }
 
     private void end(int message) {
-        snapshot = new Snapshot(0, null, message);
+        snapshot = new Snapshot(0, message);
         try {
             clearSession();
         } finally {
@@ -154,10 +228,13 @@ public final class CompanionService extends Service {
     private void clearSession() {
         main.removeCallbacks(expiry);
         main.removeCallbacks(startupTimeout);
+        if (current == this) current = null;
         if (gatt != null) gatt.close();
+        if (gateway != null) gateway.close();
         if (protocol != null) protocol.end();
         if (playback != null) playback.close();
         gatt = null;
+        gateway = null;
         protocol = null;
         playback = null;
         expiresAt = 0;
