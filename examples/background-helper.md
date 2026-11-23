@@ -10,7 +10,10 @@ own evidence. Choose a package using the [distribution guide](../docs/UTILITY_DI
   companion. Use BLE for discovery on supported browsers, then open a paired,
   authenticated LAN endpoint. Provide an explicit LAN pairing route for browsers
   without BLE. Browser local-network permission, app enrollment, and command
-  confirmation are separate checks. Keep the endpoint scoped to app-owned actions.
+  confirmation are separate checks. Keep the endpoint scoped to app-owned
+  actions and encrypt production traffic. The current Hub's LAN WebSocket is
+  a trusted-network experiment. Pairing authenticates that connection, and
+  TLS/WSS remains a production requirement.
 - **Desktop provisioning and Kiosk control.** QFM installs the selected Kiosk and
   setup APK pair over authorized USB. Use the wearer-enabled Kiosk Direct Link
   for routine controls after provisioning. Its original control routes and the
