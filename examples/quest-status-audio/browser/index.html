@@ -33,19 +33,55 @@
       <noscript>Enable JavaScript to connect to the headset.</noscript>
     </section>
 
+    <section aria-labelledby="status-heading">
+      <div class="section-heading">
+        <h2 id="status-heading">Headset status</h2>
+        <p id="details-status" class="connection" aria-live="polite">Unavailable</p>
+      </div>
+      <dl class="measurements">
+        <div><dt>Battery</dt><dd id="battery">—</dd></div>
+        <div><dt>Charging</dt><dd id="charging">—</dd></div>
+        <div><dt>Session remaining</dt><dd id="remaining">—</dd></div>
+      </dl>
+      <p id="confirmed-reading" class="note" hidden>Last confirmed <time id="confirmed-time"></time></p>
+    </section>
+
     <section aria-labelledby="audio-heading">
       <div class="section-heading">
         <h2 id="audio-heading">Test clip</h2>
         <p class="playback" aria-live="polite">Last reported: <span id="playback">Unavailable</span></p>
       </div>
       <div class="actions">
-        <button id="play" class="primary" type="button" disabled>Play test clip</button>
+        <button id="play" class="primary" type="button" disabled>Identify headset</button>
         <button id="stop" type="button" disabled>Stop playback</button>
         <button id="refresh" type="button" disabled>Refresh status</button>
       </div>
       <p id="note" class="note" role="status" aria-atomic="true"></p>
       <button id="dismiss" type="button" hidden>Dismiss saved request</button>
     </section>
+
+    <details id="facilitator-guide" class="guide">
+      <summary>Facilitator guide</summary>
+      <h2>Set up</h2>
+      <ol>
+        <li>On Quest, open Quest Status and Audio and start a Bluetooth session. Allow the requested Bluetooth access.</li>
+        <li>In this browser, enter the displayed code, choose Pair headset, and select the Quest.</li>
+        <li>Check for Connected. Choose Identify headset to play a five-second tone if you need to locate it.</li>
+      </ol>
+      <h2>Reset or recover</h2>
+      <ol>
+        <li>For a dropped connection, pair again with the current code while the headset session is active.</li>
+        <li>For an expired session or a full reset, stop the old session on Quest, start a new one, and use the new code.</li>
+        <li>If a command's outcome is unknown, check the headset before dismissing the saved request or sending another.</li>
+      </ol>
+      <h2>Open on a phone</h2>
+      <canvas id="guide-qr" role="img" aria-label="QR code for the companion page" hidden></canvas>
+      <div class="actions">
+        <a id="guide-link" href="./">Open companion page</a>
+        <button id="copy-guide-link" type="button">Copy link</button>
+      </div>
+      <p id="guide-note" class="note" role="status"></p>
+    </details>
   </main>
 </body>
 </html>

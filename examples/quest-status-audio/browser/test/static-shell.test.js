@@ -47,7 +47,7 @@ test("service worker installs the static shell and ignores queries, foreign asse
     self: { registration: { scope }, addEventListener: (name, handler) => handlers.set(name, handler) },
     caches: {
       async open() { return cache; },
-      async keys() { return [`${cachePrefix}old`, `${cachePrefix}1`, "a-different-app"]; },
+      async keys() { return [`${cachePrefix}old`, `${cachePrefix}1`, `${cachePrefix}2`, "a-different-app"]; },
       async delete(name) { deleted.push(name); },
     },
     fetch() { throw new Error("Unexpected network fallback in fixture"); },
@@ -59,7 +59,7 @@ test("service worker installs the static shell and ignores queries, foreign asse
   let lifetime;
   handlers.get("install")({ waitUntil: (promise) => { lifetime = promise; } });
   await lifetime;
-  assert.equal(installed.size, 9);
+  assert.equal(installed.size, 11);
   for (const url of installed) {
     assert.ok(url.startsWith(scope));
     assert.ok((await read(new URL(url).pathname.slice(new URL(scope).pathname.length))).length > 0);
@@ -72,6 +72,8 @@ test("service worker installs the static shell and ignores queries, foreign asse
   }
   assert.equal(await request(scope, "GET", "navigate"), `cached ${asset("index.html")}`);
   assert.equal(await request(asset("app.js")), `cached ${asset("app.js")}`);
+  assert.equal(await request(asset("page-qr.js")), `cached ${asset("page-qr.js")}`);
+  assert.equal(await request(asset("vendor/qrcode-generator.mjs")), `cached ${asset("vendor/qrcode-generator.mjs")}`);
   assert.equal(request(asset("app.js") + "?token=fixture"), undefined);
   assert.equal(request(asset("app.js"), "POST"), undefined);
   assert.equal(request(asset("test/fake-quest.js")), undefined);
@@ -79,5 +81,5 @@ test("service worker installs the static shell and ignores queries, foreign asse
 
   handlers.get("activate")({ waitUntil: (promise) => { lifetime = promise; } });
   await lifetime;
-  assert.deepEqual(deleted, [`${cachePrefix}old`]);
+  assert.deepEqual(deleted, [`${cachePrefix}old`, `${cachePrefix}1`]);
 });

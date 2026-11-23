@@ -39,6 +39,8 @@ It separately runs unit tests, lint, and debug assembly for the standalone
 Quest autoboot and status/audio examples. The status/audio gate also checks
 the example's permissions and components and runs its browser tests through
 Node.js. Both examples have separate builds from Kiosk releases.
+The gate also runs the desktop recovery panel's receipt fixtures. They verify
+evidence joining and display policy without ADB or a connected headset.
 The same complete gate runs in GitHub Actions for every pull request and push
 to `main`; release publication additionally rebuilds and verifies the signed
 release pair.

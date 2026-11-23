@@ -1141,6 +1141,8 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Standalone status/audio browser checks failed.' }
   & .\gradlew.bat -p $statusAudioRoot @exampleTasks
   if ($LASTEXITCODE -ne 0) { throw "Standalone status/audio Android gate failed with exit code $LASTEXITCODE." }
+  & node --test examples/quest-recovery-status/recovery-status.test.cjs
+  if ($LASTEXITCODE -ne 0) { throw 'Standalone recovery status panel checks failed.' }
   git diff --check
   if ($LASTEXITCODE -ne 0) {
     throw 'git diff --check failed.'

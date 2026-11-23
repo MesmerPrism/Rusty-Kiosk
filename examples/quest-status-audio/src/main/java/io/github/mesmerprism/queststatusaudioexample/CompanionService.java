@@ -8,9 +8,11 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.graphics.drawable.Icon;
+import android.os.BatteryManager;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
@@ -24,7 +26,7 @@ public final class CompanionService extends Service {
     private static final String STOP = "io.github.mesmerprism.queststatusaudioexample.action.STOP";
     private static final String CHANNEL = "bluetooth_session";
     private static final int NOTIFICATION_ID = 1;
-    private static final long SESSION_MS = 15 * 60 * 1000L;
+    private static final long SESSION_MS = CompanionStatus.MAX_REMAINING_SECONDS * 1000L;
     private static final long STARTUP_TIMEOUT_MS = 8000;
 
     record Snapshot(long expiresAt, String code, int message) {
@@ -94,7 +96,7 @@ public final class CompanionService extends Service {
         playback = new TestClipPlayback(this, main, this::updateForeground);
         protocol = new CompanionProtocol(code, epoch, playback);
         Arrays.fill(code, (byte) 0);
-        gatt = new CompanionGatt(main, protocol, this::usable,
+        gatt = new CompanionGatt(main, protocol, this::readSessionStatus, this::usable,
                 () -> {
                     main.removeCallbacks(startupTimeout);
                     snapshot = new Snapshot(expiresAt, visibleCode, R.string.session_ready);
@@ -106,6 +108,25 @@ public final class CompanionService extends Service {
         }
         main.postDelayed(expiry, SESSION_MS);
         main.postDelayed(startupTimeout, STARTUP_TIMEOUT_MS);
+    }
+
+    private CompanionStatus readSessionStatus() {
+        Intent battery;
+        try {
+            // A null receiver queries the platform snapshot without subscribing to updates.
+            battery = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        } catch (IllegalStateException | SecurityException unavailable) {
+            battery = null;
+        }
+        long remainingMs = expiresAt - SystemClock.elapsedRealtime();
+        if (battery == null || !battery.getBooleanExtra(BatteryManager.EXTRA_PRESENT, true)) {
+            return CompanionStatus.fromBatteryReading(-1, -1, BatteryManager.BATTERY_STATUS_UNKNOWN, -1, remainingMs);
+        }
+        return CompanionStatus.fromBatteryReading(
+                battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                battery.getIntExtra(BatteryManager.EXTRA_SCALE, -1),
+                battery.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN),
+                battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1), remainingMs);
     }
 
     private boolean usable() {

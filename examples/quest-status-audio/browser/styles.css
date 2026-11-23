@@ -46,7 +46,7 @@ h1, h2, p { margin: 0; }
 h1 { margin-block-end: 1.75rem; font-size: clamp(1.8rem, 5vw, 2.55rem); line-height: 1.15; letter-spacing: -0.035em; }
 h2 { font-size: 1.125rem; }
 
-section {
+section, .guide {
   margin-block-end: 0.875rem;
   padding: clamp(1rem, 4vw, 1.5rem);
   border: 1px solid var(--border);
@@ -72,6 +72,16 @@ button:disabled { opacity: 0.55; cursor: default; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .note:not(:empty) { margin-block-start: 1rem; color: var(--muted); }
 #dismiss { margin-block-start: 0.75rem; white-space: normal; }
+
+.measurements { display: grid; grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr)); gap: 0.75rem; margin: 0; }
+.measurements dt { color: var(--muted); font-size: 0.875rem; }
+.measurements dd { margin: 0.25rem 0 0; font-weight: 650; }
+.guide summary { font-weight: 650; cursor: pointer; }
+.guide h2 { margin-block-start: 1rem; }
+.guide ol { padding-inline-start: 1.5rem; }
+.guide li + li { margin-block-start: 0.5rem; }
+.guide a { color: var(--accent); }
+#guide-qr { max-inline-size: min(100%, 15rem); block-size: auto; margin-block: 0.75rem; image-rendering: pixelated; }
 
 @media (max-width: 28rem) {
   .pairing-controls > * { width: 100%; }

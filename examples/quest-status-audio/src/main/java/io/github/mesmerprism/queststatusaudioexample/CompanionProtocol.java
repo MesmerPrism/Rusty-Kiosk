@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** One wearer-start session. All operations run on the GATT owner's thread. */
 final class CompanionProtocol {
@@ -72,6 +73,10 @@ final class CompanionProtocol {
 
     byte[] read() {
         return reply == null ? null : reply.clone();
+    }
+
+    byte[] readSessionStatus(Supplier<CompanionStatus> sample) {
+        return authenticated ? sample.get().encode(epoch) : null;
     }
 
     boolean write(byte[] packet) {

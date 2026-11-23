@@ -1,8 +1,12 @@
 package io.github.mesmerprism.queststatusaudioexample;
 
+import static android.os.BatteryManager.BATTERY_PLUGGED_USB;
+import static android.os.BatteryManager.BATTERY_STATUS_CHARGING;
 import static org.junit.Assert.*;
 
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.junit.Test;
 
 public final class CompanionProtocolTest {
@@ -106,6 +110,38 @@ public final class CompanionProtocolTest {
         assertTrue(protocol.write(packet(2, id(1))));
         assertArrayEquals(reply(2, 2, 4, id(1)), protocol.read());
         assertEquals(1, playback.plays);
+    }
+
+    @Test public void statusReadSamplesOnlyTheCurrentAuthenticatedPeer() {
+        AtomicInteger samples = new AtomicInteger();
+        Supplier<CompanionStatus> status = () -> {
+            samples.incrementAndGet();
+            return CompanionStatus.fromBatteryReading(87, 100, BATTERY_STATUS_CHARGING, BATTERY_PLUGGED_USB, 300_000);
+        };
+
+        assertNull(protocol.readSessionStatus(status));
+        assertTrue(protocol.write(packet(0, fill(0x78))));
+        assertNull(protocol.readSessionStatus(status));
+        assertEquals(0, samples.get());
+
+        authenticate();
+        byte[] frame = new byte[21];
+        frame[0] = 1;
+        frame[1] = 87;
+        frame[2] = 2;
+        frame[3] = 1;
+        frame[4] = 44;
+        System.arraycopy(epoch, 0, frame, 5, epoch.length);
+        assertArrayEquals(frame, protocol.readSessionStatus(status));
+        assertArrayEquals(reply(0, 0, 4, epoch), protocol.read());
+
+        protocol.resetPeer();
+        assertNull(protocol.readSessionStatus(status));
+        authenticate();
+        assertArrayEquals(frame, protocol.readSessionStatus(status));
+        protocol.end();
+        assertNull(protocol.readSessionStatus(status));
+        assertEquals(2, samples.get());
     }
 
     private void authenticate() {

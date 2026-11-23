@@ -1,10 +1,11 @@
 # Quest status and audio example
 
-This standalone Quest APK lets a browser read the app's status and play or stop
-a bundled five-second tone. The wearer starts a 15-minute Bluetooth session on
-Quest and authorizes the browser with the displayed code. The Quest app owns
-playback and reports the result of the exact request. Its launcher, package,
-service, permissions and build are independent of Rusty Kiosk and Launcher Lite.
+This standalone Quest APK lets a browser read battery level, charging, and
+session status. **Identify headset** plays a bundled five-second tone. The
+wearer starts a 15-minute Bluetooth session on Quest and authorizes the browser
+with the displayed code. The Quest app owns playback and reports the result of
+the exact request. Its launcher, package, service, permissions and build are
+independent of Rusty Kiosk and Launcher Lite.
 
 ## Build and try it
 
@@ -33,10 +34,15 @@ Keep the phone within Bluetooth range of the headset. The browser uses its
 normal chooser and OS bond flow. The pairing code authorizes this app's
 session after the encrypted link is available. Type the code displayed on
 Quest, select the headset, and try
-**Play test clip** and **Stop playback**. Closing the browser or losing Bluetooth
+**Identify headset** and **Stop playback**. Closing the browser or losing Bluetooth
 does not extend the Quest session. Stop the session on Quest to revoke its code
 and stop playback.
 [Chrome Web Bluetooth requirements](https://developer.chrome.com/docs/capabilities/bluetooth)
+
+Open the **Facilitator guide** on the page for setup and reset steps. When the
+page is hosted over HTTPS, its QR code opens the same page on another device.
+The code contains the page URL without its query or fragment. Each browser
+still pairs using the separate code shown on the headset.
 
 ## Behavior and authority
 
@@ -55,13 +61,20 @@ and stop playback.
   of one unresolved command in the current tab across reload. Cached PWA files
   are static. A cached page still requires the headset and its active session
   for live controls.
+- A separate, encrypted read-only GATT characteristic reports battery level,
+  charging state, and whole seconds remaining with the authenticated session
+  identity. It is optional for compatibility with earlier example APKs. The
+  browser labels the last confirmed reading and estimates the countdown from
+  that reading. The headset remains authoritative for expiry.
 
-The example's v1 profile uses one small GATT write and one read. A write carries
+The example's v1 command profile uses one small GATT write and one read. A write carries
 version, operation and 16 bytes of pairing code or request identity. A read
 carries version, operation, result, playback state and the exact 16-byte
 identity. Successful pairing returns the current Quest session identity in
 that field. The browser compares it on reconnect before looking up a retained
-command. See the native and browser protocol tests for the numeric encoding.
+command. The 21-byte status read adds version, battery, charging, remaining
+seconds, and the same session identity. See the native and browser protocol
+tests for the numeric encoding.
 
 ## Verify and distribute
 

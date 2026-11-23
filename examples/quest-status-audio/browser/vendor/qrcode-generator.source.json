@@ -1,0 +1,13 @@
+{
+  "repository": "https://github.com/kazuhikoarase/qrcode-generator",
+  "commit": "83b7e8fe3fddd3b0368dbafd6ce56995bd25e3c8",
+  "version": "js2.0.4",
+  "upstreamPaths": {
+    "qrcode-generator.mjs": "js/dist/qrcode.mjs",
+    "qrcode-generator.LICENSE": "LICENSE"
+  },
+  "sha256": {
+    "qrcode-generator.mjs": "ea91d7118a5395289170da848b7c6758b996163bfbccf312591ab65a4911b7c0",
+    "qrcode-generator.LICENSE": "3a850fa5f08101db6f40676c2786e10bd2cd5fff7b12ffdf1e0c434d4e49d90c"
+  }
+}

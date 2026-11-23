@@ -1,6 +1,6 @@
 import "./vendor/gatt-lifetime.js";
 import {
-  COMMAND_UUID, decodeResult, encodeRequest, identityBytes, identityHex,
+  COMMAND_UUID, DETAILS_UUID, decodeHeadsetDetails, decodeResult, encodeRequest, identityBytes, identityHex,
   isIdentity, Opcode, parsePairingCode, RESULT_UUID, Result, SERVICE_UUID,
 } from "./protocol.js";
 
@@ -14,6 +14,8 @@ const RESULT_VERBS = {
   [Result.REJECTED]: "rejected",
   [Result.FAILED]: "reported a failure for",
 };
+
+class BluetoothTimeout extends Error {}
 
 function validDeviceId(id) {
   return typeof id === "string" && id.length > 0 && id.length <= 256 && !/[\u0000-\u001f\u007f]/.test(id);
@@ -37,17 +39,19 @@ function readJournal(storage) {
 function withDeadline(operation, ms) {
   let timer;
   const deadline = new Promise((_, reject) => {
-    timer = setTimeout(() => reject(new Error("Bluetooth operation timed out")), ms);
+    timer = setTimeout(() => reject(new BluetoothTimeout("Bluetooth operation timed out")), ms);
   });
   return Promise.race([operation, deadline]).finally(() => clearTimeout(timer));
 }
 
 export class CompanionController {
-  constructor({ bluetooth, storage, randomBytes = () => crypto.getRandomValues(new Uint8Array(16)), onChange = () => {} }) {
-    Object.assign(this, { bluetooth, storage, randomBytes, onChange });
+  constructor({ bluetooth, storage, randomBytes = () => crypto.getRandomValues(new Uint8Array(16)),
+    wallTime = () => Date.now(), elapsedTime = () => performance.now(), onChange = () => {} }) {
+    Object.assign(this, { bluetooth, storage, randomBytes, wallTime, elapsedTime, onChange });
     this.link = null;
     this.pending = readJournal(storage);
-    this.state = { phase: "disconnected", playback: null, note: "", busy: false, hasPending: false };
+    this.state = { phase: "disconnected", playback: null, note: "", busy: false, hasPending: false,
+      details: null, detailsStatus: "unavailable", remainingSeconds: null, sessionExpired: false };
     if (this.pending) this.publish({ note: "A previous playback request has an unknown outcome." });
   }
 
@@ -60,16 +64,29 @@ export class CompanionController {
     if (this.link !== link) throw new Error("Bluetooth connection ended");
   }
 
-  retire(link, note) {
+  retire(link, note, sessionExpired = false) {
     if (this.link !== link) return;
     this.link = null;
     link.device?.removeEventListener("gattserverdisconnected", link.disconnected);
     if (link.device?.gatt.connected) link.device.gatt.disconnect();
-    this.publish({ phase: "disconnected", playback: null, busy: false, note });
+    this.publish({ phase: "disconnected", playback: null, busy: false, note, sessionExpired,
+      detailsStatus: this.state.details ? "stale" : "unavailable", remainingSeconds: null });
   }
 
   disconnect() {
     if (this.link) this.retire(this.link, this.pending ? "The previous playback request is still unknown." : "");
+  }
+
+  tick() {
+    const link = this.link;
+    if (link?.deadline == null) return;
+    const remainingSeconds = Math.max(0, Math.ceil((link.deadline - this.elapsedTime()) / 1000));
+    if (remainingSeconds === 0) {
+      const note = "Session time elapsed. Start a new session on the headset for a new code.";
+      this.retire(link, this.pending ? `${note} The previous playback request is still unknown.` : note, true);
+    } else if (this.state.remainingSeconds !== remainingSeconds) {
+      this.publish({ remainingSeconds });
+    }
   }
 
   async connect(code) {
@@ -87,7 +104,8 @@ export class CompanionController {
     const link = {};
     link.queue = new OperationQueue(() => this.requireCurrent(link));
     this.link = link;
-    this.publish({ phase: "connecting", busy: true, playback: null, note: "" });
+    this.publish({ phase: "connecting", busy: true, playback: null, note: "", details: null,
+      detailsStatus: "unavailable", remainingSeconds: null, sessionExpired: false });
 
     try {
       // Invoke the chooser before yielding to preserve the browser's click activation.
@@ -96,6 +114,7 @@ export class CompanionController {
       if (!device.gatt || !validDeviceId(device.id)) throw new Error("Invalid Bluetooth device");
       link.device = device;
       link.disconnected = () => {
+        this.tick();
         const note = this.pending ? "Connection lost. The previous playback request is still unknown." : "Connection lost.";
         this.retire(link, note);
       };
@@ -111,6 +130,7 @@ export class CompanionController {
       this.requireCurrent(link);
       const service = await withDeadline(gatt.getPrimaryService(SERVICE_UUID), SETUP_TIMEOUT_MS);
       this.requireCurrent(link);
+      link.service = service;
       link.write = await withDeadline(service.getCharacteristic(COMMAND_UUID), SETUP_TIMEOUT_MS);
       this.requireCurrent(link);
       link.read = await withDeadline(service.getCharacteristic(RESULT_UUID), SETUP_TIMEOUT_MS);
@@ -119,11 +139,12 @@ export class CompanionController {
       secret.fill(0);
       this.requireCurrent(link);
       if (auth.opcode !== Opcode.AUTH || auth.result !== Result.OK || !isIdentity(auth.id)) {
-        this.retire(link, "Pairing failed. Check the current code on the headset.");
+        this.retire(link, "Pairing failed. Check the headset's current code or start a new session for a new code.");
         return;
       }
       link.epoch = auth.id;
       await this.readStatus(link);
+      await this.readDetails(link);
       if (this.pending) await this.recover(link);
       this.requireCurrent(link);
       this.publish({ phase: "connected", busy: false });
@@ -166,12 +187,50 @@ export class CompanionController {
     this.publish({ playback: receipt.playback });
   }
 
+  async readDetails(link) {
+    let observation;
+    try {
+      observation = await withDeadline(link.queue.run(link, async () => {
+        if (link.detailsChannel === undefined) {
+          try {
+            link.detailsChannel = await link.service.getCharacteristic(DETAILS_UUID);
+          } catch (error) {
+            if (error.name !== "NotFoundError") throw error;
+            link.detailsChannel = null;
+          }
+          this.requireCurrent(link);
+        }
+        if (!link.detailsChannel) return null;
+        const requestedAt = this.elapsedTime();
+        const snapshot = decodeHeadsetDetails(await link.detailsChannel.readValue());
+        return { snapshot, requestedAt };
+      }), TRANSFER_TIMEOUT_MS);
+    } catch (error) {
+      if (error instanceof BluetoothTimeout) throw error;
+    }
+
+    this.requireCurrent(link);
+    if (!observation || observation.snapshot.epoch !== link.epoch) {
+      this.publish({ detailsStatus: this.state.details ? "stale" : "unavailable" });
+      return;
+    }
+
+    const { battery, charging, remainingSeconds } = observation.snapshot;
+    link.deadline = observation.requestedAt + remainingSeconds * 1000;
+    this.publish({ details: { battery, charging, remainingSeconds, confirmedAt: this.wallTime() },
+      detailsStatus: "current" });
+    this.tick();
+    this.requireCurrent(link);
+  }
+
   async refresh() {
+    this.tick();
     const link = this.link;
     if (this.state.phase !== "connected" || this.state.busy) return;
     this.publish({ busy: true });
     try {
       await this.readStatus(link);
+      await this.readDetails(link);
       this.requireCurrent(link);
       this.publish({ busy: false });
     } catch {
@@ -227,6 +286,7 @@ export class CompanionController {
   }
 
   async #effect(opcode) {
+    this.tick();
     const link = this.link;
     if (this.state.phase !== "connected" || this.state.busy || this.pending) return;
     let id;

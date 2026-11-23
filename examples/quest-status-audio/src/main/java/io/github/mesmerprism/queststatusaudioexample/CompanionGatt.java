@@ -20,6 +20,7 @@ import android.os.ParcelUuid;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 /** One local GATT server and at most one connected peer. */
 @SuppressLint("MissingPermission") // The gate checks grants for start and every callback.
@@ -27,6 +28,7 @@ final class CompanionGatt {
     private static final UUID SERVICE = UUID.fromString("2e1fb001-2d5c-44ed-93de-9ecd76c520d6");
     private static final UUID WRITE = UUID.fromString("2e1fb002-2d5c-44ed-93de-9ecd76c520d6");
     private static final UUID READ = UUID.fromString("2e1fb003-2d5c-44ed-93de-9ecd76c520d6");
+    private static final UUID SESSION_STATUS = UUID.fromString("2e1fb004-2d5c-44ed-93de-9ecd76c520d6");
 
     private static final class Peer {
         final BluetoothDevice device;
@@ -35,6 +37,7 @@ final class CompanionGatt {
 
     private final Handler main;
     private final CompanionProtocol protocol;
+    private final Supplier<CompanionStatus> sampleStatus;
     private final BooleanSupplier live;
     private final Runnable ready;
     private final Runnable failed;
@@ -45,9 +48,11 @@ final class CompanionGatt {
     private BluetoothGattServer server;
     private BluetoothLeAdvertiser advertiser;
 
-    CompanionGatt(Handler main, CompanionProtocol protocol, BooleanSupplier live, Runnable ready, Runnable failed) {
+    CompanionGatt(Handler main, CompanionProtocol protocol, Supplier<CompanionStatus> sampleStatus,
+            BooleanSupplier live, Runnable ready, Runnable failed) {
         this.main = main;
         this.protocol = protocol;
+        this.sampleStatus = sampleStatus;
         this.live = live;
         this.ready = ready;
         this.failed = failed;
@@ -70,7 +75,11 @@ final class CompanionGatt {
             BluetoothGattCharacteristic output = new BluetoothGattCharacteristic(READ,
                     BluetoothGattCharacteristic.PROPERTY_READ,
                     BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED);
-            return service.addCharacteristic(input) && service.addCharacteristic(output) && server.addService(service);
+            BluetoothGattCharacteristic status = new BluetoothGattCharacteristic(SESSION_STATUS,
+                    BluetoothGattCharacteristic.PROPERTY_READ,
+                    BluetoothGattCharacteristic.PERMISSION_READ_ENCRYPTED);
+            return service.addCharacteristic(input) && service.addCharacteristic(output) &&
+                    service.addCharacteristic(status) && server.addService(service);
         } catch (IllegalStateException | SecurityException unavailable) {
             return false;
         }
@@ -178,12 +187,15 @@ final class CompanionGatt {
             Peer requested = peerFor(device);
             main.post(() -> {
                 if (!current(requested)) return;
-                byte[] result = READ.equals(characteristic.getUuid()) ? protocol.read() : null;
                 if (offset != 0) {
                     reply(requested, requestId, BluetoothGatt.GATT_INVALID_OFFSET, null);
-                } else {
-                    reply(requested, requestId, result != null ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE, result);
+                    return;
                 }
+                UUID characteristicId = characteristic.getUuid();
+                byte[] result = null;
+                if (READ.equals(characteristicId)) result = protocol.read();
+                else if (SESSION_STATUS.equals(characteristicId)) result = protocol.readSessionStatus(sampleStatus);
+                reply(requested, requestId, result != null ? BluetoothGatt.GATT_SUCCESS : BluetoothGatt.GATT_FAILURE, result);
             });
         }
 

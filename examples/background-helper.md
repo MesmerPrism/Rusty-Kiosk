@@ -34,8 +34,9 @@ own evidence. Choose a package using the [distribution guide](../docs/UTILITY_DI
 ## 2. Use ordinary app permissions first
 
 Start with the [standalone status and audio example](quest-status-audio/README.md).
-It uses a wearer-started Bluetooth session to read app-owned status and play or
-stop one bundled clip. An earlier bounded headset probe used an ADB-gated debug trigger
+It uses a wearer-started Bluetooth session to read battery, charging, and
+session status, identify the headset with a bundled tone, and stop playback.
+An earlier bounded headset probe used an ADB-gated debug trigger
 and ordinary Android audio playback while another app retained XR focus.
 For sustained playback, test a user-started media service and expose its
 actual playback and stop state. The short probe leaves long-duration and
@@ -84,6 +85,11 @@ recovery open.
 [Termux Wi-Fi and detached-worker results](https://github.com/MesmerPrism/quest-termux-lab/blob/3701e821bfe8e7b7e4759904cf5b77d079df1075/docs/QUEST_RESULTS_PUBLIC.md) ·
 [Attended boot qualification](https://github.com/MesmerPrism/meta-quest-agent-workflow/blob/39a4641d34d806a7604e61dd5dc9e810d86608df/docs/boot-wireless-adb-qualification.md) ·
 [Shell recenter](quest-shell-recenter/README.md)
+
+The [developer recovery status panel](quest-recovery-status/README.md) can display
+imported boot, approval, shell, and watchdog observations without dispatching a
+headset command. Keep those observations distinct from the ordinary Bluetooth
+companion's session state.
 
 ## Verify the desktop baseline
 

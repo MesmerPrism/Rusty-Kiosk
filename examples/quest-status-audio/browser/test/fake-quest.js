@@ -1,8 +1,9 @@
 // Self-contained so browser tests can install it before the production entry point loads.
-export function makeQuest({ code, epoch, deviceId = "fixture-quest" }) {
+export function makeQuest({ code, epoch, deviceId = "fixture-quest", details = null }) {
   const serviceId = "2e1fb001-2d5c-44ed-93de-9ecd76c520d6";
   const commandId = "2e1fb002-2d5c-44ed-93de-9ecd76c520d6";
   const resultId = "2e1fb003-2d5c-44ed-93de-9ecd76c520d6";
+  const detailsId = "2e1fb004-2d5c-44ed-93de-9ecd76c520d6";
   const bytes = (hex) => Uint8Array.from(hex.match(/../g).map((pair) => Number.parseInt(pair, 16)));
   const hex = (id) => Array.from(id, (byte) => byte.toString(16).padStart(2, "0")).join("");
   const empty = new Uint8Array(16);
@@ -16,6 +17,7 @@ export function makeQuest({ code, epoch, deviceId = "fixture-quest" }) {
   let failure;
   let mismatch;
   let held;
+  let heldDetails;
 
   function report(opcode, status, id = empty) {
     result = Uint8Array.of(1, opcode, status, playback, ...id);
@@ -71,10 +73,31 @@ export function makeQuest({ code, epoch, deviceId = "fixture-quest" }) {
       return new DataView(captured.buffer);
     },
   };
+  const readDetails = {
+    async readValue() {
+      if (!gatt.connected || !authorized || !details || details.fail) throw new Error("Details unavailable");
+      const frame = new Uint8Array(21);
+      frame.set([1, details.battery, details.charging]);
+      const view = new DataView(frame.buffer);
+      view.setUint16(3, details.remainingSeconds);
+      frame.set(bytes(details.epoch ?? epoch), 5);
+      if (heldDetails) {
+        const current = heldDetails;
+        heldDetails = null;
+        current.begin();
+        await current.continue;
+      }
+      return view;
+    },
+  };
   const service = {
     async getCharacteristic(id) {
       if (id === commandId) return write;
       if (id === resultId) return read;
+      if (id === detailsId) {
+        if (details) return readDetails;
+        throw new DOMException("Optional details characteristic unavailable", "NotFoundError");
+      }
       throw new Error("Unexpected fixture characteristic UUID");
     },
   };
@@ -121,6 +144,15 @@ export function makeQuest({ code, epoch, deviceId = "fixture-quest" }) {
     failReadAfter(opcode) { failure = opcode; },
     wrongResultAfter(opcode) { mismatch = opcode; },
     clearReceipts() { receipts.clear(); },
+    setDetails(value) { details = value; },
+    holdDetailsRead() {
+      let begin;
+      let release;
+      const started = new Promise((resolve) => { begin = resolve; });
+      const next = new Promise((resolve) => { release = resolve; });
+      heldDetails = { begin, continue: next };
+      return { started, release };
+    },
     holdReadAfter(opcode) {
       let begin;
       let release;

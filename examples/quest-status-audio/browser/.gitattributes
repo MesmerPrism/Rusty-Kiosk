@@ -1,2 +1,4 @@
 vendor/gatt-lifetime.js -text
 vendor/LICENSE -text
+vendor/qrcode-generator.mjs -text
+vendor/qrcode-generator.LICENSE -text
