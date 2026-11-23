@@ -31,10 +31,34 @@ own evidence. Choose a package using the [distribution guide](../docs/UTILITY_DI
 [Chrome local-network access](https://developer.chrome.com/docs/modern-web-guidance/guides/security/local-network-access) ·
 [Chrome Direct Sockets](https://developer.chrome.com/docs/iwa/direct-sockets)
 
+The standalone status and audio companion uses confirmation on both devices.
+The operator selects the headset in the browser chooser. The browser
+and Quest display the same comparison digits, and the operator confirms the
+match on both devices without entering a code. The PWA saves enrollment per
+headset installation and remembers the selected headset. On reopening the PWA,
+it attempts to reconnect using its saved enrollment. It reuses
+an existing Bluetooth grant where the browser exposes it, and try the saved
+authenticated network route when Bluetooth rediscovery is unavailable. If the
+saved address is unreachable, offer **Connect headset** to rediscover it with
+the browser's chooser and reuse its enrollment. The browser must show when
+platform permission or a new confirmation is needed. The headset must let the
+wearer revoke enrollment. Enrollment identifies the controller. Starting or
+stopping the helper session still belongs to the wearer.
+
+The companion uses Bluetooth for discovery and an authenticated network
+connection for its fixed status and audio operations. Test fresh browser setup, reconnect,
+selection with two nearby headsets, and revoked enrollment on physical
+devices before qualifying it for distribution.
+
+[Pairing source pin](quest-status-audio/browser/vendor/quest-pairing.source.json) ·
+[Reconnect implementation](quest-status-audio/browser/controller.js)
+
 ## 2. Use ordinary app permissions first
 
-Start with companion status and one app-owned effect, such as playing and
-stopping a short clip. A bounded headset probe used an ADB-gated debug trigger
+Start with the [standalone status and audio example](quest-status-audio/README.md).
+It uses a wearer-started Bluetooth session to read battery, charging, and
+session status, identify the headset with a bundled tone, and stop playback.
+An earlier bounded headset probe used an ADB-gated debug trigger
 and ordinary Android audio playback while another app retained XR focus.
 For sustained playback, test a user-started media service and expose its
 actual playback and stop state. The short probe leaves long-duration and
@@ -84,6 +108,11 @@ recovery open.
 [Attended boot qualification](https://github.com/MesmerPrism/meta-quest-agent-workflow/blob/39a4641d34d806a7604e61dd5dc9e810d86608df/docs/boot-wireless-adb-qualification.md) ·
 [Shell recenter](quest-shell-recenter/README.md)
 
+The [developer recovery status panel](quest-recovery-status/README.md) can display
+imported boot, approval, shell, and watchdog observations without dispatching a
+headset command. Keep those observations distinct from the ordinary Bluetooth
+companion's session state.
+
 ## Verify the desktop baseline
 
 Run these checks from separate clean checkouts of the documented source
@@ -101,7 +130,7 @@ revisions. They need no phone, headset, or ADB transport.
   The fixture exercises the shared browser GATT lifetime. A desktop browser's
   Bluetooth chooser and a real headset connection are separate checks.
 
-For a standalone companion, first test that an enrolled session can report its
+For the standalone companion, first test that an enrolled session can report its
 own readiness and start and stop a bundled clip. Use a fixture to exercise
 enrollment rejection, stale status, reload, and a lost command response. On
 reconnect, look up the original request before offering another playback action.
@@ -121,7 +150,5 @@ approval, shell readiness, and unknown operation outcomes separately.
 The ordinary app acceptance is complete when the wearer hears the clip start
 and stop while another immersive app retains XR focus. After a headset reboot,
 explicitly start the companion and repeat the connection. Test the public
-origin in the target mobile browser before qualifying the phone route. A
-future runnable example should use its own APK and build, reuse the owner
-adapters, and keep browser commands typed and bounded. The
+origin in the target mobile browser before qualifying the phone route. The
 [utility catalogue](README.md) links the existing parts.

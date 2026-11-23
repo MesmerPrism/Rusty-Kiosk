@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>Quest recovery status</title>
+  <link rel="stylesheet" href="./status.css">
+  <script src="./recovery-status.js" defer></script>
+  <script src="./sample.js" defer></script>
+  <script src="./panel.js" defer></script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Quest recovery status</h1>
+      <p>Review captured evidence for one headset and boot. Observations expire from this view after two minutes.</p>
+    </header>
+    <section class="imports" aria-label="Evidence source">
+      <label for="report-file">Open recovery report</label>
+      <input id="report-file" type="file" accept="application/json,.json">
+      <div class="sample-controls">
+        <label for="sample">Sample scenario</label>
+        <select id="sample">
+          <option value="wifi">Waiting for Wi-Fi</option>
+          <option value="approval">Wearer approval</option>
+          <option value="ready">Verified shell and watchdog</option>
+        </select>
+        <button id="load-sample" type="button">Load sample</button>
+        <button id="clear" type="button" disabled>Clear</button>
+      </div>
+      <p id="source" role="status">Open a local report or load a simulated sample.</p>
+    </section>
+
+    <section class="signals" aria-label="Recovery observations">
+      <article data-signal="boot">
+        <h2>Wi-Fi after reboot</h2>
+        <strong class="result">Unknown</strong>
+        <p>Latest Rusty Kiosk boot request</p>
+        <time hidden></time>
+      </article>
+      <article data-signal="approval">
+        <h2>Wearer approval</h2>
+        <strong class="result">Unknown</strong>
+        <p>Observed Horizon approval prompt or wearer response</p>
+        <time hidden></time>
+      </article>
+      <article data-signal="setting">
+        <h2>Wireless debugging setting</h2>
+        <strong class="result">Unknown</strong>
+        <p>Setting reported by QFM's typed Kiosk status</p>
+        <time hidden></time>
+      </article>
+      <article data-signal="shell">
+        <h2>Wireless ADB shell</h2>
+        <strong class="result">Unknown</strong>
+        <p>Authenticated shell UID on the selected Wi-Fi transport</p>
+        <time hidden></time>
+      </article>
+      <article data-signal="watchdog">
+        <h2>Keep-awake watchdog</h2>
+        <strong class="result">Unknown</strong>
+        <p>QFM owner identity, lease, and latest poll</p>
+        <time hidden></time>
+      </article>
+    </section>
+    <noscript><p>Enable JavaScript to read a local report.</p></noscript>
+  </main>
+</body>
+</html>

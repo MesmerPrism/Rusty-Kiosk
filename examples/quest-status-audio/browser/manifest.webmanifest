@@ -1,0 +1,14 @@
+{
+  "id": "./",
+  "name": "Quest status and audio",
+  "short_name": "Quest audio",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f8fb",
+  "theme_color": "#f6f8fb",
+  "icons": [
+    { "src": "./icons/quest-audio-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icons/quest-audio-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
