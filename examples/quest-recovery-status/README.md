@@ -8,13 +8,63 @@ From the repository root, open it directly in a desktop browser:
 
 ```powershell
 Invoke-Item .\examples\quest-recovery-status\index.html
-node --test examples/quest-recovery-status/recovery-status.test.cjs
+node --test examples/quest-recovery-status/recovery-status.test.cjs examples/quest-recovery-status/build-recovery-report.test.cjs
 ```
 
 Choose **Load sample** to inspect one of the three simulated scenarios. Use
 **Open recovery report** for actual evidence and **Clear** when done. Local
 reports can contain private details. Keep those files in private storage and
 use only synthetic evidence in examples, screenshots, and commits.
+
+## Assemble a report from saved readbacks
+
+Put the saved owner receipts and a capture manifest in the same private folder.
+The manifest records the selected headset and boot in `context`, and the
+original identity and observation time alongside each receipt filename. Use
+only the source keys you captured. The example below describes one saved Kiosk
+result. Replace its example identity, boot count, and observation times with
+the actual capture values.
+
+```json
+{
+  "schema": "rusty-kiosk.recovery-manifest.v1",
+  "context": {
+    "serial": "demo-headset",
+    "boot_id": "00000000-0000-4000-8000-000000000100",
+    "boot_count": 12,
+    "observed_at_ms": 1767268800000
+  },
+  "kiosk": {
+    "file": "kiosk.json",
+    "serial": "demo-headset",
+    "boot_id": "00000000-0000-4000-8000-000000000100",
+    "observed_at_ms": 1767268800000
+  }
+}
+```
+
+Other optional keys are `qfm`, `approval`, `shell`, and `watchdog`. Use a direct
+sibling `.json` filename for each receipt. For `shell`, also include
+`"transport": "wifi-adb"` in its manifest entry when the shell capture came
+from that exact transport. The saved receipt supplies hardware serial, boot
+UUID, UID, and its own Wi-Fi transport evidence. The builder accepts the
+explicit transport field or a matching endpoint and connection result from
+the earlier attended receipt format. The Android `boot_count` qualifies the
+Kiosk boot-request row and can be omitted when unknown.
+
+From the repository root, use PowerShell to save the builder's output:
+
+```powershell
+$report = node .\examples\quest-recovery-status\build-recovery-report.cjs .\local\capture\manifest.json
+if ($LASTEXITCODE -ne 0) { throw 'Recovery report assembly failed.' }
+$report | Set-Content -LiteralPath .\local\capture\recovery-report.json -Encoding utf8
+```
+
+Open `recovery-report.json` in the panel. The builder checks the declared
+headset and boot, preserves the capture times, and projects the fields the
+panel reads. The manifest records the operator's capture binding, and the
+output keeps the selected hardware serial and boot IDs. Keep it alongside the
+original private records.
 
 ## Report format
 
@@ -24,8 +74,8 @@ Android `boot_count` when known, and capture time `observed_at_ms`. Use Unix
 milliseconds from the actual capture. Select the exact device before collecting
 each result, including when the ADB transport endpoint differs from the hardware
 serial. The panel accepts alphanumeric hardware serials and permits hyphens or
-underscores for fixture identifiers. Retain the kernel boot ID from the same capture. The wrapper records the
-operator's evidence binding. Parsing it does not authenticate who created it.
+underscores for fixture identifiers. Retain the kernel boot ID from the same
+capture. The wrapper records the operator's evidence binding.
 
 Each optional source is `{serial, boot_id, observed_at_ms, receipt}`. Use the
 capture's actual identity and time. Observations turn stale after two minutes

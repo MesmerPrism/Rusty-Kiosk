@@ -30,13 +30,13 @@
   }
 
   function bootId(value) {
-    return typeof value === 'string' && BOOT_ID.test(value) && value !== EMPTY_BOOT
+    return typeof value === 'string' && value.length === 36 && BOOT_ID.test(value) && value !== EMPTY_BOOT
       ? value.toLowerCase()
       : null;
   }
 
   function serial(value) {
-    return typeof value === 'string' && HARDWARE_SERIAL.test(value);
+    return typeof value === 'string' && value === value.trim() && HARDWARE_SERIAL.test(value);
   }
 
   function card(label = 'Unknown', tone = 'neutral', observedAt = null) {
@@ -133,4 +133,7 @@
   }
 
   exports.projectRecovery = projectRecovery;
+  exports.normalizeBootId = bootId;
+  exports.validHardwareSerial = serial;
+  exports.validBootOutcome = value => BOOT_LABELS.has(value);
 })(typeof module === 'object' ? module.exports : (globalThis.QuestRecoveryStatus = {}));
